@@ -20,8 +20,9 @@ from django.urls import include, path
 urlpatterns = [
     path('admin/', admin.site.urls),
 
-    # Material Management API (CPMAS-28). Each domain app mounts its own
-    # DRF router under /api/<app>/ as it's built out, so this list grows
-    # one line per app rather than centralizing all routes here.
-    path('api/inventory/', include('inventory.urls')),
+    # Each domain app mounts its own DRF router under /api/<app>/ as it's
+    # built out, so this list grows one line per app rather than
+    # centralizing all routes here.
+    path('api/inventory/', include('inventory.urls')),  # CPMAS-28, CPMAS-29
+    path('api/purchasing/', include('purchasing.urls')),  # CPMAS-30
 ]

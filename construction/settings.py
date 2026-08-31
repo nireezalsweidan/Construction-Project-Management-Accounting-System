@@ -55,10 +55,12 @@ INSTALLED_APPS = [
     'rest_framework',
 
     # Domain apps registered so far (Sprint 2: CPMAS-28 Material Management,
-    # CPMAS-29 Inventory & Warehouse Management).
+    # CPMAS-29 Inventory & Warehouse Management, CPMAS-30 Purchase Order
+    # Management).
     # taxes, suppliers, and users are wired in here only as minimal FK
     # targets required by apps.inventory (Material.tax_rate/default_supplier,
-    # StockMovement.user); their own management APIs are separate,
+    # StockMovement.user) and apps.purchasing (PurchaseOrder.created_by,
+    # PurchaseOrderItem.tax_rate); their own management APIs are separate,
     # unassigned/other-owner tickets and are not built here. users.User is
     # additionally managed=False -- it reflects an existing table this app
     # doesn't own the lifecycle of.
@@ -66,6 +68,7 @@ INSTALLED_APPS = [
     'suppliers',
     'users',
     'inventory',
+    'purchasing',
 ]
 
 MIDDLEWARE = [
@@ -141,7 +144,17 @@ TIME_ZONE = 'UTC'
 
 USE_I18N = True
 
-USE_TZ = True
+# The live database's timestamp columns are all TIMESTAMP (no timezone),
+# not TIMESTAMPTZ -- so Django's normal USE_TZ=True aware-datetime
+# handling round-trips values as naive on every read, which then trips
+# "naive datetime" RuntimeWarnings (and semantically wrong re-saves) on
+# any full-instance update. False matches the DB exactly as provisioned;
+# combined with TIME_ZONE='UTC' above, all datetimes are naive but
+# consistently mean UTC throughout the app -- equivalent in practice to
+# aware-UTC, just without Django's aware-datetime machinery fighting the
+# schema. Revisit only if the live TIMESTAMP columns are ever migrated to
+# TIMESTAMPTZ (a separate, cross-cutting schema change, not done here).
+USE_TZ = False
 
 
 # Static files (CSS, JavaScript, Images)
