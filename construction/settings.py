@@ -60,6 +60,7 @@ INSTALLED_APPS = [
 
     # Third-party
     'rest_framework',
+    'django_filters',
 
     # Domain apps registered so far (Sprint 2: CPMAS-28 Material Management,
     # CPMAS-29 Inventory & Warehouse Management, CPMAS-30 Purchase Order
@@ -77,6 +78,7 @@ INSTALLED_APPS = [
     'inventory',
     'purchasing',
     'invoicing',
+    'projects',
 ]
 
 MIDDLEWARE = [
