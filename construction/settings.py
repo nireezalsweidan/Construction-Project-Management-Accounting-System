@@ -115,6 +115,29 @@ DATABASES = {
     }
 }
 
+# `manage.py test` runs against an in-memory SQLite database instead of
+# the configured Postgres/Supabase connection. Reasons:
+# 1. The test suite must run with zero setup (no live DB credentials,
+#    works in CI) -- it shouldn't depend on a shared Supabase instance
+#    being reachable or on the connection user having CREATEDB rights
+#    (needed for Django's normal "create a throwaway test_<dbname>"
+#    behavior, which the Supabase pooler connection may not have).
+# 2. It's fast and fully isolated: every test runs inside a transaction
+#    that's rolled back, with no risk of leaving data in a real database
+#    (unlike the manual create/cleanup scripts used during development).
+if "test" in sys.argv:
+    DATABASES["default"] = {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": ":memory:",
+    }
+
+# See construction/test_runner.py's docstring: without this, plain
+# `manage.py test` (no extra flags) fails because apps/ is both a real
+# Python package (apps/__init__.py) and reachable via the sys.path
+# insert above under each app's short name -- discovery needs to be
+# told which of the two import paths to use.
+TEST_RUNNER = 'construction.test_runner.AppsDirTestRunner'
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
