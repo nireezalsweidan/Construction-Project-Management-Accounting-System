@@ -70,7 +70,10 @@ class PurchaseOrder(models.Model):
     tax_amount = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     total_amount = models.DecimalField(max_digits=18, decimal_places=2, default=0)
 
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    # db_index=True matches the live database's idx_purchase_orders_status
+    # index (not a FK column, so Django wouldn't add one automatically);
+    # also directly supports PurchaseOrderViewSet's ?status= filtering.
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT, db_index=True)
 
     # PROTECT: who created a PO is part of its audit trail and shouldn't
     # be erasable by deleting their user record. db_column='created_by':

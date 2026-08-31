@@ -172,11 +172,13 @@ class Stock(models.Model):
     read-only to enforce that at the API layer too.
 
     unique_together enforces exactly one balance row per (warehouse,
-    material) pair -- correcting a bug found in the live database, which
-    originally had separate single-column UNIQUE constraints on
-    warehouse_id and material_id individually (limiting a material to a
-    single warehouse system-wide). Reconciled via migration 0002, which
-    drops those two constraints and adds this composite one.
+    material) pair, matching the live database's composite
+    UNIQUE(warehouse_id, material_id) constraint exactly. (An earlier
+    constraint-inspection query during development misread this as two
+    separate single-column UNIQUE constraints and briefly suspected a bug
+    here; that was a flawed query, not a real issue -- see the CPMAS-29
+    commit history. Confirmed correct against the canonical
+    construction_management_supabase.sql.)
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -240,7 +242,12 @@ class StockMovement(models.Model):
 
     quantity = models.DecimalField(max_digits=18, decimal_places=3)
     movement_type = models.CharField(max_length=20, choices=MovementType.choices)
-    movement_date = models.DateTimeField(default=timezone.now)
+
+    # db_index=True matches the live database's idx_stock_movements_date
+    # index (not a FK column, so Django wouldn't add one automatically);
+    # also directly supports StockMovementViewSet's default ordering and
+    # ?date_from=/?date_to= filtering.
+    movement_date = models.DateTimeField(default=timezone.now, db_index=True)
 
     # References apps.users.User (the existing, unmanaged reflection of the
     # live `users` table) rather than Django's default auth user model --
