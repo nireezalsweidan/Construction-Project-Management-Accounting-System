@@ -44,6 +44,12 @@ class Supplier(models.Model):
     # their history on past purchase orders / invoices.
     is_active = models.BooleanField(default=True)
 
+    # Audit timestamps. Present on the live database table (added there
+    # ahead of this model); mirrored here so they're readable/writable
+    # through the ORM instead of silently existing only at the DB layer.
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
     class Meta:
         db_table = 'suppliers'
         ordering = ['name']

@@ -24,7 +24,12 @@ class MaterialCategory(models.Model):
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=150)
+
+    # unique=True matches a UNIQUE constraint already present on the live
+    # database table -- two categories with the same name would make the
+    # material catalog's grouping ambiguous.
+    name = models.CharField(max_length=150, unique=True)
+
     description = models.TextField(blank=True, null=True)
 
     class Meta:
@@ -102,10 +107,16 @@ class Material(models.Model):
 
     # Reorder/low-stock alert threshold (BRD 5.13: "Low-stock alerts").
     # DECIMAL(18,3) in the schema to support fractional units (e.g. cubic
-    # meters of concrete).
-    minimum_stock_level = models.DecimalField(max_digits=18, decimal_places=3)
+    # meters of concrete). default=0 matches the live database column's
+    # default so creating a Material without specifying this explicitly
+    # behaves identically at the ORM and DB layers.
+    minimum_stock_level = models.DecimalField(max_digits=18, decimal_places=3, default=0)
 
     is_active = models.BooleanField(default=True)
+
+    # Audit timestamps -- see the same note on suppliers.Supplier.
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'materials'
