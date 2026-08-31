@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 
 from dotenv import load_dotenv
 
@@ -20,11 +21,21 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Domain apps (accounting, inventory, projects, ...) live under BASE_DIR/apps
+# instead of the project root, per the BRD's requirement to split models
+# across domain-specific Django apps. Adding this directory to sys.path lets
+# each app be registered in INSTALLED_APPS by its short name (e.g.
+# "inventory") rather than the more verbose "apps.inventory" dotted path.
+sys.path.insert(0, str(BASE_DIR / "apps"))
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
+# Required (not defaulted) on purpose -- see .env.example -- so a
+# deployment can't silently run with the Django-generated placeholder key
+# scaffolding ships with.
 SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -46,6 +57,25 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    # Third-party
+    'rest_framework',
+
+    # Domain apps registered so far (Sprint 2: CPMAS-28 Material Management,
+    # CPMAS-29 Inventory & Warehouse Management, CPMAS-30 Purchase Order
+    # Management).
+    # taxes, suppliers, and users are wired in here only as minimal FK
+    # targets required by apps.inventory (Material.tax_rate/default_supplier,
+    # StockMovement.user) and apps.purchasing (PurchaseOrder.created_by,
+    # PurchaseOrderItem.tax_rate); their own management APIs are separate,
+    # unassigned/other-owner tickets and are not built here. users.User is
+    # additionally managed=False -- it reflects an existing table this app
+    # doesn't own the lifecycle of.
+    'taxes',
+    'suppliers',
+    'users',
+    'inventory',
+    'purchasing',
 ]
 
 MIDDLEWARE = [
@@ -95,6 +125,29 @@ DATABASES = {
     }
 }
 
+# `manage.py test` runs against an in-memory SQLite database instead of
+# the configured Postgres/Supabase connection. Reasons:
+# 1. The test suite must run with zero setup (no live DB credentials,
+#    works in CI) -- it shouldn't depend on a shared Supabase instance
+#    being reachable or on the connection user having CREATEDB rights
+#    (needed for Django's normal "create a throwaway test_<dbname>"
+#    behavior, which the Supabase pooler connection may not have).
+# 2. It's fast and fully isolated: every test runs inside a transaction
+#    that's rolled back, with no risk of leaving data in a real database
+#    (unlike the manual create/cleanup scripts used during development).
+if "test" in sys.argv:
+    DATABASES["default"] = {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": ":memory:",
+    }
+
+# See construction/test_runner.py's docstring: without this, plain
+# `manage.py test` (no extra flags) fails because apps/ is both a real
+# Python package (apps/__init__.py) and reachable via the sys.path
+# insert above under each app's short name -- discovery needs to be
+# told which of the two import paths to use.
+TEST_RUNNER = 'construction.test_runner.AppsDirTestRunner'
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -124,7 +177,17 @@ TIME_ZONE = 'UTC'
 
 USE_I18N = True
 
-USE_TZ = True
+# The live database's timestamp columns are all TIMESTAMP (no timezone),
+# not TIMESTAMPTZ -- so Django's normal USE_TZ=True aware-datetime
+# handling round-trips values as naive on every read, which then trips
+# "naive datetime" RuntimeWarnings (and semantically wrong re-saves) on
+# any full-instance update. False matches the DB exactly as provisioned;
+# combined with TIME_ZONE='UTC' above, all datetimes are naive but
+# consistently mean UTC throughout the app -- equivalent in practice to
+# aware-UTC, just without Django's aware-datetime machinery fighting the
+# schema. Revisit only if the live TIMESTAMP columns are ever migrated to
+# TIMESTAMPTZ (a separate, cross-cutting schema change, not done here).
+USE_TZ = False
 
 
 # Static files (CSS, JavaScript, Images)
@@ -136,3 +199,25 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# Django REST Framework
+# https://www.django-rest-framework.org/api-guide/settings/
+#
+# BRD 13.1 (Security) requires API authentication and permission checks on
+# every endpoint. IsAuthenticated is the safe default until the users/RBAC
+# app (separate ticket) adds per-role permission classes on top of this.
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 25,
+    'DEFAULT_FILTER_BACKENDS': [
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
+}
