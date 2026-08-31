@@ -24,5 +24,6 @@ urlpatterns = [
     # built out, so this list grows one line per app rather than
     # centralizing all routes here.
     path('api/inventory/', include('inventory.urls')),  # CPMAS-28, CPMAS-29
-    path('api/purchasing/', include('purchasing.urls')),  # CPMAS-30
+    path('api/purchasing/', include('purchasing.urls')),  # CPMAS-30, CPMAS-31
+    path('api/invoicing/', include('invoicing.urls')),  # CPMAS-32
 ]

@@ -63,7 +63,7 @@ INSTALLED_APPS = [
 
     # Domain apps registered so far (Sprint 2: CPMAS-28 Material Management,
     # CPMAS-29 Inventory & Warehouse Management, CPMAS-30 Purchase Order
-    # Management).
+    # Management, CPMAS-31 Goods Receiving, CPMAS-32 Supplier Invoices).
     # taxes, suppliers, and users are wired in here only as minimal FK
     # targets required by apps.inventory (Material.tax_rate/default_supplier,
     # StockMovement.user) and apps.purchasing (PurchaseOrder.created_by,
@@ -76,6 +76,7 @@ INSTALLED_APPS = [
     'users',
     'inventory',
     'purchasing',
+    'invoicing',
 ]
 
 MIDDLEWARE = [
