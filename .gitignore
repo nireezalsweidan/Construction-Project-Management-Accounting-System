@@ -1,4 +1,10 @@
 venv/
+.venv/
 *.sqlite3
 __pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+.idea/
+.vscode/
 .env
