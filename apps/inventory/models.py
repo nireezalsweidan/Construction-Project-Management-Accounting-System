@@ -1,19 +1,30 @@
 """
-Models for the ``inventory`` app -- Material Management slice (CPMAS-28).
+Models for the ``inventory`` app.
 
-Implements the material catalog: ``MaterialCategory`` and ``Material``,
-matching the ``material_categories`` and ``materials`` tables in the
-approved database schema (BRD 5.12 Material Management).
+Implements the full BRD 5.12/5.13 Material & Inventory Management slice:
+- ``MaterialCategory`` / ``Material`` -- the material catalog (CPMAS-28),
+  matching the ``material_categories`` / ``materials`` tables.
+- ``Warehouse`` / ``Stock`` / ``StockMovement`` -- warehouses, current
+  on-hand quantities, and the movement ledger (CPMAS-29), matching the
+  ``warehouses`` / ``stocks`` / ``stock_movements`` tables.
 
-Warehouse/stock/stock-movement models (BRD 5.13 Inventory Management,
-CPMAS-29) are added to this same app in the next Sprint 2 task -- the
-schema groups Materials, Warehouses, Stock and Stock Movements together
-under a single ``inventory/`` Django app, since stock rows and movements
-both reference ``Material`` directly.
+Business rule 12.6 ("Inventory quantity updated exclusively through stock
+movements") is enforced by treating ``Stock.quantity`` as a value only
+ever written by ``inventory.services.apply_stock_movement`` -- never
+accepted as writable input on the Stock API -- and by exposing
+``StockMovement`` as an append-only ledger (create/read only, no
+update/delete) rather than a freely editable table.
+
+``StockMovement.project`` is intentionally NOT modeled yet: the schema
+defines it as an optional FK into ``projects.Project``, but that app (and
+its own manager FK into ``employees.Employee``) belongs to other,
+currently unbuilt tickets. Adding it later is a straightforward additive
+migration once those land.
 """
 import uuid
 
 from django.db import models
+from django.utils import timezone
 
 
 class MaterialCategory(models.Model):
@@ -126,3 +137,125 @@ class Material(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.sku})"
+
+
+class Warehouse(models.Model):
+    """
+    A physical storage location materials are held at.
+
+    Matches the ``warehouses`` table in the approved schema.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255)
+    location = models.TextField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'warehouses'
+        ordering = ['name']
+        verbose_name = 'Warehouse'
+        verbose_name_plural = 'Warehouses'
+
+    def __str__(self):
+        return self.name
+
+
+class Stock(models.Model):
+    """
+    Current on-hand quantity of one material at one warehouse.
+
+    Matches the ``stocks`` table. ``quantity`` must never be written
+    directly through the API -- per BR 12.6, it is only ever mutated by
+    ``inventory.services.apply_stock_movement`` in response to a new
+    ``StockMovement``. The serializer/viewset for this model expose it as
+    read-only to enforce that at the API layer too.
+
+    unique_together enforces exactly one balance row per (warehouse,
+    material) pair -- correcting a bug found in the live database, which
+    originally had separate single-column UNIQUE constraints on
+    warehouse_id and material_id individually (limiting a material to a
+    single warehouse system-wide). Reconciled via migration 0002, which
+    drops those two constraints and adds this composite one.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # PROTECT: a warehouse/material with recorded stock shouldn't be
+    # deletable out from under that balance -- deactivate (is_active=False)
+    # instead of deleting.
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.PROTECT, related_name='stocks')
+    material = models.ForeignKey(Material, on_delete=models.PROTECT, related_name='stocks')
+
+    quantity = models.DecimalField(max_digits=18, decimal_places=3, default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'stocks'
+        ordering = ['warehouse__name', 'material__name']
+        unique_together = [('warehouse', 'material')]
+        verbose_name = 'Stock'
+        verbose_name_plural = 'Stocks'
+
+    def __str__(self):
+        return f"{self.material} @ {self.warehouse}: {self.quantity}"
+
+
+class StockMovement(models.Model):
+    """
+    An immutable ledger entry recording a change in stock quantity.
+
+    Matches the ``stock_movements`` table (minus ``project_id`` -- see the
+    module docstring). ``movement_type`` values match the live Postgres
+    enum ``movement_type_enum`` exactly (IN/OUT/RETURN/TRANSFER/ADJUSTMENT)
+    rather than the more granular categories BRD 5.13 lists in prose
+    (Purchase, Project Usage, ...) -- the ``reference``/``notes`` fields
+    carry that business context instead (e.g. a PO number for an IN
+    movement caused by a goods receipt).
+
+    ``quantity`` is a signed magnitude: positive for movements that
+    increase stock (IN, RETURN, and the destination leg of a TRANSFER),
+    negative for movements that decrease it (OUT, ADJUSTMENT down, and the
+    source leg of a TRANSFER). This is the one place this app's design
+    deviates from a literal reading of "quantity DECIMAL(18,3) NOT NULL"
+    in the schema -- it doesn't forbid negative values, and a signed
+    quantity is what lets ``apply_stock_movement`` update Stock with a
+    single addition regardless of movement type.
+    """
+
+    class MovementType(models.TextChoices):
+        IN = 'IN', 'In'
+        OUT = 'OUT', 'Out'
+        RETURN = 'RETURN', 'Return'
+        TRANSFER = 'TRANSFER', 'Transfer'
+        ADJUSTMENT = 'ADJUSTMENT', 'Adjustment'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # PROTECT throughout: a movement is a historical ledger entry -- the
+    # material/warehouse/user it references should never be deletable out
+    # from under it, since that would corrupt the audit trail.
+    material = models.ForeignKey(Material, on_delete=models.PROTECT, related_name='stock_movements')
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.PROTECT, related_name='stock_movements')
+
+    quantity = models.DecimalField(max_digits=18, decimal_places=3)
+    movement_type = models.CharField(max_length=20, choices=MovementType.choices)
+    movement_date = models.DateTimeField(default=timezone.now)
+
+    # References apps.users.User (the existing, unmanaged reflection of the
+    # live `users` table) rather than Django's default auth user model --
+    # the live FK constraint on stock_movements.user_id targets `users`,
+    # not `auth_user`, so this is the only model that can satisfy it.
+    user = models.ForeignKey('users.User', on_delete=models.PROTECT, related_name='stock_movements')
+
+    reference = models.CharField(max_length=255, blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'stock_movements'
+        ordering = ['-movement_date']
+        verbose_name = 'Stock Movement'
+        verbose_name_plural = 'Stock Movements'
+
+    def __str__(self):
+        return f"{self.movement_type} {self.quantity} of {self.material} @ {self.warehouse}"
