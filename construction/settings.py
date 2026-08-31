@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 
 from dotenv import load_dotenv
 
@@ -19,6 +20,13 @@ load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Domain apps (accounting, inventory, projects, ...) live under BASE_DIR/apps
+# instead of the project root, per the BRD's requirement to split models
+# across domain-specific Django apps. Adding this directory to sys.path lets
+# each app be registered in INSTALLED_APPS by its short name (e.g.
+# "inventory") rather than the more verbose "apps.inventory" dotted path.
+sys.path.insert(0, str(BASE_DIR / "apps"))
 
 
 # Quick-start development settings - unsuitable for production
@@ -42,6 +50,17 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    # Third-party
+    'rest_framework',
+
+    # Domain apps registered so far (Sprint 2 / CPMAS-28: Material Management).
+    # taxes and suppliers are wired in here only as minimal FK targets required
+    # by apps.inventory.Material (tax_rate, default_supplier); their own
+    # management APIs are separate, unassigned tickets and are not built here.
+    'taxes',
+    'suppliers',
+    'inventory',
 ]
 
 MIDDLEWARE = [
@@ -129,3 +148,25 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# Django REST Framework
+# https://www.django-rest-framework.org/api-guide/settings/
+#
+# BRD 13.1 (Security) requires API authentication and permission checks on
+# every endpoint. IsAuthenticated is the safe default until the users/RBAC
+# app (separate ticket) adds per-role permission classes on top of this.
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 25,
+    'DEFAULT_FILTER_BACKENDS': [
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
+}

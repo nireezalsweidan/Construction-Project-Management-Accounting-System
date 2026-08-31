@@ -15,8 +15,13 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+
+    # Material Management API (CPMAS-28). Each domain app mounts its own
+    # DRF router under /api/<app>/ as it's built out, so this list grows
+    # one line per app rather than centralizing all routes here.
+    path('api/inventory/', include('inventory.urls')),
 ]
