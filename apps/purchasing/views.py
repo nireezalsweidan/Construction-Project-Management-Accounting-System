@@ -1,15 +1,21 @@
 """
 DRF viewsets for the ``purchasing`` app -- Purchase Order Management
-slice (CPMAS-30).
+(CPMAS-30) and Goods Receiving (CPMAS-31) slices.
 """
 from django.db import transaction
-from rest_framework import viewsets
+from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
-from .models import PurchaseOrder, PurchaseOrderItem
-from .serializers import PurchaseOrderItemSerializer, PurchaseOrderSerializer, apply_transition
+from .models import GoodsReceipt, GoodsReceiptItem, PurchaseOrder, PurchaseOrderItem
+from .serializers import (
+    GoodsReceiptItemSerializer,
+    GoodsReceiptSerializer,
+    PurchaseOrderItemSerializer,
+    PurchaseOrderSerializer,
+    apply_transition,
+)
 from .services import recalculate_po_totals
 
 
@@ -122,3 +128,51 @@ class PurchaseOrderItemViewSet(viewsets.ModelViewSet):
         purchase_order = instance.purchase_order
         instance.delete()
         recalculate_po_totals(purchase_order)
+
+
+class GoodsReceiptViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
+                           mixins.CreateModelMixin, viewsets.GenericViewSet):
+    """
+    Append-only API for goods receipts.
+
+    list/retrieve/create only -- no update/destroy. All the real work
+    (validating received quantities, creating items, applying stock
+    movements, recalculating the PO's status) happens in
+    GoodsReceiptSerializer.create() -> purchasing.services.receive_goods;
+    this viewset just wires it up and adds ?purchase_order= filtering.
+    """
+
+    queryset = GoodsReceipt.objects.select_related('purchase_order', 'warehouse').prefetch_related('items').all()
+    serializer_class = GoodsReceiptSerializer
+    search_fields = ['receipt_number', 'purchase_order__po_number']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        purchase_order_id = self.request.query_params.get('purchase_order')
+        if purchase_order_id:
+            queryset = queryset.filter(purchase_order_id=purchase_order_id)
+        return queryset
+
+
+class GoodsReceiptItemViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    """
+    Read-only history API for goods receipt items.
+
+    Items are only ever created as part of a GoodsReceipt (see
+    GoodsReceiptViewSet) -- this exists purely so receiving history can
+    be queried/filtered independently, e.g. ?purchase_order_item=<uuid>
+    to see everything received against one PO line (BRD 5.15's
+    Ordered/Received/Remaining comparison, at the individual-receipt
+    level rather than just the aggregate exposed on
+    PurchaseOrderItemSerializer).
+    """
+
+    queryset = GoodsReceiptItem.objects.select_related('goods_receipt', 'purchase_order_item__material').all()
+    serializer_class = GoodsReceiptItemSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        po_item_id = self.request.query_params.get('purchase_order_item')
+        if po_item_id:
+            queryset = queryset.filter(purchase_order_item_id=po_item_id)
+        return queryset

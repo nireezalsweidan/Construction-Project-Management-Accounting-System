@@ -17,6 +17,17 @@ calculated from transactional data, not manually maintained.
 as ``inventory.StockMovement.project`` (CPMAS-29): it's an optional FK
 into ``projects.Project``, owned by a separate, currently-unbuilt ticket
 (CPMAS-47). Adding it later is an additive migration.
+
+Also implements ``GoodsReceipt`` / ``GoodsReceiptItem`` (CPMAS-31: Goods
+Receiving), matching the ``goods_receipts`` / ``goods_receipt_items``
+tables. Receiving is the point where a PO's ordered quantities turn into
+actual on-hand stock -- see ``purchasing.services.receive_goods`` for how
+a receipt's items, the resulting ``inventory.StockMovement`` rows, and
+the parent PO's status all update together atomically.
+
+``GoodsReceipt.received_by`` is intentionally NOT modeled -- it's an
+optional FK into ``employees.Employee``, owned by a separate,
+currently-unbuilt ticket (CPMAS-38), same reasoning as ``project`` above.
 """
 import uuid
 
@@ -120,8 +131,91 @@ class PurchaseOrderItem(models.Model):
 
     class Meta:
         db_table = 'purchase_order_items'
+        # No natural ordering column in the schema; ordering by id keeps
+        # API pagination deterministic (an unordered queryset can return
+        # inconsistent pages/duplicates/gaps across requests -- Django
+        # warns about exactly this on any paginated, order-less queryset).
+        ordering = ['id']
         verbose_name = 'Purchase Order Item'
         verbose_name_plural = 'Purchase Order Items'
 
     def __str__(self):
         return f"{self.material} x{self.quantity} on {self.purchase_order.po_number}"
+
+
+class GoodsReceipt(models.Model):
+    """
+    A record of materials physically received against a purchase order.
+
+    Matches the ``goods_receipts`` table. No ``updated_at`` (matches the
+    live DB exactly) -- like ``StockMovement``, a receipt is an immutable
+    ledger entry once created (see ``GoodsReceiptViewSet``): correcting a
+    mis-receipt means recording an inventory ADJUSTMENT, not editing this
+    row after the fact.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # PROTECT: a PO with receiving history shouldn't be deletable out
+    # from under it.
+    purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.PROTECT, related_name='goods_receipts')
+
+    receipt_number = models.CharField(max_length=100, unique=True)
+    received_date = models.DateField()
+
+    # PROTECT: a warehouse with receiving history shouldn't be deletable
+    # out from under it -- deactivate (is_active=False) instead.
+    warehouse = models.ForeignKey('inventory.Warehouse', on_delete=models.PROTECT, related_name='goods_receipts')
+
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'goods_receipts'
+        ordering = ['-received_date', '-created_at']
+        verbose_name = 'Goods Receipt'
+        verbose_name_plural = 'Goods Receipts'
+
+    def __str__(self):
+        return self.receipt_number
+
+
+class GoodsReceiptItem(models.Model):
+    """
+    A single line on a goods receipt: how much of one PO line was
+    received in this shipment.
+
+    Matches the ``goods_receipt_items`` table. ``quantity_received`` is
+    validated against the linked PO item's remaining (ordered minus
+    already received elsewhere) quantity by
+    ``purchasing.services.receive_goods`` -- never accepted without that
+    check, since over-receiving would silently corrupt both the PO's
+    Ordered/Received/Remaining comparison (BRD 5.15) and the resulting
+    stock movement.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # CASCADE matches the live database's FK constraint: deleting a
+    # receipt deletes its line items with it (same reasoning as
+    # PurchaseOrderItem.purchase_order above).
+    goods_receipt = models.ForeignKey(GoodsReceipt, on_delete=models.CASCADE, related_name='items')
+
+    # PROTECT: a PO item with receiving history shouldn't be deletable
+    # out from under it -- and since PurchaseOrderItem itself only allows
+    # edits while its PO is DRAFT (before any receiving could exist),
+    # this should never actually be exercised in practice.
+    purchase_order_item = models.ForeignKey(PurchaseOrderItem, on_delete=models.PROTECT, related_name='goods_receipt_items')
+
+    quantity_received = models.DecimalField(max_digits=18, decimal_places=3)
+    notes = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'goods_receipt_items'
+        # See PurchaseOrderItem.Meta.ordering -- same reasoning.
+        ordering = ['id']
+        verbose_name = 'Goods Receipt Item'
+        verbose_name_plural = 'Goods Receipt Items'
+
+    def __str__(self):
+        return f"{self.quantity_received} of {self.purchase_order_item} on {self.goods_receipt.receipt_number}"
