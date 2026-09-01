@@ -27,10 +27,11 @@ urlpatterns = [
     path('api/inventory/', include('inventory.urls')),  # CPMAS-28, CPMAS-29
     path('api/purchasing/', include('purchasing.urls')),  # CPMAS-30, CPMAS-31
     path('api/invoicing/', include('invoicing.urls')),  # CPMAS-32
-    path('api/projects/', include('projects.urls')),
-    path('api/clients/', include('clients.urls')),
+    path('api/projects/', include('projects.urls')),  # CPMAS-33
+    path('api/clients/', include('clients.urls')),  # CPMAS-34
     path('api/suppliers/', include('suppliers.urls')),
-    path('api/expenses/', include('expenses.urls')),  # CPMAS-33
-    path('api/accounting/', include('accounting.urls')),  # CPMAS-34
-    path('api/payments/', include('payments.urls')),  # CPMAS-35
+    path('api/expenses/', include('expenses.urls')),  # CPMAS-35
+    path('api/accounting/', include('accounting.urls')),
+    path('api/payments/', include('payments.urls')),
+    path('api/auth/', include('users.urls')),  # Auth & Authorization (RBAC)
 ]

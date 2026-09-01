@@ -154,7 +154,9 @@ class SupplierAPIListCreateTests(SupplierAPITestBase):
     def test_unauthenticated_request_is_blocked(self):
         anonymous = APIClient()
         response = anonymous.get("/api/suppliers/suppliers/")
-        self.assertEqual(response.status_code, 403)
+        # 401 (not 403): with the auth ticket in place, unauthenticated
+        # requests are challenged to authenticate before access is denied.
+        self.assertEqual(response.status_code, 401)
 
     def test_create_supplier(self):
         response = self.client.post("/api/suppliers/suppliers/", {

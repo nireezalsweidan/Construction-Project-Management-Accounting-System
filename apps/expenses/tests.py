@@ -156,4 +156,6 @@ class ExpenseAPITests(ExpensesTestBase):
     def test_anonymous_request_is_rejected(self):
         anon = APIClient()
         response = anon.get("/api/expenses/expenses/")
-        self.assertEqual(response.status_code, 403)
+        # 401 (not 403): with the auth ticket in place, unauthenticated
+        # requests are challenged to authenticate before access is denied.
+        self.assertEqual(response.status_code, 401)
