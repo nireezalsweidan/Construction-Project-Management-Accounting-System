@@ -4,21 +4,23 @@ DRF serializers for the ``suppliers`` app -- Supplier Management.
 Reads supplier profile/contact/payment-terms from the managed ``Supplier``
 model (db_table='suppliers') and exposes read-only views into the
 supplier's purchase orders (``purchasing.PurchaseOrder``), supplier
-invoices (``invoicing.SupplierInvoice``), payments (``clients.ClientPayment``
-over the shared ``payments`` table), receipts (``ReceiptSummary`` over the
-``receipts`` table), and the outstanding payable balance (computed by
+invoices (``invoicing.SupplierInvoice``), outgoing payments
+(``payments.Payment`` over the shared ``payments`` table), and the
+outstanding payable balance (computed by
 ``suppliers.models.get_supplier_financials``).
 
 No new tables are created: every read-mostly source here already exists in
-the approved Supabase schema (see suppliers/models.py docstring for the
-receipts relationship).
+the approved Supabase schema, and the owned ``payments``/``receipts`` tables
+are the responsibility of the ``payments`` app (managed models) -- this app
+only reads them. (``receipts`` is INCOMING/client-only there, so a
+supplier -- always OUTGOING -- never has one.)
 """
-from clients.models import ClientPayment
 from invoicing.models import SupplierInvoice
+from payments.models import Payment
 from purchasing.models import PurchaseOrder
 from rest_framework import serializers
 
-from .models import CURRENCY, ReceiptSummary, Supplier, get_supplier_financials
+from .models import CURRENCY, Supplier, get_supplier_financials
 
 
 class SupplierListSerializer(serializers.ModelSerializer):
@@ -104,28 +106,13 @@ class SupplierPaymentSerializer(serializers.ModelSerializer):
     """Read-only view of the supplier's outgoing payments."""
 
     class Meta:
-        model = ClientPayment
+        model = Payment
         fields = [
             "id",
             "payment_number",
             "payment_date",
             "amount",
             "payment_method",
-            "reference",
-        ]
-
-
-class SupplierReceiptSerializer(serializers.ModelSerializer):
-    """Read-only view of receipts recorded against the supplier's payments."""
-
-    class Meta:
-        model = ReceiptSummary
-        fields = [
-            "id",
-            "payment_id",
-            "receipt_number",
-            "receipt_date",
-            "amount",
             "reference",
         ]
 

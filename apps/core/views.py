@@ -38,6 +38,6 @@ def suppliers(request):
     """
     Supplier Management page. Renders a dashboard view that talks to the
     /api/suppliers/ endpoints (SupplierViewSet) for supplier profile,
-    purchase orders, invoices, payments, receipts, and outstanding balance.
+    purchase orders, invoices, payments, and outstanding balance.
     """
     return render(request, "dashboard/suppliers.html", {"active_page": "suppliers"})

@@ -160,11 +160,6 @@
       cols: ["Payment #", "Date", "Method", "Amount", "Reference"],
       get: s => [{ v: s.payment_number }, { v: s.payment_date }, { v: s.payment_method }, { v: fmtMoney(s.amount) }, { v: s.reference || "—" }],
     },
-    receipts: {
-      label: "Receipts",
-      cols: ["Receipt #", "Date", "Amount", "Reference"],
-      get: s => [{ v: s.receipt_number }, { v: s.receipt_date }, { v: fmtMoney(s.amount) }, { v: s.reference || "—" }],
-    },
   };
 
   async function loadTab(tab) {

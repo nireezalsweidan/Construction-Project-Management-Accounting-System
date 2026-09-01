@@ -69,59 +69,27 @@ class Supplier(models.Model):
 CURRENCY = "USD"
 
 
-class ReceiptSummary(models.Model):
-    """
-    Read-mostly mapping onto the shared ``receipts`` table, scoped to what
-    the supplier profile needs: a receipt is tied to a supplier only via the
-    payments table (``receipts.payment_id -> payments.id``; receipts has no
-    supplier_id of its own -- see line 54 of the schema). A supplier's
-    receipts are therefore those whose payment belongs to that supplier.
-
-    ``managed = False``: the table already exists in Supabase; full receipt
-    create/print lifecycle belongs to the Payments module, not here. Mirrors
-    the read-only mapping style of ``clients.PaymentAllocation``.
-    """
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    payment_id = models.UUIDField()
-    receipt_number = models.CharField(max_length=100, unique=True)
-    receipt_date = models.DateField()
-    amount = models.DecimalField(max_digits=18, decimal_places=2)
-    reference = models.CharField(max_length=255, blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        managed = False
-        db_table = "receipts"
-        ordering = ["-receipt_date"]
-
-    def __str__(self):
-        return self.receipt_number
-
-
 def get_supplier_financials(supplier_id):
     """
-    Supplier-side counterpart of ``clients.get_client_financials``: one
-    shared calculation used by both the supplier detail serializer
-    (outstanding_balance) and the /balance/ endpoint (full breakdown), so
-    the logic only lives in one place.
+    Supplier-side outstanding payable calculation.
 
     total_invoiced excludes DRAFT and CANCELLED supplier invoices -- those
     aren't real payables yet/anymore.
     total_paid is the sum actually allocated against those invoices via
     payment_allocations (not a raw SUM of payments.amount, since a single
-    payment can be split across multiple invoices -- same reasoning as the
-    client helper).
-    outstanding_balance = total_invoiced - total_paid.
+    payment can be split across multiple invoices -- same reasoning as
+    payments.services.outstanding_balance and the client helper).
 
-    Imports are kept local (not module-level) purely to avoid the app-import
-    ordering hazard of a models module importing another app's models at
-    bootstrap time (invoicing/clients both load after suppliers).
+    Uses the ``payments`` app's managed models (PaymentAllocation), which own
+    the payments/payment_allocations tables. Imports are kept local (not
+    module-level) purely to avoid the app-import ordering hazard of a models
+    module importing another app's models at bootstrap time (invoicing and
+    payments both load after suppliers).
     """
     from decimal import Decimal
 
-    from clients.models import PaymentAllocation
     from invoicing.models import SupplierInvoice
+    from payments.models import PaymentAllocation
 
     invoice_qs = SupplierInvoice.objects.filter(supplier_id=supplier_id).exclude(
         status__in=[SupplierInvoice.Status.DRAFT, SupplierInvoice.Status.CANCELLED]
