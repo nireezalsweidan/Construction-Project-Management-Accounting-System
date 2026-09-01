@@ -470,7 +470,7 @@
     height: 3px;
     background: #0b221d;
     z-index: 2;
-    width: 83.33%; /* Default for Step 05 */
+    width: 16.66%; /* Default for Step 01 */
     transition: width 0.5s ease;
   }
 
@@ -600,14 +600,14 @@
 
         <!-- Left Text Side -->
         <div class="card-left-content" id="leftContent">
-          <div class="step-meta-badge" id="stepMeta">STEP 05 / 06</div>
+          <div class="step-meta-badge" id="stepMeta">STEP 01 / 06</div>
           <div class="step-icon-wrapper" id="stepIcon">
             <!-- Dynamic Icon -->
-            <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
           </div>
-          <div class="step-cat-name" id="stepCat">CONTROL</div>
-          <h3 class="step-heading" id="stepHeading">See risk before it becomes delay.</h3>
-          <p class="step-desc" id="stepDesc">Managers review approvals, cost variance, receivables, and project health from one view.</p>
+          <div class="step-cat-name" id="stepCat">PLAN</div>
+          <h3 class="step-heading" id="stepHeading">Turn the contract into a clear delivery plan.</h3>
+          <p class="step-desc" id="stepDesc">Create phases, milestones, responsibilities, and target dates before work begins.</p>
         </div>
 
         <!-- Right Workspace Card -->
@@ -615,19 +615,19 @@
           <div class="ws-header">
             <div class="ws-title-group">
               <span>CEDAR HEIGHTS RESIDENCE</span>
-              <h4 id="wsTitle">Control workspace</h4>
+              <h4 id="wsTitle">Plan workspace</h4>
             </div>
-            <div class="ws-number" id="wsNum">05</div>
+            <div class="ws-number" id="wsNum">01</div>
           </div>
 
           <!-- Stat Box -->
           <div class="stat-banner">
             <div class="stat-icon-square">
-              <svg viewBox="0 0 24 24"><path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+              <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
             </div>
             <div>
-              <div class="stat-value" id="statVal">6.2%</div>
-              <div class="stat-label" id="statLbl">Under planned cost curve</div>
+              <div class="stat-value" id="statVal">6 phases</div>
+              <div class="stat-label" id="statLbl">18 milestones mapped</div>
             </div>
           </div>
 
@@ -636,7 +636,7 @@
             <div class="task-info-left">
               <div class="check-circle">✓</div>
               <div class="task-text">
-                <p id="taskTitle">See risk before it becomes delay.</p>
+                <p id="taskTitle">Turn the contract into a clear delivery plan.</p>
                 <span>Updated just now · Cedar team</span>
               </div>
             </div>
@@ -668,7 +668,7 @@
         <div class="timeline-track-fill" id="trackFill"></div>
 
         <ul class="steps-list">
-          <li class="step-item" onclick="goToStep(0)">
+          <li class="step-item active" onclick="goToStep(0)">
             <span class="step-num">01</span>
             <span class="step-name">Plan</span>
           </li>
@@ -808,7 +808,7 @@
     }
   ];
 
-  let currentStep = 4; // Start at Step 05 Control
+  let currentStep = 0; // Start at Step 01 Plan
   let isPlaying = true;
   let autoplayInterval;
 
