@@ -6,8 +6,20 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from rest_framework import serializers
 
-from .models import SupplierInvoice, SupplierInvoiceItem
-from .services import compute_item_amounts, recalculate_invoice_totals, transition_status
+from .models import ClientInvoice, ClientInvoiceItem, SupplierInvoice, SupplierInvoiceItem
+from .services import (
+    compute_client_invoice_item_amounts,
+    compute_item_amounts,
+    recalculate_client_invoice_totals,
+    recalculate_invoice_totals,
+    transition_client_invoice_status,
+    transition_status,
+)
+
+# Shared instance used to render SerializerMethodField monetary values
+# (outstanding_balance) as the same "0.00"-style string every DecimalField
+# on this API produces -- see get_outstanding_balance's comment below.
+DECIMAL_FIELD = serializers.DecimalField(max_digits=18, decimal_places=2)
 
 
 class SupplierInvoiceItemSerializer(serializers.ModelSerializer):
@@ -80,15 +92,32 @@ class SupplierInvoiceSerializer(serializers.ModelSerializer):
     supplier_name = serializers.CharField(source='supplier.name', read_only=True)
     purchase_order_number = serializers.CharField(source='purchase_order.po_number', read_only=True, default=None)
     items = SupplierInvoiceItemSerializer(many=True, read_only=True)
+    outstanding_balance = serializers.SerializerMethodField()
 
     class Meta:
         model = SupplierInvoice
         fields = [
             'id', 'supplier', 'supplier_name', 'purchase_order', 'purchase_order_number',
             'invoice_number', 'invoice_date', 'due_date', 'subtotal', 'tax_amount',
-            'total_amount', 'status', 'items', 'created_at', 'updated_at',
+            'total_amount', 'status', 'outstanding_balance', 'items', 'created_at', 'updated_at',
         ]
         read_only_fields = ['subtotal', 'tax_amount', 'total_amount', 'status', 'created_at', 'updated_at']
+
+    def get_outstanding_balance(self, obj):
+        # BRD 5.23/5.24: outstanding balance is always calculated from
+        # invoice totals minus payment allocations, never a stored/
+        # editable column -- see payments.services.outstanding_balance
+        # (CPMAS-35). Imported here, not at module level, so this app
+        # doesn't take a hard import-time dependency on payments.
+        #
+        # Routed through a plain DecimalField's to_representation rather
+        # than returned as a raw Decimal: SerializerMethodField values
+        # skip DecimalField's own string-coercion, so DRF's JSONEncoder
+        # would otherwise render this as an imprecise JSON float (e.g.
+        # 0.0) instead of the "0.00"-style string every other monetary
+        # field on this API returns.
+        from payments.services import outstanding_balance
+        return DECIMAL_FIELD.to_representation(outstanding_balance(obj))
 
 
 def apply_transition(invoice: SupplierInvoice, target_status: str) -> SupplierInvoice:
@@ -99,5 +128,88 @@ def apply_transition(invoice: SupplierInvoice, target_status: str) -> SupplierIn
     """
     try:
         return transition_status(invoice, target_status)
+    except DjangoValidationError as exc:
+        raise serializers.ValidationError({'status': exc.messages})
+
+
+class ClientInvoiceItemSerializer(serializers.ModelSerializer):
+    """
+    Serializer for ClientInvoiceItem CRUD.
+
+    Unlike SupplierInvoiceItemSerializer, tax_amount/total_amount ARE
+    read-only: quantity/unit_price are always required here (no
+    flat-charge line exists for client invoices), so
+    compute_client_invoice_item_amounts always has what it needs to
+    derive both fields -- there's no case where a caller-supplied total
+    needs to pass through. "Items only editable while the parent invoice
+    is DRAFT" is enforced in the viewset.
+    """
+
+    tax_rate_name = serializers.CharField(source='tax_rate.name', read_only=True, default=None)
+
+    class Meta:
+        model = ClientInvoiceItem
+        fields = [
+            'id', 'client_invoice', 'description', 'quantity', 'unit_price',
+            'discount_amount', 'tax_rate', 'tax_rate_name', 'tax_amount', 'total_amount',
+        ]
+        read_only_fields = ['tax_amount', 'total_amount']
+
+    @transaction.atomic
+    def create(self, validated_data):
+        item = ClientInvoiceItem(**validated_data)
+        compute_client_invoice_item_amounts(item)
+        item.save()
+        recalculate_client_invoice_totals(item.client_invoice)
+        return item
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        compute_client_invoice_item_amounts(instance)
+        instance.save()
+        recalculate_client_invoice_totals(instance.client_invoice)
+        return instance
+
+
+class ClientInvoiceSerializer(serializers.ModelSerializer):
+    """
+    Serializer for ClientInvoice header CRUD.
+
+    subtotal/discount_amount/tax_amount/total_amount/status are all
+    read-only: totals are derived from line items, and status changes go
+    through the mark_sent/cancel actions (or payments.services
+    .allocate_payment for PARTIALLY_PAID/PAID) rather than a raw PATCH.
+    """
+
+    client_name = serializers.CharField(source='client.name', read_only=True)
+    project_name = serializers.CharField(source='project.name', read_only=True, default=None)
+    items = ClientInvoiceItemSerializer(many=True, read_only=True)
+    outstanding_balance = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ClientInvoice
+        fields = [
+            'id', 'client', 'client_name', 'project', 'project_name',
+            'invoice_number', 'invoice_date', 'due_date', 'subtotal', 'discount_amount',
+            'tax_amount', 'total_amount', 'status', 'outstanding_balance', 'items',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'subtotal', 'discount_amount', 'tax_amount', 'total_amount', 'status',
+            'created_at', 'updated_at',
+        ]
+
+    def get_outstanding_balance(self, obj):
+        # See SupplierInvoiceSerializer.get_outstanding_balance's comment.
+        from payments.services import outstanding_balance
+        return DECIMAL_FIELD.to_representation(outstanding_balance(obj))
+
+
+def apply_client_transition(invoice: ClientInvoice, target_status: str) -> ClientInvoice:
+    """Same reasoning as apply_transition, for ClientInvoice."""
+    try:
+        return transition_client_invoice_status(invoice, target_status)
     except DjangoValidationError as exc:
         raise serializers.ValidationError({'status': exc.messages})
