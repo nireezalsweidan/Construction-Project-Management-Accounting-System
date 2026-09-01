@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Cedar Construction | Project Operations{% endblock %}
+{% block body_class %}public-page{% endblock %}
+{% block content %}
+<header class="public-nav">
+  <a class="brand" href="#top"><span class="brand-mark">C</span><span><b>CEDAR</b><small>CONSTRUCTION</small></span></a>
+  <nav><a href="#workflow">How it works</a><a href="#expertise">Expertise</a><a href="#standards">Standards</a></nav>
+  <a class="button button-outline" href="{% url 'login' %}">Employee login →</a>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">BUILT ON CONTROL. DELIVERED WITH CONFIDENCE.</p>
+      <h1>Construction intelligence from plan to profit.</h1>
+      <p class="lead">Cedar Construction connects project delivery, procurement, inventory, cost control, and accounting in one disciplined operating system.</p>
+      <div class="hero-actions"><a class="button" href="{% url 'login' %}">Access operations →</a><a href="#workflow">Watch how it works</a></div>
+      <div class="proof"><div><b>12</b><span>Managed projects</span></div><div><b>$6.42M</b><span>Portfolio value</span></div><div><b>21.4%</b><span>Average margin</span></div></div>
+    </div>
+    <div class="hero-dashboard">
+      <div class="window-head"><span><small>CEDAR HEIGHTS</small><b>Project command</b></span><strong>68%</strong></div>
+      <div class="progress"><i style="width:68%"></i></div>
+      <div class="mini-metrics"><div><small>Contract</small><b>$2.26M</b></div><div><small>Actual cost</small><b>$1.12M</b></div><div><small>Forecast profit</small><b>$476K</b></div></div>
+      <ul class="phase-list"><li><i class="green"></i>Foundation <b>Complete</b></li><li><i class="amber"></i>Structural works <b>82%</b></li><li><i></i>MEP installation <b>46%</b></li></ul>
+    </div>
+  </section>
+
+  <section id="workflow" class="workflow workflow-dark">
+    <div class="section-heading"><div><p class="eyebrow light">CEDAR WORKFLOW</p><h2>See how Cedar controls every project.</h2></div><p>From the first plan to final handover, every team works from one connected operational picture.</p></div>
+    <div class="cedar-control" data-cedar-control aria-labelledby="procure-title">
+      <header class="cedar-control__header" data-animate="header"><p class="cedar-control__category">CEDAR CONTROL</p><div class="cedar-control__status" role="status"><span class="pulse-dot" aria-hidden="true"></span><span>LIVE WORKFLOW</span></div><button class="cedar-pause" type="button" data-pause aria-pressed="false">Pause</button></header>
+      <div class="cedar-control__content">
+        <div class="cedar-control__intro"><span class="step-badge" data-animate="title">STEP 03 / 06</span><h3 id="procure-title" class="cedar-control__title" data-animate="title">PROCURE</h3><p class="cedar-control__tagline" data-animate="title">Move materials with confidence.</p><p class="cedar-control__description" data-animate="title">Request, approve, order, receive, and track supplies without losing cost visibility.</p></div>
+        <article class="procure-workspace" aria-labelledby="workspace-title"><header class="procure-workspace__header"><div><span>CEDAR HEIGHTS RESIDENCE</span><h3 id="workspace-title">Procure workspace</h3></div><strong>03</strong></header><div class="procure-metrics"><article class="procure-card"><span>Purchase orders</span><strong>14 POs</strong></article><article class="procure-card"><span>Delivery performance</span><strong>92% delivered on time</strong></article></div><footer class="procure-meta"><span class="procure-updated">Updated just now · Cedar team</span><div><small>OWNER</small><strong>Mahmoud A.</strong></div><div><small>STATUS</small><strong class="status-tag">On track</strong></div><div><small>NEXT REVIEW</small><strong>Today, 16:00</strong></div></footer></article>
+      </div>
+      <nav class="cedar-steps" aria-label="Cedar project workflow" data-animate="step-bar"><ol><li class="step-indicator" aria-hidden="true"></li><li><button type="button" data-step="1"><strong>01</strong><span>Plan</span></button></li><li><button type="button" data-step="2"><strong>02</strong><span>Budget</span></button></li><li><button class="active" type="button" data-step="3" aria-current="step"><strong>03</strong><span>Procure</span></button></li><li><button type="button" data-step="4"><strong>04</strong><span>Build</span></button></li><li><button type="button" data-step="5"><strong>05</strong><span>Control</span></button></li><li><button type="button" data-step="6"><strong>06</strong><span>Deliver</span></button></li></ol></nav>
+      <footer class="cedar-control__footer"><blockquote>“From planning to handover, every Cedar project stays connected.”</blockquote><span>ONE COMPANY · ONE SYSTEM · COMPLETE CONTROL</span></footer>
+    </div>
+  </section>
+
+  <section id="expertise" class="content-section"><div class="section-heading"><div><p class="eyebrow">OUR OPERATING DISCIPLINE</p><h2>Every decision connected to delivery.</h2></div><p>From the first budget to the final payment, Cedar teams work from the same accurate operational picture.</p></div><div class="feature-grid"><article><span>01</span><h3>Project command</h3><p>Phases, milestones, teams, documents, change orders, and progress in one workspace.</p></article><article><span>02</span><h3>Supply certainty</h3><p>Purchase orders, receiving, material stock, transfers, and site usage controlled end to end.</p></article><article><span>03</span><h3>Financial clarity</h3><p>Budgets, expenses, invoices, payments, accounting, and profitability connected in real time.</p></article></div></section>
+  <section id="standards" class="standards"><div><p class="eyebrow">CEDAR STANDARD</p><h2>Control is how we protect every project.</h2><p>Structured approvals, traceable transactions, balanced accounting, and audit records help teams act quickly without losing accountability.</p></div><div class="standard-grid"><div><b>100%</b><span>Traceable approvals</span></div><div><b>24/7</b><span>Portfolio visibility</span></div><div><b>1</b><span>Source of truth</span></div><div><b>0</b><span>Unbalanced entries</span></div></div></section>
+</main>
+<footer><div class="brand inverse"><span class="brand-mark">C</span><span><b>CEDAR</b><small>CONSTRUCTION</small></span></div><p>Construction Project Management & Accounting Platform</p><a href="{% url 'login' %}">Employee access →</a></footer>
+{% endblock %}
+{% block extra_js %}<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js" defer></script>{% endblock %}

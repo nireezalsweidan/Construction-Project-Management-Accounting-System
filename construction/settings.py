@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     # unassigned/other-owner tickets and are not built here. users.User is
     # additionally managed=False -- it reflects an existing table this app
     # doesn't own the lifecycle of.
+    'apps.core',
     'taxes',
     'suppliers',
     'users',
@@ -97,7 +98,7 @@ ROOT_URLCONF = 'construction.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -197,7 +198,12 @@ USE_TZ = False
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [BASE_DIR / 'static']
+
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'dashboard'
+LOGOUT_REDIRECT_URL = 'landing'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

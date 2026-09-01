@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block body_class %}dashboard-page{% endblock %}
+{% block content %}
+<div class="app-shell">
+  {% include "partials/sidebar.html" %}
+  <main class="main-panel">
+    {% include "partials/topbar.html" %}
+    <div class="page-content">{% block dashboard_content %}{% endblock %}</div>
+  </main>
+</div>
+{% endblock %}
+
