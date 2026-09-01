@@ -15,13 +15,13 @@ rule enforced outside the serializer/model is the status workflow (see
 ``Expense.status`` matches the live Postgres enum ``expense_status_enum``
 (PENDING, APPROVED, PAID, REJECTED) exactly.
 
-Two FKs are intentionally NOT modeled, following the same
+One FK is intentionally still NOT modeled, following the same
 deferred-dependency precedent used throughout this codebase:
-- ``ExpenseCategory.account`` -- optional FK into ``accounts.Account``;
-  the Accounting app (CPMAS-34) doesn't exist yet.
 - ``Expense.employee``/``Expense.contractor`` -- optional FKs into
   ``employees.Employee``/``contractors.Contractor``, neither built yet.
-Each is a straightforward additive migration once its target app lands.
+This is a straightforward additive migration once that app lands, same
+as ``ExpenseCategory.account`` was until CPMAS-34 (Accounting) landed
+and this field was added below.
 """
 import uuid
 
@@ -39,6 +39,12 @@ class ExpenseCategory(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=150, unique=True)
     description = models.TextField(blank=True, null=True)
+
+    # SET_NULL: losing the linked GL account shouldn't delete/block the
+    # expense category itself -- same reasoning as Material.tax_rate
+    # elsewhere in this codebase. Added in CPMAS-34 once accounting.Account
+    # existed; this field was deferred/omitted in CPMAS-33.
+    account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, blank=True, null=True, related_name='expense_categories')
 
     class Meta:
         db_table = 'expense_categories'

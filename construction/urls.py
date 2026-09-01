@@ -29,4 +29,5 @@ urlpatterns = [
     path('api/projects/', include('projects.urls')),
     path('api/clients/', include('clients.urls')),
     path('api/expenses/', include('expenses.urls')),  # CPMAS-33
+    path('api/accounting/', include('accounting.urls')),  # CPMAS-34
 ]

@@ -11,8 +11,9 @@ from .models import Expense, ExpenseCategory
 class ExpenseCategoryAdmin(admin.ModelAdmin):
     """Admin list/search configuration for ExpenseCategory."""
 
-    list_display = ('name', 'description')
+    list_display = ('name', 'account', 'description')
     search_fields = ('name',)
+    autocomplete_fields = ('account',)
     ordering = ('name',)
 
 

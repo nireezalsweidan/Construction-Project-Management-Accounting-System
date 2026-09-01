@@ -12,9 +12,11 @@ from .services import transition_status
 class ExpenseCategorySerializer(serializers.ModelSerializer):
     """Serializer for ExpenseCategory CRUD operations."""
 
+    account_code = serializers.CharField(source='account.code', read_only=True, default=None)
+
     class Meta:
         model = ExpenseCategory
-        fields = ['id', 'name', 'description']
+        fields = ['id', 'name', 'description', 'account', 'account_code']
 
 
 class ExpenseSerializer(serializers.ModelSerializer):
