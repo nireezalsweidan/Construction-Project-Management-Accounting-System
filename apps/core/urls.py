@@ -19,4 +19,5 @@ urlpatterns = [
     ),
     path("dashboard/", views.dashboard, name="dashboard"),
     path("dashboard/<slug:module>/", views.module_page, name="module-page"),
+    path("suppliers/", views.suppliers, name="suppliers"),
 ]
