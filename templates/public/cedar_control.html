@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Cedar Control | Step 03 / 06 Procure{% endblock %}
+{% block body_class %}public-page{% endblock %}
+{% block content %}
+
+<style>
+  :root{
+    --cc-bg-a:#e2ece9;
+    --cc-bg-b:#d8e6e2;
+    --cc-forest:#0d5c4d;
+    --cc-forest-deep:#0a4a3e;
+    --cc-card:#ffffff;
+    --cc-text:#1e293b;
+    --cc-muted:#6b8a83;
+    --cc-green:#10b981;
+    --cc-line:#dbe5e1;
+    --cc-soft:#eef6f3;
+    --cc-radius:16px;
+  }
+
+  .cc-viewport{
+    font-family:"DM Sans",Arial,sans-serif;
+    padding:60px max(4vw,24px) 80px;
+    background:linear-gradient(145deg,var(--cc-bg-a),var(--cc-bg-b));
+    color:var(--cc-text);
+  }
+
+  /* ---- Outer container ---- */
+  .cedar-control{
+    position:relative;overflow:hidden;box-sizing:border-box;
+    max-width:1160px;margin:auto;
+    border:1px solid #c7d7d1;
+    border-radius:24px;
+    background:linear-gradient(160deg,#fbfdfc,#eef5f2);
+    box-shadow:0 34px 80px #123f3630;
+  }
+  .cedar-control,.cedar-control *{box-sizing:border-box}
+
+  /* ---- Header ---- */
+  .cc-header{
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+    padding:18px clamp(20px,4vw,46px);
+    border-bottom:1px solid var(--cc-line);
+    background:#ffffff;
+  }
+  .cc-header__brand{display:flex;align-items:center;gap:12px}
+  .cc-header__logo{
+    width:36px;height:36px;border-radius:10px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--cc-forest),var(--cc-forest-deep));
+    color:#fff;font-weight:900;font-size:15px;letter-spacing:.02em;
+    box-shadow:0 8px 18px #0a4a3e38;
+  }
+  .cc-header__brand b{font-size:12px;letter-spacing:.2em;color:var(--cc-forest-deep)}
+  .cc-header__right{display:flex;align-items:center;gap:16px;margin-left:auto}
+  .cc-live{display:flex;align-items:center;gap:8px;color:var(--cc-forest);font-size:10px;font-weight:800;letter-spacing:.13em}
+  .pulse-dot{
+    width:9px;height:9px;border-radius:50%;background:var(--cc-green);
+    box-shadow:0 0 0 0 rgba(16,185,129,.5);
+    animation:cc-pulse 1.8s infinite;
+  }
+  @keyframes cc-pulse{
+    0%{box-shadow:0 0 0 0 rgba(16,185,129,.45)}
+    70%{box-shadow:0 0 0 11px rgba(16,185,129,0)}
+    100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}
+  }
+  .cc-play{
+    min-width:86px;padding:9px 16px;border-radius:99px;border:1px solid var(--cc-line);
+    background:#ffffff;color:var(--cc-forest);font-size:11px;font-weight:800;
+    box-shadow:0 4px 12px #0a4a3e14;
+  }
+  .cc-play:hover{background:var(--cc-soft);border-color:var(--cc-forest)}
+
+  /* ---- Two-column hero grid ---- */
+  .cc-hero{
+    display:grid;grid-template-columns:1fr 1fr;gap:clamp(28px,5vw,64px);align-items:center;
+    padding:clamp(40px,6vw,72px) clamp(20px,4vw,46px);
+  }
+
+  /* Left column */
+  .cc-step-label{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:10px;font-weight:800;letter-spacing:.16em;color:var(--cc-forest);
+  }
+  .icon-badge{
+    width:56px;height:56px;border-radius:14px;display:grid;place-items:center;margin:26px 0 18px;
+    background:linear-gradient(135deg,var(--cc-forest),var(--cc-forest-deep));color:#fff;
+    box-shadow:0 16px 34px #0a4a3e3a;
+  }
+  .icon-badge::before{content:"";width:26px;height:26px;border:3px solid #fff;border-radius:50%}
+  .cc-sublabel{font-size:12px;font-weight:800;letter-spacing:.18em;color:var(--cc-forest);margin:0 0 10px}
+  .cc-heading{
+    font-family:"Libre Franklin",sans-serif;
+    font-size:clamp(30px,4vw,46px);font-weight:800;line-height:1.04;letter-spacing:-.03em;
+    color:var(--cc-text);margin:0 0 16px;
+  }
+  .cc-description{font-size:14px;line-height:1.7;color:var(--cc-muted);max-width:430px;margin:0}
+
+  /* Right column card */
+  .cc-workspace{
+    padding:26px;border:1px solid var(--cc-line);border-radius:var(--cc-radius);
+    background:var(--cc-card);
+    box-shadow:0 26px 58px #123f3626;
+  }
+  .cc-workspace__head{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:14px;
+    padding-bottom:16px;border-bottom:1px solid var(--cc-line);
+  }
+  .cc-workspace__head span{display:block;font-size:9px;letter-spacing:.14em;color:var(--cc-muted);font-weight:800}
+  .cc-workspace__head h3{margin:6px 0 0;font-size:20px;color:var(--cc-text)}
+  .cc-workspace__count{
+    flex:none;min-width:48px;height:48px;display:grid;place-items:center;border-radius:12px;
+    background:linear-gradient(135deg,var(--cc-forest),var(--cc-forest-deep));color:#fff;font-size:16px;font-weight:800;
+    box-shadow:0 10px 24px #0a4a3e3a;
+  }
+  .cc-stats{
+    display:grid;grid-template-columns:1fr 1fr;gap:14px;
+    margin:16px 0 14px;padding:16px;border-radius:13px;background:var(--cc-soft);
+  }
+  .cc-stat{display:flex;flex-direction:column;gap:6px}
+  .cc-stat span{font-size:9px;letter-spacing:.08em;color:var(--cc-muted);font-weight:700}
+  .cc-stat strong{font-size:20px;color:var(--cc-text)}
+  .cc-previewbar{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 2px 18px}
+  .cc-previewbar i{height:6px;border-radius:6px;background:var(--cc-line)}
+  .cc-previewbar i.on{background:var(--cc-forest)}
+  .cc-statusbar{
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    font-size:11px;color:var(--cc-muted);
+  }
+  .cc-statusbar p{margin:0;flex:1;min-width:200px;line-height:1.5}
+  .cc-badge{
+    flex:none;padding:4px 11px;border-radius:99px;border:1px solid #0d5c4d55;
+    background:var(--cc-soft);color:var(--cc-forest);font-size:10px;font-weight:800;letter-spacing:.08em;
+  }
+  .cc-metagrid{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px;padding-top:16px;border-top:1px solid var(--cc-line);
+  }
+  .cc-meta small,.cc-meta strong{display:block}
+  .cc-meta small{font-size:8px;letter-spacing:.14em;color:var(--cc-muted);font-weight:800}
+  .cc-meta strong{font-size:12px;color:var(--cc-text);margin-top:4px}
+
+  /* ---- Bottom timeline ---- */
+  .cc-timeline{
+    position:relative;padding:34px clamp(20px,4vw,46px) 30px;background:#ffffff;
+  }
+  .cc-timeline__base,.cc-timeline__active{
+    position:absolute;left:clamp(20px,4vw,46px);right:clamp(20px,4vw,46px);top:34px;
+    height:4px;border-radius:10px;
+  }
+  .cc-timeline__base{background:var(--cc-line)}
+  .cc-timeline__active{
+    width:0;background:linear-gradient(90deg,var(--cc-forest),var(--cc-forest-deep));
+    box-shadow:0 0 12px #0d5c4d66;
+  }
+  .cc-steps{
+    position:relative;list-style:none;margin:0;padding:0;
+    display:grid;grid-template-columns:repeat(6,1fr);
+  }
+  .cc-step{
+    position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;
+    background:none;border:none;cursor:pointer;color:var(--cc-muted);padding:0 4px;
+  }
+  .cc-step__dot{
+    width:15px;height:15px;border-radius:50%;background:#ffffff;
+    border:4px solid var(--cc-line);position:relative;z-index:1;
+  }
+  .cc-step strong{font-size:9px;letter-spacing:.08em;color:var(--cc-muted)}
+  .cc-step span{font-size:12px;font-weight:700;color:var(--cc-muted)}
+  .cc-step.active .cc-step__dot{border-color:var(--cc-forest);box-shadow:0 0 0 4px #0d5c4d1f}
+  .cc-step.active strong{color:var(--cc-forest)}
+  .cc-step.active span{color:var(--cc-text)}
+
+  /* ---- Footer ---- */
+  .cc-footer{
+    display:flex;align-items:center;gap:24px;flex-wrap:wrap;
+    padding:20px clamp(20px,4vw,46px);
+    background:var(--cc-forest-deep);color:#e8f4f0;
+  }
+  .cc-footer blockquote{margin:0;flex:1;min-width:220px;font-size:12px;font-style:italic;color:#cfe6e0}
+  .cc-footer span{font-size:9px;font-weight:800;letter-spacing:.16em;color:#a8cfc6}
+
+  @media (max-width:900px){
+    .cc-hero{grid-template-columns:1fr}
+    .cc-timeline__base,.cc-timeline__active{top:34px}
+  }
+  @media (max-width:560px){
+    .cc-metagrid{grid-template-columns:1fr}
+    .cc-stat strong{font-size:17px}
+    .cc-viewport{padding:40px 14px 56px}
+  }
+</style>
+
+<main class="cc-viewport">
+  <div class="cedar-control" data-cc-control aria-labelledby="cc-heading">
+    <header class="cc-header">
+      <div class="cc-header__brand">
+        <span class="cc-header__logo">C</span>
+        <b>CEDAR CONTROL</b>
+      </div>
+      <div class="cc-header__right">
+        <span class="cc-live"><span class="pulse-dot" aria-hidden="true"></span>LIVE WORKFLOW</span>
+        <button class="cc-play" type="button" data-cc-pause aria-pressed="false">Play</button>
+      </div>
+    </header>
+
+    <div class="cc-hero" data-cc-entrance>
+      <div class="cc-left" data-cc-col>
+        <span class="cc-step-label">STEP 03 / 06</span>
+        <div class="icon-badge" aria-hidden="true"></div>
+        <p class="cc-sublabel">PROCURE</p>
+        <h1 id="cc-heading" class="cc-heading">Move materials with confidence.</h1>
+        <p class="cc-description">Request, approve, order, receive, and track supplies without losing cost visibility.</p>
+      </div>
+
+      <article class="cc-workspace" data-cc-col aria-labelledby="cc-ws-title">
+        <header class="cc-workspace__head">
+          <div><span>CEDAR HEIGHTS RESIDENCE</span><h3 id="cc-ws-title">Procure workspace</h3></div>
+          <strong class="cc-workspace__count">03</strong>
+        </header>
+
+        <div class="cc-stats">
+          <div class="cc-stat"><span>Purchase orders</span><strong>14 POs</strong></div>
+          <div class="cc-stat"><span>Delivery performance</span><strong>92% delivered on time</strong></div>
+        </div>
+
+        <div class="cc-previewbar" aria-hidden="true"><i class="on"></i><i class="on"></i><i></i></div>
+
+        <div class="cc-statusbar">
+          <p>Move materials with confidence. Updated just now · Cedar team</p>
+          <span class="cc-badge">ACTIVE</span>
+        </div>
+
+        <footer class="cc-metagrid">
+          <div class="cc-meta"><small>OWNER</small><strong>Mahmoud A.</strong></div>
+          <div class="cc-meta"><small>STATUS</small><strong>On track</strong></div>
+          <div class="cc-meta"><small>NEXT REVIEW</small><strong>Today, 16:00</strong></div>
+        </footer>
+      </article>
+    </div>
+
+    <nav class="cc-timeline" aria-label="Cedar project workflow">
+      <div class="cc-timeline__base" aria-hidden="true"></div>
+      <div class="cc-timeline__active" data-cc-progress aria-hidden="true"></div>
+      <ol class="cc-steps">
+        <li><button class="cc-step" type="button" data-step="1" data-pct="16.6"><span class="cc-step__dot"></span><strong>01</strong><span>Plan</span></button></li>
+        <li><button class="cc-step" type="button" data-step="2" data-pct="33.3"><span class="cc-step__dot"></span><strong>02</strong><span>Budget</span></button></li>
+        <li><button class="cc-step active" type="button" data-step="3" data-pct="50" aria-current="step"><span class="cc-step__dot"></span><strong>03</strong><span>Procure</span></button></li>
+        <li><button class="cc-step" type="button" data-step="4" data-pct="66.6"><span class="cc-step__dot"></span><strong>04</strong><span>Build</span></button></li>
+        <li><button class="cc-step" type="button" data-step="5" data-pct="83.3"><span class="cc-step__dot"></span><strong>05</strong><span>Control</span></button></li>
+        <li><button class="cc-step" type="button" data-step="6" data-pct="100"><span class="cc-step__dot"></span><strong>06</strong><span>Deliver</span></button></li>
+      </ol>
+    </nav>
+
+    <footer class="cc-footer">
+      <blockquote>“From planning to handover, every Cedar project stays connected.”</blockquote>
+      <span>ONE COMPANY · ONE SYSTEM · COMPLETE CONTROL</span>
+    </footer>
+  </div>
+</main>
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js" defer></script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const root = document.querySelector("[data-cc-control]");
+  if (!root || !window.gsap) return;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const progress = root.querySelector("[data-cc-progress]");
+  const steps = [...root.querySelectorAll("[data-step]")];
+  const pause = root.querySelector("[data-cc-pause]");
+
+  /* 1. Fill active progress line from 0% to 50% (Step 03) on load */
+  gsap.fromTo(progress,
+    { width: "0%" },
+    { width: "50%", duration: reduceMotion ? 0 : 1.2, ease: "power2.out" });
+
+  /* 2. Interactive timeline clicking */
+  const selectStep = (btn, animate = true) => {
+    steps.forEach(s => {
+      const on = s === btn;
+      s.classList.toggle("active", on);
+      if (on) s.setAttribute("aria-current", "step");
+      else s.removeAttribute("aria-current");
+      const label = s.querySelector("span");
+      if (on && label) label.textContent = s.dataset.step === "3" ? "Procure" : label.textContent;
+    });
+    gsap.to(progress, {
+      width: btn.dataset.pct + "%",
+      duration: animate && !reduceMotion ? 0.55 : 0,
+      ease: "power2.inOut"
+    });
+  };
+  steps.forEach(btn => btn.addEventListener("click", () => {
+    pause.setAttribute("aria-pressed", "true");
+    pause.textContent = "Pause";
+    selectStep(btn);
+  }));
+
+  pause.addEventListener("click", () => {
+    const paused = pause.getAttribute("aria-pressed") === "true";
+    pause.setAttribute("aria-pressed", String(!paused));
+    pause.textContent = paused ? "Play" : "Pause";
+  });
+
+  /* 3. Entrance fade & slide for the two columns */
+  if (!reduceMotion) {
+    gsap.from(root.querySelectorAll("[data-cc-col]"), { opacity: 0, y: 20, duration: 0.6, stagger: 0.15, ease: "power2.out" });
+  }
+});
+</script>
+{% endblock %}

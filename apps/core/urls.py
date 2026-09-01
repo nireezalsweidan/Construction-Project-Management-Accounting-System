@@ -6,6 +6,7 @@ from . import views
 
 urlpatterns = [
     path("", views.landing, name="landing"),
+    path("cedar-control/", views.cedar_control, name="cedar-control"),
     path(
         "accounts/login/",
         auth_views.LoginView.as_view(template_name="registration/login.html"),

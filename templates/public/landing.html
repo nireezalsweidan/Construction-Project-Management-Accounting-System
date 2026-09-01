@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Cedar Construction | Project Operations{% endblock %}
 {% block body_class %}public-page{% endblock %}
 {% block content %}
@@ -25,18 +26,872 @@
     </div>
   </section>
 
-  <section id="workflow" class="workflow workflow-dark">
-    <div class="section-heading"><div><p class="eyebrow light">CEDAR WORKFLOW</p><h2>See how Cedar controls every project.</h2></div><p>From the first plan to final handover, every team works from one connected operational picture.</p></div>
-    <div class="cedar-control" data-cedar-control aria-labelledby="procure-title">
-      <header class="cedar-control__header" data-animate="header"><p class="cedar-control__category">CEDAR CONTROL</p><div class="cedar-control__status" role="status"><span class="pulse-dot" aria-hidden="true"></span><span>LIVE WORKFLOW</span></div><button class="cedar-pause" type="button" data-pause aria-pressed="false">Pause</button></header>
-      <div class="cedar-control__content">
-        <div class="cedar-control__intro"><span class="step-badge" data-animate="title">STEP 03 / 06</span><h3 id="procure-title" class="cedar-control__title" data-animate="title">PROCURE</h3><p class="cedar-control__tagline" data-animate="title">Move materials with confidence.</p><p class="cedar-control__description" data-animate="title">Request, approve, order, receive, and track supplies without losing cost visibility.</p></div>
-        <article class="procure-workspace" aria-labelledby="workspace-title"><header class="procure-workspace__header"><div><span>CEDAR HEIGHTS RESIDENCE</span><h3 id="workspace-title">Procure workspace</h3></div><strong>03</strong></header><div class="procure-metrics"><article class="procure-card"><span>Purchase orders</span><strong>14 POs</strong></article><article class="procure-card"><span>Delivery performance</span><strong>92% delivered on time</strong></article></div><footer class="procure-meta"><span class="procure-updated">Updated just now · Cedar team</span><div><small>OWNER</small><strong>Mahmoud A.</strong></div><div><small>STATUS</small><strong class="status-tag">On track</strong></div><div><small>NEXT REVIEW</small><strong>Today, 16:00</strong></div></footer></article>
-      </div>
-      <nav class="cedar-steps" aria-label="Cedar project workflow" data-animate="step-bar"><ol><li class="step-indicator" aria-hidden="true"></li><li><button type="button" data-step="1"><strong>01</strong><span>Plan</span></button></li><li><button type="button" data-step="2"><strong>02</strong><span>Budget</span></button></li><li><button class="active" type="button" data-step="3" aria-current="step"><strong>03</strong><span>Procure</span></button></li><li><button type="button" data-step="4"><strong>04</strong><span>Build</span></button></li><li><button type="button" data-step="5"><strong>05</strong><span>Control</span></button></li><li><button type="button" data-step="6"><strong>06</strong><span>Deliver</span></button></li></ol></nav>
-      <footer class="cedar-control__footer"><blockquote>“From planning to handover, every Cedar project stays connected.”</blockquote><span>ONE COMPANY · ONE SYSTEM · COMPLETE CONTROL</span></footer>
+<!-- CEDAR CONTROL WORKFLOW SECTION (Django Compatible / GSAP Animated) -->
+<!-- Load GSAP CDN for smooth animations -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+<style>
+  /* Base Reset & Fonts */
+  .cedar-section * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  .cedar-section {
+    background-color: #0d2a24;
+    color: #ffffff;
+    padding: 60px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .cedar-container {
+    max-width: 1140px;
+    width: 100%;
+  }
+
+  /* ------------------------------------------------------------------
+     1. TOP CAPABILITY TABS BAR
+     ------------------------------------------------------------------ */
+  .top-meta-header {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #4ade80;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+  }
+
+  .capability-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 70px;
+  }
+
+  .tab-pill {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 10px 22px;
+    border-radius: 40px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #e2e8f0;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .tab-pill.active, .tab-pill:hover {
+    background: #ffffff;
+    color: #0b221d;
+    font-weight: 600;
+    border-color: #ffffff;
+  }
+
+  /* ------------------------------------------------------------------
+     2. SECTION INTRO HEADER
+     ------------------------------------------------------------------ */
+  .intro-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #4ade80;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .intro-badge-icon {
+    width: 8px;
+    height: 8px;
+    background-color: #4ade80;
+    border-radius: 50%;
+  }
+
+  .intro-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    align-items: flex-end;
+    margin-bottom: 40px;
+  }
+
+  .intro-title {
+    font-size: 38px;
+    font-weight: 700;
+    color: #ffffff;
+    line-height: 1.2;
+    letter-spacing: -0.5px;
+  }
+
+  .intro-subtitle {
+    font-size: 16px;
+    color: #94a3b8;
+    line-height: 1.6;
+  }
+
+  /* ------------------------------------------------------------------
+     3. MAIN LIGHT SAGE WORKFLOW CARD
+     ------------------------------------------------------------------ */
+  .workflow-card {
+    background: linear-gradient(135deg, #dce8e4 0%, #d1e2dd 100%);
+    border-radius: 24px;
+    padding: 32px 36px 0 36px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+    color: #0f172a;
+    overflow: hidden;
+  }
+
+  /* Card Header */
+  .card-top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+  }
+
+  .brand-tag {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: 1.5px;
+    color: #0b221d;
+  }
+
+  .brand-icon {
+    width: 28px;
+    height: 28px;
+    background: #0b221d;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+  }
+
+  .live-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .live-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #059669;
+    background: rgba(16, 185, 129, 0.12);
+    padding: 6px 12px;
+    border-radius: 20px;
+  }
+
+  .live-pulse {
+    width: 7px;
+    height: 7px;
+    background: #10b981;
+    border-radius: 50%;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    animation: pulse-green 2s infinite;
+  }
+
+  @keyframes pulse-green {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  }
+
+  .play-pause-btn {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #334155;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+  }
+
+  .play-pause-btn:hover {
+    background: #f8fafc;
+  }
+
+  /* Main 2-Column Grid inside card */
+  .card-hero-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 36px;
+    align-items: start;
+    min-height: 380px;
+  }
+
+  /* Left Column */
+  .step-meta-badge {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #475569;
+    margin-bottom: 20px;
+  }
+
+  .step-icon-wrapper {
+    width: 54px;
+    height: 54px;
+    background: #0b221d;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+
+  .step-icon-wrapper svg {
+    width: 26px;
+    height: 26px;
+    stroke: #ffffff;
+    fill: none;
+    stroke-width: 2;
+  }
+
+  .step-cat-name {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    color: #0b221d;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .step-heading {
+    font-size: 34px;
+    font-weight: 700;
+    color: #0b221d;
+    line-height: 1.25;
+    margin-bottom: 16px;
+  }
+
+  .step-desc {
+    font-size: 15px;
+    color: #475569;
+    line-height: 1.6;
+  }
+
+  /* Right Column (Floating Workspace Container) */
+  .workspace-box {
+    background: #ffffff;
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 10px 30px rgba(11, 34, 29, 0.08);
+  }
+
+  .ws-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+  }
+
+  .ws-title-group h4 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0b221d;
+  }
+
+  .ws-title-group span {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #94a3b8;
+    text-transform: uppercase;
+  }
+
+  .ws-number {
+    font-size: 32px;
+    font-weight: 800;
+    color: #0b221d;
+    line-height: 1;
+  }
+
+  /* Stat Banner Inside Workspace */
+  .stat-banner {
+    background: #eef5f3;
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .stat-icon-square {
+    width: 42px;
+    height: 42px;
+    background: #0b221d;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .stat-icon-square svg {
+    width: 22px;
+    height: 22px;
+    stroke: #ffffff;
+    fill: none;
+    stroke-width: 2;
+  }
+
+  .stat-value {
+    font-size: 26px;
+    font-weight: 800;
+    color: #0b221d;
+    line-height: 1.1;
+  }
+
+  .stat-label {
+    font-size: 13px;
+    color: #64748b;
+    font-weight: 500;
+  }
+
+  /* Task Status Strip */
+  .task-status-strip {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .task-info-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .check-circle {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+    font-size: 11px;
+  }
+
+  .task-text p {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1e293b;
+  }
+
+  .task-text span {
+    font-size: 11px;
+    color: #94a3b8;
+  }
+
+  .active-badge {
+    background: #e2e8f0;
+    color: #475569;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.5px;
+  }
+
+  /* Meta Table 3-Columns */
+  .meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 16px;
+  }
+
+  .meta-item span {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: #94a3b8;
+    margin-bottom: 2px;
+  }
+
+  .meta-item strong {
+    font-size: 13px;
+    color: #1e293b;
+    font-weight: 600;
+  }
+
+  /* ------------------------------------------------------------------
+     4. BOTTOM TIMELINE & STEPS BAR
+     ------------------------------------------------------------------ */
+  .timeline-container {
+    margin-top: 40px;
+    position: relative;
+  }
+
+  .timeline-track-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #b2c9c2;
+    z-index: 1;
+  }
+
+  .timeline-track-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: #0b221d;
+    z-index: 2;
+    width: 83.33%; /* Default for Step 05 */
+    transition: width 0.5s ease;
+  }
+
+  .steps-list {
+    display: flex;
+    justify-content: space-between;
+    position: relative;
+    z-index: 3;
+    list-style: none;
+    padding-top: 12px;
+  }
+
+  .step-item {
+    cursor: pointer;
+    text-align: left;
+    width: 16%;
+    transition: all 0.2s ease;
+  }
+
+  .step-num {
+    font-size: 14px;
+    font-weight: 800;
+    color: #64748b;
+    margin-bottom: 2px;
+    display: block;
+  }
+
+  .step-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+  }
+
+  .step-item.active .step-num,
+  .step-item.active .step-name {
+    color: #0b221d;
+    font-weight: 800;
+  }
+
+  .step-item:hover .step-name {
+    color: #0b221d;
+  }
+
+  /* ------------------------------------------------------------------
+     5. FOOTER BANNER
+     ------------------------------------------------------------------ */
+  .card-footer-banner {
+    margin-top: 36px;
+    margin-left: -36px;
+    margin-right: -36px;
+    background: #081d18;
+    padding: 18px 36px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 0 0 24px 24px;
+  }
+
+  .footer-quote {
+    font-size: 14px;
+    font-style: italic;
+    color: #e2e8f0;
+  }
+
+  .footer-tagline {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    color: #34d399;
+  }
+
+  /* Responsive Adjustments */
+  @media (max-width: 900px) {
+    .intro-grid, .card-hero-grid { grid-template-columns: 1fr; }
+    .card-footer-banner { flex-direction: column; gap: 10px; text-align: center; }
+  }
+</style>
+
+<!-- HTML Structure -->
+<section class="cedar-section">
+  <div class="cedar-container">
+
+    <!-- Top Capability Tabs -->
+    <div class="top-meta-header">ONE COMPANY · ONE SOURCE OF TRUTH</div>
+    <div class="capability-tabs">
+      <div class="tab-pill">Project Control</div>
+      <div class="tab-pill">Procurement</div>
+      <div class="tab-pill">Inventory</div>
+      <div class="tab-pill">Financial Operations</div>
+      <div class="tab-pill">Audit & Compliance</div>
     </div>
-  </section>
+
+    <!-- Intro Title & Subtitle Grid -->
+    <div class="intro-badge">
+      <span class="intro-badge-icon"></span> 40-SECOND CEDAR WORKFLOW
+    </div>
+    <div class="intro-grid">
+      <h2 class="intro-title">See how Cedar controls every project.</h2>
+      <p class="intro-subtitle">From the first plan to final handover, every team works from one connected operational picture.</p>
+    </div>
+
+    <!-- Main Light Sage Interactive Card -->
+    <div class="workflow-card">
+
+      <!-- Top Card Bar -->
+      <div class="card-top-bar">
+        <div class="brand-tag">
+          <div class="brand-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 22h20L12 2z"/></svg>
+          </div>
+          CEDAR CONTROL
+        </div>
+
+        <div class="live-controls">
+          <div class="live-pill">
+            <span class="live-pulse"></span> LIVE WORKFLOW
+          </div>
+          <button class="play-pause-btn" id="playPauseBtn">
+            <svg id="playIcon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            <span id="btnText">Pause</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main 2-Column Content Grid -->
+      <div class="card-hero-grid">
+
+        <!-- Left Text Side -->
+        <div class="card-left-content" id="leftContent">
+          <div class="step-meta-badge" id="stepMeta">STEP 05 / 06</div>
+          <div class="step-icon-wrapper" id="stepIcon">
+            <!-- Dynamic Icon -->
+            <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <div class="step-cat-name" id="stepCat">CONTROL</div>
+          <h3 class="step-heading" id="stepHeading">See risk before it becomes delay.</h3>
+          <p class="step-desc" id="stepDesc">Managers review approvals, cost variance, receivables, and project health from one view.</p>
+        </div>
+
+        <!-- Right Workspace Card -->
+        <div class="workspace-box" id="rightContent">
+          <div class="ws-header">
+            <div class="ws-title-group">
+              <span>CEDAR HEIGHTS RESIDENCE</span>
+              <h4 id="wsTitle">Control workspace</h4>
+            </div>
+            <div class="ws-number" id="wsNum">05</div>
+          </div>
+
+          <!-- Stat Box -->
+          <div class="stat-banner">
+            <div class="stat-icon-square">
+              <svg viewBox="0 0 24 24"><path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+            </div>
+            <div>
+              <div class="stat-value" id="statVal">6.2%</div>
+              <div class="stat-label" id="statLbl">Under planned cost curve</div>
+            </div>
+          </div>
+
+          <!-- Active Task Strip -->
+          <div class="task-status-strip">
+            <div class="task-info-left">
+              <div class="check-circle">✓</div>
+              <div class="task-text">
+                <p id="taskTitle">See risk before it becomes delay.</p>
+                <span>Updated just now · Cedar team</span>
+              </div>
+            </div>
+            <div class="active-badge">ACTIVE</div>
+          </div>
+
+          <!-- Footer Metadata -->
+          <div class="meta-grid">
+            <div class="meta-item">
+              <span>OWNER</span>
+              <strong id="metaOwner">Mahmoud A.</strong>
+            </div>
+            <div class="meta-item">
+              <span>STATUS</span>
+              <strong id="metaStatus" style="color: #059669;">On track</strong>
+            </div>
+            <div class="meta-item">
+              <span>NEXT REVIEW</span>
+              <strong id="metaReview">Today, 16:00</strong>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Bottom Interactive Timeline Track -->
+      <div class="timeline-container">
+        <div class="timeline-track-bg"></div>
+        <div class="timeline-track-fill" id="trackFill"></div>
+
+        <ul class="steps-list">
+          <li class="step-item" onclick="goToStep(0)">
+            <span class="step-num">01</span>
+            <span class="step-name">Plan</span>
+          </li>
+          <li class="step-item" onclick="goToStep(1)">
+            <span class="step-num">02</span>
+            <span class="step-name">Budget</span>
+          </li>
+          <li class="step-item" onclick="goToStep(2)">
+            <span class="step-num">03</span>
+            <span class="step-name">Procure</span>
+          </li>
+          <li class="step-item" onclick="goToStep(3)">
+            <span class="step-num">04</span>
+            <span class="step-name">Build</span>
+          </li>
+          <li class="step-item active" onclick="goToStep(4)">
+            <span class="step-num">05</span>
+            <span class="step-name">Control</span>
+          </li>
+          <li class="step-item" onclick="goToStep(5)">
+            <span class="step-num">06</span>
+            <span class="step-name">Deliver</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Bottom Dark Banner -->
+      <div class="card-footer-banner">
+        <div class="footer-quote">“From planning to handover, every Cedar project stays connected.”</div>
+        <div class="footer-tagline">ONE COMPANY · ONE SYSTEM · COMPLETE CONTROL</div>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
+<!-- JavaScript Logic -->
+<script>
+  // Step Data matching wireframe
+  const stepsData = [
+    {
+      stepNum: "01",
+      meta: "STEP 01 / 06",
+      category: "PLAN",
+      heading: "Turn the contract into a clear delivery plan.",
+      desc: "Create phases, milestones, responsibilities, and target dates before work begins.",
+      wsTitle: "Plan workspace",
+      statVal: "6 phases",
+      statLbl: "18 milestones mapped",
+      taskTitle: "Turn the contract into a clear delivery plan.",
+      owner: "Mahmoud A.",
+      status: "On track",
+      review: "Today, 16:00",
+      fillWidth: "16.66%",
+      iconSvg: `<svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>`
+    },
+    {
+      stepNum: "02",
+      meta: "STEP 02 / 06",
+      category: "BUDGET",
+      heading: "Lock in base costs and expected margins.",
+      desc: "Establish baseline budgets, track cost codes, and manage contingency allocation.",
+      wsTitle: "Budget workspace",
+      statVal: "$2.4M",
+      statLbl: "Total baseline budget",
+      taskTitle: "Lock in base costs and expected margins.",
+      owner: "Mahmoud A.",
+      status: "On track",
+      review: "Today, 16:00",
+      fillWidth: "33.33%",
+      iconSvg: `<svg viewBox="0 0 24 24"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`
+    },
+    {
+      stepNum: "03",
+      meta: "STEP 03 / 06",
+      category: "PROCURE",
+      heading: "Move materials with confidence.",
+      desc: "Request, approve, order, receive, and track supplies without losing cost visibility.",
+      wsTitle: "Procure workspace",
+      statVal: "14 POs",
+      statLbl: "92% delivered on time",
+      taskTitle: "Move materials with confidence.",
+      owner: "Mahmoud A.",
+      status: "On track",
+      review: "Today, 16:00",
+      fillWidth: "50%",
+      iconSvg: `<svg viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>`
+    },
+    {
+      stepNum: "04",
+      meta: "STEP 04 / 06",
+      category: "BUILD",
+      heading: "Track site execution step by step.",
+      desc: "Connect daily site logs, field progress updates, and subcontractor schedules.",
+      wsTitle: "Build workspace",
+      statVal: "82%",
+      statLbl: "Structural works complete",
+      taskTitle: "Track site execution step by step.",
+      owner: "Mahmoud A.",
+      status: "On track",
+      review: "Today, 16:00",
+      fillWidth: "66.66%",
+      iconSvg: `<svg viewBox="0 0 24 24"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>`
+    },
+    {
+      stepNum: "05",
+      meta: "STEP 05 / 06",
+      category: "CONTROL",
+      heading: "See risk before it becomes delay.",
+      desc: "Managers review approvals, cost variance, receivables, and project health from one view.",
+      wsTitle: "Control workspace",
+      statVal: "6.2%",
+      statLbl: "Under planned cost curve",
+      taskTitle: "See risk before it becomes delay.",
+      owner: "Mahmoud A.",
+      status: "On track",
+      review: "Today, 16:00",
+      fillWidth: "83.33%",
+      iconSvg: `<svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`
+    },
+    {
+      stepNum: "06",
+      meta: "STEP 06 / 06",
+      category: "DELIVER",
+      heading: "Hand over with absolute audit readiness.",
+      desc: "Final inspections, closeout documentation, and financial reconciliation in one place.",
+      wsTitle: "Deliver workspace",
+      statVal: "100%",
+      statLbl: "Traceable approvals",
+      taskTitle: "Hand over with absolute audit readiness.",
+      owner: "Mahmoud A.",
+      status: "Completed",
+      review: "Today, 16:00",
+      fillWidth: "100%",
+      iconSvg: `<svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>`
+    }
+  ];
+
+  let currentStep = 4; // Start at Step 05 Control
+  let isPlaying = true;
+  let autoplayInterval;
+
+  function updateStepUI(index) {
+    const data = stepsData[index];
+    const stepItems = document.querySelectorAll('.step-item');
+
+    // Update active class on bottom steps
+    stepItems.forEach((item, i) => {
+      if (i === index) {
+        item.classList.add('active');
+      } else {
+        item.classList.remove('active');
+      }
+    });
+
+    // Update progress fill bar line
+    document.getElementById('trackFill').style.width = data.fillWidth;
+
+    // GSAP Fade out -> Change text -> Fade in
+    gsap.to(['#leftContent', '#rightContent'], {
+      opacity: 0,
+      y: -10,
+      duration: 0.2,
+      onComplete: () => {
+        document.getElementById('stepMeta').innerText = data.meta;
+        document.getElementById('stepCat').innerText = data.category;
+        document.getElementById('stepHeading').innerText = data.heading;
+        document.getElementById('stepDesc').innerText = data.desc;
+        document.getElementById('stepIcon').innerHTML = data.iconSvg;
+
+        document.getElementById('wsTitle').innerText = data.wsTitle;
+        document.getElementById('wsNum').innerText = data.stepNum;
+        document.getElementById('statVal').innerText = data.statVal;
+        document.getElementById('statLbl').innerText = data.statLbl;
+        document.getElementById('taskTitle').innerText = data.taskTitle;
+        document.getElementById('metaOwner').innerText = data.owner;
+        document.getElementById('metaStatus').innerText = data.status;
+        document.getElementById('metaReview').innerText = data.review;
+
+        gsap.to(['#leftContent', '#rightContent'], {
+          opacity: 1,
+          y: 0,
+          duration: 0.3
+        });
+      }
+    });
+  }
+
+  function goToStep(index) {
+    currentStep = index;
+    updateStepUI(currentStep);
+  }
+
+  // Play / Pause Autoplay Loop
+  function startAutoplay() {
+    autoplayInterval = setInterval(() => {
+      currentStep = (currentStep + 1) % stepsData.length;
+      updateStepUI(currentStep);
+    }, 4000);
+  }
+
+  function stopAutoplay() {
+    clearInterval(autoplayInterval);
+  }
+
+  const playPauseBtn = document.getElementById('playPauseBtn');
+  playPauseBtn.addEventListener('click', () => {
+    isPlaying = !isPlaying;
+    if (isPlaying) {
+      document.getElementById('btnText').innerText = 'Pause';
+      document.getElementById('playIcon').innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+      startAutoplay();
+    } else {
+      document.getElementById('btnText').innerText = 'Play';
+      document.getElementById('playIcon').innerHTML = '<path d="M8 5v14l11-7z"/>';
+      stopAutoplay();
+    }
+  });
+
+  // Start initial autoplay cycle
+  startAutoplay();
+</script>
 
   <section id="expertise" class="content-section"><div class="section-heading"><div><p class="eyebrow">OUR OPERATING DISCIPLINE</p><h2>Every decision connected to delivery.</h2></div><p>From the first budget to the final payment, Cedar teams work from the same accurate operational picture.</p></div><div class="feature-grid"><article><span>01</span><h3>Project command</h3><p>Phases, milestones, teams, documents, change orders, and progress in one workspace.</p></article><article><span>02</span><h3>Supply certainty</h3><p>Purchase orders, receiving, material stock, transfers, and site usage controlled end to end.</p></article><article><span>03</span><h3>Financial clarity</h3><p>Budgets, expenses, invoices, payments, accounting, and profitability connected in real time.</p></article></div></section>
   <section id="standards" class="standards"><div><p class="eyebrow">CEDAR STANDARD</p><h2>Control is how we protect every project.</h2><p>Structured approvals, traceable transactions, balanced accounting, and audit records help teams act quickly without losing accountability.</p></div><div class="standard-grid"><div><b>100%</b><span>Traceable approvals</span></div><div><b>24/7</b><span>Portfolio visibility</span></div><div><b>1</b><span>Source of truth</span></div><div><b>0</b><span>Unbalanced entries</span></div></div></section>

@@ -6,6 +6,10 @@ def landing(request):
     return render(request, "public/landing.html")
 
 
+def cedar_control(request):
+    return render(request, "public/cedar_control.html")
+
+
 @login_required
 def dashboard(request):
     context = {
