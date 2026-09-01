@@ -64,7 +64,10 @@ INSTALLED_APPS = [
 
     # Domain apps registered so far (Sprint 2: CPMAS-28 Material Management,
     # CPMAS-29 Inventory & Warehouse Management, CPMAS-30 Purchase Order
-    # Management, CPMAS-31 Goods Receiving, CPMAS-32 Supplier Invoices).
+    # Management, CPMAS-31 Goods Receiving, CPMAS-32 Supplier Invoices,
+    # CPMAS-33 Expense Management, CPMAS-34 Accounting / Financial
+    # Transactions, CPMAS-35 Accounts Receivable & Accounts Payable --
+    # plus projects/clients from CPMAS-47, built by Nireez).
     # taxes, suppliers, and users are wired in here only as minimal FK
     # targets required by apps.inventory (Material.tax_rate/default_supplier,
     # StockMovement.user) and apps.purchasing (PurchaseOrder.created_by,
@@ -72,6 +75,7 @@ INSTALLED_APPS = [
     # unassigned/other-owner tickets and are not built here. users.User is
     # additionally managed=False -- it reflects an existing table this app
     # doesn't own the lifecycle of.
+    'apps.core',
     'taxes',
     'suppliers',
     'users',
@@ -80,6 +84,9 @@ INSTALLED_APPS = [
     'invoicing',
     'projects',
     'clients',
+    'expenses',
+    'accounting',
+    'payments',
 ]
 
 MIDDLEWARE = [
@@ -97,7 +104,7 @@ ROOT_URLCONF = 'construction.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -197,7 +204,12 @@ USE_TZ = False
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [BASE_DIR / 'static']
+
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'dashboard'
+LOGOUT_REDIRECT_URL = 'landing'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

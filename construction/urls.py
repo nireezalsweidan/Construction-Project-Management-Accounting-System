@@ -19,6 +19,7 @@ from django.urls import include, path
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('', include('apps.core.urls')),
 
     # Each domain app mounts its own DRF router under /api/<app>/ as it's
     # built out, so this list grows one line per app rather than
@@ -28,4 +29,7 @@ urlpatterns = [
     path('api/invoicing/', include('invoicing.urls')),  # CPMAS-32
     path('api/projects/', include('projects.urls')),
     path('api/clients/', include('clients.urls')),
+    path('api/expenses/', include('expenses.urls')),  # CPMAS-33
+    path('api/accounting/', include('accounting.urls')),  # CPMAS-34
+    path('api/payments/', include('payments.urls')),  # CPMAS-35
 ]

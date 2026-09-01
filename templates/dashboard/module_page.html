@@ -1,0 +1,8 @@
+{% extends "dashboard/base_dashboard.html" %}
+{% block title %}{{ page_title }} | Cedar Control{% endblock %}
+{% block dashboard_content %}
+<section class="page-heading"><div><p class="eyebrow">CEDAR OPERATIONS</p><h1>{{ page_title|default:"Module" }}</h1><p>{{ page_description|default:"This page is ready to connect to its Django app, models, and views." }}</p></div><button class="button">{{ primary_action|default:"Create new" }} +</button></section>
+<section class="module-summary"><article><b>{{ stat_one_value|default:"—" }}</b><span>{{ stat_one_label|default:"Total records" }}</span></article><article><b>{{ stat_two_value|default:"—" }}</b><span>{{ stat_two_label|default:"Active" }}</span></article><article><b>{{ stat_three_value|default:"—" }}</b><span>{{ stat_three_label|default:"Pending" }}</span></article><article><b>{{ stat_four_value|default:"—" }}</b><span>{{ stat_four_label|default:"This month" }}</span></article></section>
+<section class="panel table-panel"><div class="filterbar"><div class="search">⌕ <span>Search {{ page_title|lower }}…</span></div><button>Filter</button><button>Status: All</button></div><div class="table-scroll"><table><thead><tr>{% for header in table_headers %}<th>{{ header }}</th>{% empty %}<th>Record</th><th>Reference</th><th>Owner</th><th>Updated</th><th>Status</th>{% endfor %}</tr></thead><tbody>{% for row in rows %}<tr>{% for value in row %}<td>{{ value }}</td>{% endfor %}</tr>{% empty %}<tr class="empty-row"><td colspan="8"><b>{{ page_title|default:"Module" }} frontend is ready</b><span>Connect this template to the corresponding Django view and database query.</span></td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}
+
