@@ -202,15 +202,45 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
+# Email (SMTP)
+# https://docs.djangoproject.com/en/5.2/ref/settings/#email-backend
+#
+# Used by the auth flow to email password-reset links. Values come from env
+# so credentials are never committed; see .env.example. EMAIL_BACKEND may be
+# overridden to django.core.mail.backends.console.EmailBackend for local
+# testing without a real SMTP server.
+EMAIL_BACKEND = os.getenv(
+    'EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend'
+)
+EMAIL_HOST = os.getenv('EMAIL_HOST')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('1', 'true', 'yes', 'on')
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@localhost')
+
+# Base URL of the frontend password-reset page; the reset link appends
+# ?uid=...&token=... to it. Set to your SPA/static site's reset route.
+PASSWORD_RESET_BASE_URL = os.getenv('PASSWORD_RESET_BASE_URL', 'http://localhost:3000/reset-password')
+
+# How long a password-reset token stays valid (Django's default: 3 days).
+PASSWORD_RESET_TIMEOUT = int(os.getenv('PASSWORD_RESET_TIMEOUT', '259200'))
+
+
 # Django REST Framework
 # https://www.django-rest-framework.org/api-guide/settings/
 #
 # BRD 13.1 (Security) requires API authentication and permission checks on
-# every endpoint. IsAuthenticated is the safe default until the users/RBAC
-# app (separate ticket) adds per-role permission classes on top of this.
+# every endpoint. Authentication resolves request.user from the Django
+# session to this project's own users.User (see apps/users/authentication.py)
+# rather than Django's built-in Auth model -- the shared DB's auth app is
+# already migrated with auth.User, so this app authenticates against the
+# schema's own `users` table instead of switching AUTH_USER_MODEL.
+# DRF's IsAuthenticated default stays on until role-specific permission
+# classes (users.permissions: IsOwner / IsAccountant) are applied per-view.
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
+        'users.authentication.UserSessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',

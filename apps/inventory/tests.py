@@ -147,7 +147,9 @@ class InventoryAPITests(WithUsersTableMixin, TestCase):
     def test_anonymous_request_is_rejected(self):
         anon = APIClient()
         response = anon.get("/api/inventory/materials/")
-        self.assertEqual(response.status_code, 403)
+        # 401 (not 403): with the auth ticket in place, unauthenticated
+        # requests are challenged to authenticate before access is denied.
+        self.assertEqual(response.status_code, 401)
 
     def test_material_list_is_reachable_when_authenticated(self):
         response = self.client.get("/api/inventory/materials/")
