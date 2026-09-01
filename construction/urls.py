@@ -19,6 +19,7 @@ from django.urls import include, path
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('', include('apps.core.urls')),
 
     # Each domain app mounts its own DRF router under /api/<app>/ as it's
     # built out, so this list grows one line per app rather than

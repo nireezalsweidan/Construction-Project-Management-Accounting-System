@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Employee Login | Cedar Construction{% endblock %}
+{% block body_class %}login-page{% endblock %}
+{% block content %}
+<main class="login-layout">
+  <section class="login-story">
+    <a class="back-link" href="{% url 'landing' %}">← Return to Cedar website</a>
+    <div class="story-content"><div class="brand inverse"><span class="brand-mark">C</span><span><b>CEDAR</b><small>CONSTRUCTION</small></span></div><p class="eyebrow light">CEDAR CONTROL CENTER</p><h1>One team.<br>Every project<br><em>under control.</em></h1><p>Securely connect project delivery, procurement, people, inventory, and finance from one trusted workspace.</p><div class="story-features"><div><b>Controlled workflows</b><span>Clear and accountable approvals</span></div><div><b>Live intelligence</b><span>Current project and financial insight</span></div><div><b>Protected by design</b><span>Role-based, auditable access</span></div></div></div>
+  </section>
+  <section class="login-form-side">
+    <div class="login-card"><div class="security-note"><b>Protected employee access</b><span>Authorized Cedar personnel only</span></div><p class="eyebrow">EMPLOYEE PORTAL</p><h2>Welcome back.</h2><p>Enter your company credentials to continue.</p>
+      {% if form.errors %}<div class="form-error">Your email or password is incorrect. Please try again.</div>{% endif %}
+      <form method="post" data-login-form>{% csrf_token %}
+        <label for="id_username">Work email</label><div class="input-wrap"><span>@</span><input id="id_username" name="username" type="email" autocomplete="email" required autofocus placeholder="name@cedarconstruction.com"></div>
+        <label for="id_password">Password</label><div class="input-wrap"><span>◆</span><input id="id_password" name="password" type="password" autocomplete="current-password" required placeholder="Enter your password"><button type="button" data-password-toggle>Show</button></div>
+        {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+        <div class="login-options"><label><input type="checkbox" name="remember_me"> Keep me signed in</label><a href="#">Forgot password?</a></div>
+        <button class="button submit" type="submit" data-submit>Sign in to Cedar Control →</button>
+      </form>
+      <p class="support">Access issues? Contact your Cedar system administrator.</p>
+    </div>
+  </section>
+</main>
+{% endblock %}
+
