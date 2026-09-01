@@ -26,13 +26,17 @@ stay the source of truth, not drift from reality).
 | `warehouses`, `stocks`, `stock_movements` | `inventory` | CPMAS-29 |
 | `purchase_orders`, `purchase_order_items` | `purchasing` | CPMAS-30 |
 | `goods_receipts`, `goods_receipt_items` | `purchasing` | CPMAS-31 |
+| `supplier_invoices`, `supplier_invoice_items` | `invoicing` | CPMAS-32 |
+| `expense_categories`, `expenses` | `expenses` | CPMAS-33 |
+| `accounts`, `financial_transactions`, `transaction_lines` | `accounting` | CPMAS-34 |
+| `client_invoices`, `client_invoice_items` | `invoicing` | CPMAS-35 |
+| `payments`, `payment_allocations`, `receipts` | `payments` | CPMAS-35 |
 
-Everything else in this file (`projects`, `employees`, `clients`,
-`contractors`, `accounts`, `expenses`, `client_invoices`,
-`supplier_invoices`, `payments`, `financial_transactions`, `documents`,
+Everything else in this file (`employees`, `contractors`, `documents`,
 `notifications`, `audit_logs`, `units`, `timesheets`, and the rest) is
 not yet modeled in Django -- those belong to other, currently unbuilt
-tickets.
+tickets. `projects`/`clients` are modeled (CPMAS-47), just not listed
+above since that ticket predates this table.
 
 Where a not-yet-built table is needed as a foreign-key target (e.g.
 `purchase_orders.created_by -> users.id`), the referencing app defines

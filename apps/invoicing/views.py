@@ -8,9 +8,16 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
-from .models import SupplierInvoice, SupplierInvoiceItem
-from .serializers import SupplierInvoiceItemSerializer, SupplierInvoiceSerializer, apply_transition
-from .services import recalculate_invoice_totals
+from .models import ClientInvoice, ClientInvoiceItem, SupplierInvoice, SupplierInvoiceItem
+from .serializers import (
+    ClientInvoiceItemSerializer,
+    ClientInvoiceSerializer,
+    SupplierInvoiceItemSerializer,
+    SupplierInvoiceSerializer,
+    apply_client_transition,
+    apply_transition,
+)
+from .services import recalculate_client_invoice_totals, recalculate_invoice_totals
 
 
 class SupplierInvoiceViewSet(viewsets.ModelViewSet):
@@ -112,3 +119,100 @@ class SupplierInvoiceItemViewSet(viewsets.ModelViewSet):
         invoice = instance.supplier_invoice
         instance.delete()
         recalculate_invoice_totals(invoice)
+
+
+class ClientInvoiceViewSet(viewsets.ModelViewSet):
+    """
+    CRUD + status-transition API for client invoice (Accounts
+    Receivable) headers. Same shape as SupplierInvoiceViewSet.
+    """
+
+    queryset = ClientInvoice.objects.select_related('client', 'project').prefetch_related('items').all()
+    serializer_class = ClientInvoiceSerializer
+    search_fields = ['invoice_number', 'client__name']
+    ordering_fields = ['invoice_date', 'due_date', 'total_amount', 'created_at']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        params = self.request.query_params
+
+        client_id = params.get('client')
+        if client_id:
+            queryset = queryset.filter(client_id=client_id)
+
+        status_param = params.get('status')
+        if status_param:
+            queryset = queryset.filter(status=status_param.upper())
+
+        project_id = params.get('project')
+        if project_id:
+            queryset = queryset.filter(project_id=project_id)
+
+        return queryset
+
+    def _require_draft(self, invoice):
+        if invoice.status != ClientInvoice.Status.DRAFT:
+            raise PermissionDenied(
+                f"Cannot edit a client invoice once it is {invoice.get_status_display()}."
+            )
+
+    def perform_update(self, serializer):
+        self._require_draft(serializer.instance)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._require_draft(instance)
+        instance.delete()
+
+    @action(detail=True, methods=['post'])
+    def mark_sent(self, request, pk=None):
+        """POST /api/invoicing/client-invoices/{id}/mark_sent/ -- DRAFT -> SENT."""
+        invoice = apply_client_transition(self.get_object(), ClientInvoice.Status.SENT)
+        return Response(self.get_serializer(invoice).data)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        """POST /api/invoicing/client-invoices/{id}/cancel/ -- DRAFT/SENT -> CANCELLED."""
+        invoice = apply_client_transition(self.get_object(), ClientInvoice.Status.CANCELLED)
+        return Response(self.get_serializer(invoice).data)
+
+
+class ClientInvoiceItemViewSet(viewsets.ModelViewSet):
+    """
+    CRUD API for client invoice line items.
+
+    Filterable by ?client_invoice=<uuid>. Create/update/destroy are all
+    blocked once the parent invoice has left DRAFT.
+    """
+
+    queryset = ClientInvoiceItem.objects.select_related('tax_rate', 'client_invoice').all()
+    serializer_class = ClientInvoiceItemSerializer
+    search_fields = ['description']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        invoice_id = self.request.query_params.get('client_invoice')
+        if invoice_id:
+            queryset = queryset.filter(client_invoice_id=invoice_id)
+        return queryset
+
+    def _require_draft(self, invoice):
+        if invoice.status != ClientInvoice.Status.DRAFT:
+            raise PermissionDenied(
+                f"Cannot modify items on a client invoice once it is {invoice.get_status_display()}."
+            )
+
+    def perform_create(self, serializer):
+        self._require_draft(serializer.validated_data['client_invoice'])
+        serializer.save()
+
+    def perform_update(self, serializer):
+        self._require_draft(serializer.instance.client_invoice)
+        serializer.save()
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        self._require_draft(instance.client_invoice)
+        invoice = instance.client_invoice
+        instance.delete()
+        recalculate_client_invoice_totals(invoice)

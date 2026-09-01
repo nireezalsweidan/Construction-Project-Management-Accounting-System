@@ -30,4 +30,5 @@ urlpatterns = [
     path('api/clients/', include('clients.urls')),
     path('api/expenses/', include('expenses.urls')),  # CPMAS-33
     path('api/accounting/', include('accounting.urls')),  # CPMAS-34
+    path('api/payments/', include('payments.urls')),  # CPMAS-35
 ]
