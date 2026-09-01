@@ -31,3 +31,13 @@ def module_page(request, module):
         "dashboard/module_page.html",
         {"page_title": module.replace("-", " ").title(), "active_page": module},
     )
+
+
+@login_required
+def suppliers(request):
+    """
+    Supplier Management page. Renders a dashboard view that talks to the
+    /api/suppliers/ endpoints (SupplierViewSet) for supplier profile,
+    purchase orders, invoices, payments, and outstanding balance.
+    """
+    return render(request, "dashboard/suppliers.html", {"active_page": "suppliers"})

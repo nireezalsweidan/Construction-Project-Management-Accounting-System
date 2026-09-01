@@ -1,0 +1,107 @@
+{% extends "dashboard/base_dashboard.html" %}
+{% load static %}
+{% block title %}Suppliers | Cedar Control{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/suppliers.css' %}">{% endblock %}
+{% block dashboard_content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">CEDAR OPERATIONS</p>
+    <h1>Suppliers</h1>
+    <p>Manage supplier profiles, payment terms, purchase orders, invoices, and payments against outstanding balances.</p>
+  </div>
+  <button class="button" data-supplier-new>New supplier +</button>
+</section>
+
+<section class="metric-grid">
+  <article class="metric green-card"><span>Total suppliers</span><b data-metric="total">—</b><small>All records</small></article>
+  <article class="metric blue-card"><span>Active suppliers</span><b data-metric="active">—</b><small>Available for selection</small></article>
+  <article class="metric purple-card"><span>Total invoiced</span><b data-metric="invoiced">—</b><small>USD, excludes draft/cancelled</small></article>
+  <article class="metric orange-card"><span>Outstanding payable</span><b data-metric="outstanding">—</b><small>USD</small></article>
+</section>
+
+<section class="panel table-panel">
+  <div class="filterbar">
+    <div class="search" data-supplier-search>⌕ <span>Search suppliers…</span><input type="text" id="supplier-search-input" placeholder="Search name, company, email…" aria-label="Search suppliers"></div>
+    <button type="button" data-status-filter="all">Status: All</button>
+    <button type="button" data-status-filter="active">Active only</button>
+    <button type="button" data-status-filter="inactive">Inactive</button>
+  </div>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>Supplier</th><th>Contact</th><th>Payment terms</th><th>Currency</th><th>Outstanding</th><th>Status</th><th></th></tr>
+      </thead>
+      <tbody data-supplier-rows>
+        <tr class="empty-row"><td colspan="7"><b>Loading suppliers…</b><span>Fetching from the suppliers API.</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<dialog class="supplier-dialog" data-supplier-dialog>
+  <div class="supplier-dialog-shell">
+    <header class="supplier-dialog-head">
+      <div>
+        <p class="eyebrow">SUPPLIER PROFILE</p>
+        <h2 data-detail-name>—</h2>
+        <p data-detail-company></p>
+      </div>
+      <div class="supplier-dialog-actions">
+        <span class="status" data-detail-status>—</span>
+        <button type="button" aria-label="Close" data-supplier-close>×</button>
+      </div>
+    </header>
+
+    <div class="metric-grid supplier-summary">
+      <article class="metric green-card"><span>Total invoiced</span><b data-detail-invoiced>—</b><small>USD</small></article>
+      <article class="metric blue-card"><span>Total paid</span><b data-detail-paid>—</b><small>USD</small></article>
+      <article class="metric purple-card"><span>Outstanding</span><b data-detail-outstanding>—</b><small>USD</small></article>
+      <article class="metric orange-card"><span>Currency</span><b data-detail-currency>USD</b><small>System default</small></article>
+    </div>
+
+    <div class="supplier-detail-grid">
+      <div class="panel">
+        <div class="panel-head"><div><h2>Contact &amp; terms</h2><p>Profile information</p></div></div>
+        <dl class="supplier-fields">
+          <div><dt>Phone</dt><dd data-detail-phone>—</dd></div>
+          <div><dt>Email</dt><dd data-detail-email>—</dd></div>
+          <div><dt>Address</dt><dd data-detail-address>—</dd></div>
+          <div><dt>Tax number</dt><dd data-detail-tax>—</dd></div>
+          <div><dt>Payment terms</dt><dd data-detail-terms>—</dd></div>
+          <div><dt>Notes</dt><dd data-detail-notes>—</dd></div>
+        </dl>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><div><h2>Linked activity</h2><p>POs, invoices &amp; payments</p></div></div>
+        <div class="supplier-tabs" role="tablist">
+          <button type="button" role="tab" class="active" data-tab="purchase_orders">Purchase orders</button>
+          <button type="button" role="tab" data-tab="invoices">Invoices</button>
+          <button type="button" role="tab" data-tab="payments">Payments</button>
+        </div>
+        <div class="supplier-tab-panel" data-tab-panel></div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<div class="supplier-create" data-supplier-create hidden>
+  <div class="supplier-create-head"><h2>New supplier</h2><button type="button" data-supplier-create-close>×</button></div>
+  <form data-supplier-form>
+    <label>Name *<input type="text" name="name" required></label>
+    <label>Company name<input type="text" name="company_name"></label>
+    <label>Phone<input type="text" name="phone"></label>
+    <label>Email<input type="email" name="email"></label>
+    <label>Address<textarea name="address" rows="2"></textarea></label>
+    <label>Tax number<input type="text" name="tax_number"></label>
+    <label>Payment terms<input type="text" name="payment_terms" placeholder="e.g. Net 30"></label>
+    <label>Notes<textarea name="notes" rows="2"></textarea></label>
+    <div class="supplier-create-actions">
+      <button type="button" data-supplier-create-cancel>Cancel</button>
+      <button type="submit" class="button">Create supplier</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}<script src="{% static 'js/suppliers.js' %}"></script>{% endblock %}

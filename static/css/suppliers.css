@@ -1,0 +1,56 @@
+/* Supplier Management page styles.
+   Built on the shared dashboard look (cedar.css) -- these only add what
+   the dedicated Suppliers page needs: the profile dialog, tabbed linked
+   activity, and the inline create/summary forms. */
+
+.search input{border:0;background:none;outline:none;flex:1;font-family:inherit;font-size:9px}
+
+/* ---- Profile dialog ---- */
+.supplier-dialog{border:0;padding:0;background:transparent;width:min(1100px,96vw);max-height:92vh;overflow:auto;border-radius:14px}
+.supplier-dialog::backdrop{background:#001b1980}
+.supplier-dialog-shell{background:#eef4f1;border:1px solid #95afa9;border-radius:14px;overflow:hidden}
+.supplier-dialog-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:20px 22px;background:linear-gradient(135deg,#0b7367,#064f4a);color:white}
+.supplier-dialog-head h2{font-size:22px;margin:4px 0 2px;letter-spacing:-.02em}
+.supplier-dialog-head>div>p{font-size:9px;color:#bfe0da;margin:0}
+.supplier-dialog-head .eyebrow{color:#9fe8d8;margin:0}
+.supplier-dialog-actions{display:flex;align-items:center;gap:12px}
+.supplier-dialog-actions button{border:0;background:#ffffff22;color:white;font-size:16px;width:30px;height:30px;border-radius:8px;cursor:pointer}
+.supplier-dialog-actions button:hover{background:#ffffff44}
+.supplier-summary{padding:18px 18px 0}
+
+.supplier-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 18px 22px}
+.supplier-fields{margin:0;padding:10px 17px 14px}
+.supplier-fields>div{display:flex;justify-content:space-between;gap:16px;padding:7px 0;border-bottom:1px solid #c4d5d0}
+.supplier-fields>div:last-child{border-bottom:0}
+.supplier-fields dt{font-size:8px;font-weight:800;color:#647b75;text-transform:uppercase;letter-spacing:.05em}
+.supplier-fields dd{margin:0;font-size:10px;color:#17302b;text-align:right;word-break:break-word}
+
+/* ---- Tabbed linked activity ---- */
+.supplier-tabs{display:flex;gap:6px;padding:4px 17px 12px;flex-wrap:wrap}
+.supplier-tabs button{border:1px solid #9eb3ae;border-radius:8px;background:#cedbd6;font-size:8px;padding:6px 12px;color:#33443f;cursor:pointer}
+.supplier-tabs button.active{background:#0b7367;border-color:#0b7367;color:white;font-weight:800}
+.supplier-tab-panel{overflow:auto;max-height:300px}
+.supplier-tab-panel .supplier-empty{text-align:center;color:#647b75;font-size:9px;padding:24px}
+.supplier-tab-panel table{font-size:8px}
+
+/* ---- Inline create form ---- */
+.supplier-create{position:fixed;inset:0;z-index:60;background:#001b1980;display:grid;place-items:center}
+.supplier-create[hidden]{display:none}
+.supplier-create-head{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;background:#0b7367;color:white}
+.supplier-create-head h2{margin:0;font-size:15px}
+.supplier-create-head button{border:0;background:#ffffff22;color:white;width:28px;height:28px;border-radius:7px;cursor:pointer}
+.supplier-create form{background:#eef4f1;border:1px solid #95afa9;border-radius:14px;min-width:min(460px,92vw);max-height:90vh;overflow:auto;display:grid;gap:10px;padding:20px}
+.supplier-create form>div:first-of-type{background:none}
+.supplier-create label{display:block;font-size:9px;font-weight:800;color:#33443f}
+.supplier-create input,.supplier-create textarea{width:100%;margin-top:4px;border:1px solid #a5b8b3;border-radius:8px;background:#fff;padding:9px 11px;font-size:10px;font-family:inherit;box-sizing:border-box}
+.supplier-create-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
+.supplier-create-actions button{border:1px solid #9eb3ae;border-radius:8px;background:#cedbd6;font-size:9px;padding:8px 16px;cursor:pointer}
+.supplier-create-actions .button{margin:0}
+
+.row-click{cursor:pointer}
+.row-click:hover{background:#e3ece8}
+
+@media(max-width:800px){
+  .supplier-detail-grid{grid-template-columns:1fr}
+  .supplier-summary{grid-template-columns:1fr 1fr}
+}

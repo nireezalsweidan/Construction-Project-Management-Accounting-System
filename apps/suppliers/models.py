@@ -14,6 +14,7 @@ history views, and outstanding-payable-balance logic around it.
 import uuid
 
 from django.db import models
+from django.db.models import Sum
 
 
 class Supplier(models.Model):
@@ -58,3 +59,49 @@ class Supplier(models.Model):
 
     def __str__(self):
         return self.name
+
+
+# System-wide reporting/display currency. The approved schema has NO
+# per-supplier currency column (only company_details.currency exists, and no
+# currencies table is provisioned in construction_management_supabase.sql) --
+# supplier amounts are fixed to USD everywhere, so this is a plain constant,
+# not a stored field. Do NOT introduce a suppliers.currency column.
+CURRENCY = "USD"
+
+
+def get_supplier_financials(supplier_id):
+    """
+    Supplier-side outstanding payable calculation.
+
+    total_invoiced excludes DRAFT and CANCELLED supplier invoices -- those
+    aren't real payables yet/anymore.
+    total_paid is the sum actually allocated against those invoices via
+    payment_allocations (not a raw SUM of payments.amount, since a single
+    payment can be split across multiple invoices -- same reasoning as
+    payments.services.outstanding_balance and the client helper).
+
+    Uses the ``payments`` app's managed models (PaymentAllocation), which own
+    the payments/payment_allocations tables. Imports are kept local (not
+    module-level) purely to avoid the app-import ordering hazard of a models
+    module importing another app's models at bootstrap time (invoicing and
+    payments both load after suppliers).
+    """
+    from decimal import Decimal
+
+    from invoicing.models import SupplierInvoice
+    from payments.models import PaymentAllocation
+
+    invoice_qs = SupplierInvoice.objects.filter(supplier_id=supplier_id).exclude(
+        status__in=[SupplierInvoice.Status.DRAFT, SupplierInvoice.Status.CANCELLED]
+    )
+    total_invoiced = invoice_qs.aggregate(total=Sum("total_amount"))["total"] or Decimal("0.00")
+
+    total_paid = PaymentAllocation.objects.filter(
+        supplier_invoice_id__in=invoice_qs.values_list("id", flat=True)
+    ).aggregate(total=Sum("allocated_amount"))["total"] or Decimal("0.00")
+
+    return {
+        "total_invoiced": total_invoiced,
+        "total_paid": total_paid,
+        "outstanding_balance": total_invoiced - total_paid,
+    }
