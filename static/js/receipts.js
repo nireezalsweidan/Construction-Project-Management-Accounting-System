@@ -54,7 +54,7 @@
         <td>${esc(r.client_name || r.supplier_name || "—")}</td>
         <td>${esc(r.payment_method)}</td>
         <td>${fmtMoney(r.amount)}</td>
-        <td><a class="receipt-download" href="${API}${r.id}/download/" target="_blank" rel="noopener">Download PDF</a></td>
+        <td><a class="receipt-download" href="${API}${r.id}/download/">Download PDF</a></td>
       </tr>`).join("");
   }
 
