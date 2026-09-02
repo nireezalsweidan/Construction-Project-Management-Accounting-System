@@ -30,6 +30,22 @@ const targets = [
     console.log(target.name, 'after-login', page.url(), await page.title());
     fs.writeFileSync(`.visual-comparison/${target.name}-page.html`, await page.content());
     await page.screenshot({ path: `.visual-comparison/${target.name}-dashboard.png`, fullPage: true });
+    if (target.name === 'reference') {
+      await page.getByText('Projects', { exact: true }).first().click();
+      await page.waitForTimeout(800);
+      await page.getByText('Cedar Heights Residence', { exact: true }).first().click();
+      await page.waitForTimeout(800);
+    } else {
+      await page.goto(`${target.base}/projects/00000000-0000-0000-0000-000000000024/`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(1200);
+    }
+    await page.screenshot({ path: `.visual-comparison/${target.name}-project-detail.png`, fullPage: true });
+    fs.writeFileSync(`.visual-comparison/${target.name}-project-detail.html`, await page.content());
+    if (target.name === 'local') for (const tab of ['Phases', 'Budget', 'Procurement', 'Documents']) {
+      await page.locator(`[data-project-tab="${tab.toLowerCase()}"]`).click();
+      await page.waitForTimeout(250);
+      await page.screenshot({ path: `.visual-comparison/local-project-${tab.toLowerCase()}.png`, fullPage: true });
+    }
     const metrics = await page.evaluate(() => {
       const pick = (selector) => {
         const el = document.querySelector(selector);

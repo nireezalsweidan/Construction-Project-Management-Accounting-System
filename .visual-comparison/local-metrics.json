@@ -1,21 +1,21 @@
 {
   "body": {
     "selector": "body",
-    "text": "CEDAR CONTROLConstruction operations×WorkspaceOverviewProjects8Approvals5OperationsClients & partnersProcurementInventoryWorkforceFinanceInvoicesPaymentsExpense",
+    "text": "CEDAR CONTROLConstruction operations×WorkspaceOverviewProjects8Approvals5OperationsClients & partnersSuppliersProcurementInventoryWorkforceFinanceInvoicesPaymen",
     "rect": [
       0,
       0,
       1440,
-      1083
+      1000
     ],
     "font": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
     "fontSize": "14px",
     "color": "rgb(23, 44, 44)",
-    "background": "rgba(0, 0, 0, 0)"
+    "background": "rgb(220, 229, 223)"
   },
   "sidebar": {
     "selector": "aside, [class*=\"sidebar\"]",
-    "text": "CEDAR CONTROLConstruction operations×WorkspaceOverviewProjects8Approvals5OperationsClients & partnersProcurementInventoryWorkforceFinanceInvoicesPaymentsExpense",
+    "text": "CEDAR CONTROLConstruction operations×WorkspaceOverviewProjects8Approvals5OperationsClients & partnersSuppliersProcurementInventoryWorkforceFinanceInvoicesPaymen",
     "rect": [
       0,
       0,
@@ -43,12 +43,12 @@
   },
   "main": {
     "selector": "main",
-    "text": "Search projects, invoices, suppliers…⌘ KCCCedar ConstructionTripoli headquarters Wednesday, 02 September 2026Good day, example@example.comHere’s the latest pict",
+    "text": "Search projects, invoices, suppliers…⌘ KCCCedar ConstructionTripoli headquarters ProjectsPRJ-024 CH Cedar Heights ResidenceActive PRJ-024 · Levant Properties · ",
     "rect": [
       258,
       0,
       1182,
-      1083
+      1000
     ],
     "font": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
     "fontSize": "14px",
@@ -57,24 +57,25 @@
   },
   "h1": {
     "selector": "h1",
-    "text": "Good day, example@example.com",
+    "text": "Cedar Heights Residence",
     "rect": [
-      292,
-      128,
-      518,
-      47
+      366,
+      176,
+      457,
+      43
     ],
-    "font": "Georgia, \"Times New Roman\", serif",
-    "fontSize": "31px",
-    "color": "rgb(16, 59, 57)",
+    "font": "Georgia",
+    "fontSize": "38px",
+    "color": "rgb(16, 45, 45)",
     "background": "rgba(0, 0, 0, 0)"
   },
-  "cards": 6,
+  "cards": 12,
   "shellDisplay": "block",
   "sheets": [
     "https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Libre+Franklin:wght@700;800&display=swap",
     "http://127.0.0.1:8000/static/css/site-exact.css",
-    "http://127.0.0.1:8000/static/css/v3-fixes.css"
+    "http://127.0.0.1:8000/static/css/v3-fixes.css",
+    "http://127.0.0.1:8000/static/css/projects.css"
   ],
   "links": [
     {
@@ -92,6 +93,10 @@
     {
       "text": "Clients & partners",
       "href": "http://127.0.0.1:8000/partners/"
+    },
+    {
+      "text": "Suppliers",
+      "href": "http://127.0.0.1:8000/suppliers/"
     },
     {
       "text": "Procurement",
@@ -126,11 +131,7 @@
       "href": "http://127.0.0.1:8000/settings/"
     },
     {
-      "text": "Review items ›",
-      "href": "http://127.0.0.1:8000/approvals/"
-    },
-    {
-      "text": "View all ›",
+      "text": "Projects",
       "href": "http://127.0.0.1:8000/projects/"
     }
   ]

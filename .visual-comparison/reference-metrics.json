@@ -43,7 +43,7 @@
   },
   "main": {
     "selector": "main",
-    "text": "Search projects, invoices, suppliers…⌘ KCCCedar ConstructionTripoli headquartersFriday, 28 August 2026Good evening, MahmoudHere’s the latest picture across your",
+    "text": "Search projects, invoices, suppliers…⌘ KCCCedar ConstructionTripoli headquarters ProjectsPRJ-024CHCedar Heights ResidenceActivePRJ-024 · Levant Properties · Bei",
     "rect": [
       258,
       0,
@@ -57,19 +57,19 @@
   },
   "h1": {
     "selector": "h1",
-    "text": "Good evening, Mahmoud",
+    "text": "Cedar Heights Residence",
     "rect": [
-      292,
-      128,
-      380,
-      47
+      354,
+      150,
+      347,
+      31
     ],
-    "font": "Georgia, \"Times New Roman\", serif",
-    "fontSize": "31px",
-    "color": "rgb(16, 59, 57)",
+    "font": "Georgia",
+    "fontSize": "27px",
+    "color": "rgb(23, 44, 44)",
     "background": "rgba(0, 0, 0, 0)"
   },
-  "cards": 6,
+  "cards": 8,
   "shellDisplay": "block",
   "sheets": [
     "https://buildledger-wireframes.bright-tuna-4729.chatgpt.site/assets/index-CRjEfVHC.css"
