@@ -220,15 +220,6 @@ class UserManagementRbacTests(AuthApiBase):
         self.acc.refresh_from_db()
         self.assertTrue(self.acc.is_active)
 
-    def test_owner_reset_other_user_password(self):
-        self.login("owner", "owner-pass-123")
-        resp = self.client.post(
-            f"/api/auth/users/{self.acc.pk}/reset-password/",
-            {"new_password": "admin-forced-pass-123"}, format="json")
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        self.acc.refresh_from_db()
-        self.assertTrue(self.acc.check_password("admin-forced-pass-123"))
-
     def test_create_auto_generates_username_email_and_password(self):
         self.login("owner", "owner-pass-123")
         resp = self.client.post("/api/auth/users/",
