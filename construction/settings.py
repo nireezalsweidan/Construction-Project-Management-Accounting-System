@@ -85,6 +85,8 @@ INSTALLED_APPS = [
     'invoicing',
     'projects',
     'clients',
+    'contractors',
+    'employees',
     'company',
     'expenses',
     'accounting',
