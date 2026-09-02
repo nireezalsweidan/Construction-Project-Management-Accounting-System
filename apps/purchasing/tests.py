@@ -244,6 +244,14 @@ class PurchaseOrderAPITests(PurchasingTestBase):
         }, format="json")
         self.assertEqual(response.status_code, 403)
 
+    def test_filter_by_order_date_range(self):
+        in_range = self.make_po(po_number="PO-API-5", order_date="2026-08-15")
+        self.make_po(po_number="PO-API-6", order_date="2026-01-01")
+
+        response = self.client.get("/api/purchasing/purchase-orders/?date_from=2026-08-01&date_to=2026-08-31")
+        numbers = [p["po_number"] for p in response.json()["results"]]
+        self.assertEqual(numbers, [in_range.po_number])
+
 
 class GoodsReceiptAPITests(PurchasingTestBase):
     def setUp(self):

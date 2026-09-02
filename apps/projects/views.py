@@ -6,6 +6,8 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from construction.filtering import filter_date_range
+
 from .models import (
     Budget,
     BudgetItem,
@@ -56,6 +58,13 @@ class ProjectViewSet(viewsets.ModelViewSet):
         # or filter explicitly with ?is_archived=true to see them.
         if "is_archived" not in params and params.get("include_archived") != "true":
             qs = qs.filter(is_archived=False)
+
+        client_id = params.get("client")
+        if client_id:
+            qs = qs.filter(buyer_id=client_id)
+
+        qs = filter_date_range(qs, params, "start_date")
+
         return qs
 
     def get_serializer_class(self):

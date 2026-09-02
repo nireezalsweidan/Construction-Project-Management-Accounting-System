@@ -8,6 +8,8 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
+from construction.filtering import filter_date_range
+
 from .models import GoodsReceipt, GoodsReceiptItem, PurchaseOrder, PurchaseOrderItem
 from .serializers import (
     GoodsReceiptItemSerializer,
@@ -46,6 +48,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         status_param = params.get('status')
         if status_param:
             queryset = queryset.filter(status=status_param.upper())
+
+        queryset = filter_date_range(queryset, params, 'order_date')
 
         return queryset
 

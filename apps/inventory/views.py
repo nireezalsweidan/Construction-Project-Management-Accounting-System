@@ -39,10 +39,11 @@ class MaterialViewSet(viewsets.ModelViewSet):
     """
     CRUD API for the material catalog.
 
-    Supports filtering by ?category=<uuid> and ?is_active=true|false (BRD
-    5.12/10: material management + cross-entity search/filtering), plus free
-    -text search across name/SKU and ordering, via DRF's SearchFilter /
-    OrderingFilter configured globally in REST_FRAMEWORK settings.
+    Supports filtering by ?category=<uuid>, ?supplier=<uuid>, and
+    ?is_active=true|false (BRD 5.12/10: material management + cross-
+    entity search/filtering), plus free-text search across name/SKU and
+    ordering, via DRF's SearchFilter/OrderingFilter configured globally
+    in REST_FRAMEWORK settings.
     """
 
     queryset = Material.objects.select_related(
@@ -61,6 +62,10 @@ class MaterialViewSet(viewsets.ModelViewSet):
         category_id = self.request.query_params.get('category')
         if category_id:
             queryset = queryset.filter(category_id=category_id)
+
+        supplier_id = self.request.query_params.get('supplier')
+        if supplier_id:
+            queryset = queryset.filter(default_supplier_id=supplier_id)
 
         is_active = self.request.query_params.get('is_active')
         if is_active is not None:
