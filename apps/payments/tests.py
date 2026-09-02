@@ -274,3 +274,63 @@ class PaymentAPITests(PaymentsTestBase):
         # 401 (not 403): with the auth ticket in place, unauthenticated
         # requests are challenged to authenticate before access is denied.
         self.assertEqual(response.status_code, 401)
+
+
+class ReceiptDetailAndDownloadAPITests(PaymentsTestBase):
+    """
+    CPMAS-21 (BRD 5.19): the receipt fields it lists beyond what the
+    Receipt model itself stores (client/supplier, payment method), the
+    printable/downloadable PDF endpoint, and filtering by client/
+    supplier/payment.
+    """
+
+    def setUp(self):
+        super().setUp()
+        django_user = DjangoUser.objects.create_user(username="apitester4", password="pass12345")
+        self.client = APIClient()
+        self.client.force_authenticate(user=django_user)
+
+    def make_receipt(self, **kwargs):
+        payment = self.make_payment(amount=Decimal("1000.00"))
+        defaults = dict(payment=payment, receipt_number="RCPT-DL-1", receipt_date="2026-08-31", amount=Decimal("1000.00"))
+        defaults.update(kwargs)
+        return Receipt.objects.create(**defaults)
+
+    def test_receipt_response_includes_client_and_payment_method(self):
+        receipt = self.make_receipt()
+        response = self.client.get(f"/api/payments/receipts/{receipt.id}/")
+        data = response.json()
+        self.assertEqual(data["client_name"], "Jane Homeowner")
+        self.assertIsNone(data["supplier_name"])
+        self.assertEqual(data["payment_method"], "bank_transfer")
+
+    def test_download_returns_a_pdf_attachment(self):
+        receipt = self.make_receipt(receipt_number="RCPT-DL-2")
+        response = self.client.get(f"/api/payments/receipts/{receipt.id}/download/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertIn('attachment; filename="RCPT-DL-2.pdf"', response["Content-Disposition"])
+        self.assertTrue(response.content.startswith(b"%PDF"))
+
+    def test_filter_by_client(self):
+        receipt = self.make_receipt(receipt_number="RCPT-DL-3")
+        other_client = Client.objects.create(name="Someone Else")
+        other_payment = self.make_payment(payment_number="PMT-OTHER", amount=Decimal("50.00"), client=other_client)
+        Receipt.objects.create(payment=other_payment, receipt_number="RCPT-DL-4", receipt_date="2026-08-31", amount=Decimal("50.00"))
+
+        response = self.client.get(f"/api/payments/receipts/?client={self.client_obj.id}")
+        numbers = [r["receipt_number"] for r in response.json()["results"]]
+        self.assertIn("RCPT-DL-3", numbers)
+        self.assertNotIn("RCPT-DL-4", numbers)
+
+    def test_filter_by_payment(self):
+        receipt = self.make_receipt(receipt_number="RCPT-DL-5")
+        response = self.client.get(f"/api/payments/receipts/?payment={receipt.payment_id}")
+        numbers = [r["receipt_number"] for r in response.json()["results"]]
+        self.assertEqual(numbers, ["RCPT-DL-5"])
+
+    def test_anonymous_download_is_rejected(self):
+        receipt = self.make_receipt(receipt_number="RCPT-DL-6")
+        anon = APIClient()
+        response = anon.get(f"/api/payments/receipts/{receipt.id}/download/")
+        self.assertEqual(response.status_code, 401)

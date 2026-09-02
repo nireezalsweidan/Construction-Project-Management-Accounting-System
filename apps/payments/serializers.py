@@ -89,13 +89,27 @@ class ReceiptSerializer(serializers.ModelSerializer):
     """
     Serializer for Receipt. Create-only at the viewset level (proof of
     receipt, immutable once issued).
+
+    client_name/supplier_name/payment_method are read-only, derived
+    through the receipt's payment -- BRD 5.19 lists "Client/supplier"
+    and "Payment method" as receipt fields, but the schema's receipts
+    table has no such columns of its own (a receipt is always one-to-
+    one with a payment, so nothing would be gained by duplicating them
+    here). Currency is in BRD 5.19 too but is out of scope for this
+    version (BRD 3.2 lists multi-currency as a future enhancement).
     """
 
     payment_number = serializers.CharField(source='payment.payment_number', read_only=True)
+    client_name = serializers.CharField(source='payment.client.name', read_only=True, default=None)
+    supplier_name = serializers.CharField(source='payment.supplier.name', read_only=True, default=None)
+    payment_method = serializers.CharField(source='payment.payment_method', read_only=True)
 
     class Meta:
         model = Receipt
-        fields = ['id', 'payment', 'payment_number', 'receipt_number', 'receipt_date', 'amount', 'reference', 'created_at']
+        fields = [
+            'id', 'payment', 'payment_number', 'client_name', 'supplier_name', 'payment_method',
+            'receipt_number', 'receipt_date', 'amount', 'reference', 'created_at',
+        ]
 
     def validate_payment(self, payment):
         if payment.direction != Payment.Direction.INCOMING:
