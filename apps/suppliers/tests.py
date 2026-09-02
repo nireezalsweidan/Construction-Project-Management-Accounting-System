@@ -247,6 +247,61 @@ class SupplierDetailActionsTests(SupplierAPITestBase):
         self.assertEqual(data["outstanding_balance"], "700.00")
 
 
+class SupplierSummaryTests(SupplierAPITestBase):
+    """The dashboard page's stat cards are fed by a single /summary/ call."""
+
+    def test_summary_empty_portfolio(self):
+        response = self.client.get("/api/suppliers/suppliers/summary/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["currency"], "USD")
+        self.assertEqual(data["total_suppliers"], 1)
+        self.assertEqual(data["active_suppliers"], 1)
+        self.assertEqual(data["total_invoiced"], "0.00")
+        self.assertEqual(data["total_paid"], "0.00")
+        self.assertEqual(data["outstanding_balance"], "0.00")
+
+    def test_summary_aggregates_across_suppliers(self):
+        acme_invoice = SupplierInvoice.objects.create(
+            supplier=self.supplier, invoice_number="SI-1", invoice_date="2026-08-01",
+            total_amount=Decimal("1000.00"), status=SupplierInvoice.Status.SENT,
+        )
+        SupplierInvoice.objects.create(
+            supplier=self.supplier, invoice_number="SI-2", invoice_date="2026-08-02",
+            total_amount=Decimal("500.00"), status=SupplierInvoice.Status.DRAFT,
+        )
+        supplier_two = Supplier.objects.create(name="Other Supplies", is_active=False)
+        other_invoice = SupplierInvoice.objects.create(
+            supplier=supplier_two, invoice_number="SI-3", invoice_date="2026-08-03",
+            total_amount=Decimal("2000.00"), status=SupplierInvoice.Status.SENT,
+        )
+        acme_payment = Payment.objects.create(
+            payment_number="PMT-A", payment_date="2026-08-10", amount=Decimal("400.00"),
+            direction=Payment.Direction.OUTGOING, payment_method="BANK_TRANSFER",
+            supplier=self.supplier, created_by=self.creator,
+        )
+        other_payment = Payment.objects.create(
+            payment_number="PMT-B", payment_date="2026-08-11", amount=Decimal("1500.00"),
+            direction=Payment.Direction.OUTGOING, payment_method="BANK_TRANSFER",
+            supplier=supplier_two, created_by=self.creator,
+        )
+        PaymentAllocation.objects.create(
+            payment=acme_payment, supplier_invoice=acme_invoice, allocated_amount=Decimal("400.00"),
+        )
+        PaymentAllocation.objects.create(
+            payment=other_payment, supplier_invoice=other_invoice, allocated_amount=Decimal("1500.00"),
+        )
+
+        response = self.client.get("/api/suppliers/suppliers/summary/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["total_suppliers"], 2)
+        self.assertEqual(data["active_suppliers"], 1)
+        self.assertEqual(data["total_invoiced"], "3000.00")
+        self.assertEqual(data["total_paid"], "1900.00")
+        self.assertEqual(data["outstanding_balance"], "1100.00")
+
+
 class SupplierPageRenderTests(TestCase):
     """The dashboard Suppliers page is server-rendered HTML + client-side JS
     that speaks to the /api/suppliers API. These tests confirm the page
@@ -265,4 +320,10 @@ class SupplierPageRenderTests(TestCase):
         content = response.content.decode()
         self.assertIn("Suppliers", content)
         self.assertIn("suppliers.js", content)
+        self.assertIn("suppliers.css", content)
+        self.assertIn("site-exact.css", content)
+        self.assertIn("v3-fixes.css", content)
         self.assertIn("data-supplier-rows", content)
+        self.assertIn("module-stat-grid", content)
+        self.assertIn('data-metric="outstanding"', content)
+        self.assertIn('href="/suppliers/"', content)
