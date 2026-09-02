@@ -227,6 +227,14 @@ class AccountingAPITests(AccountingTestBase):
         response = self.client.post(f"/api/accounting/financial-transactions/{txn.id}/void/")
         self.assertEqual(response.json()["status"], "VOIDED")
 
+    def test_filter_by_transaction_date_range(self):
+        in_range = self.make_transaction(transaction_number="TXN-API-7", transaction_date="2026-08-15")
+        self.make_transaction(transaction_number="TXN-API-8", transaction_date="2026-01-01")
+
+        response = self.client.get("/api/accounting/financial-transactions/?date_from=2026-08-01&date_to=2026-08-31")
+        numbers = [t["transaction_number"] for t in response.json()["results"]]
+        self.assertEqual(numbers, [in_range.transaction_number])
+
     def test_anonymous_request_is_rejected(self):
         anon = APIClient()
         response = anon.get("/api/accounting/financial-transactions/")

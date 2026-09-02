@@ -188,6 +188,19 @@ class SupplierAPIListCreateTests(SupplierAPITestBase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["payment_terms"], "Net 60")
 
+    def test_filter_by_is_active(self):
+        # CPMAS-23: this app previously had zero query-param filtering.
+        inactive = Supplier.objects.create(name="Retired Vendor", is_active=False)
+
+        active_response = self.client.get("/api/suppliers/suppliers/?is_active=true")
+        active_names = [s["name"] for s in active_response.json()["results"]]
+        self.assertIn("ACME Building Supplies", active_names)
+        self.assertNotIn(inactive.name, active_names)
+
+        inactive_response = self.client.get("/api/suppliers/suppliers/?is_active=false")
+        inactive_names = [s["name"] for s in inactive_response.json()["results"]]
+        self.assertEqual(inactive_names, [inactive.name])
+
 
 class SupplierDetailActionsTests(SupplierAPITestBase):
     def test_purchase_orders_action(self):

@@ -189,6 +189,14 @@ class SupplierInvoiceAPITests(InvoicingTestBase):
         }, format="json")
         self.assertEqual(response.status_code, 403)
 
+    def test_filter_by_invoice_date_range(self):
+        in_range = self.make_invoice(invoice_number="INV-API-7", invoice_date="2026-08-15")
+        self.make_invoice(invoice_number="INV-API-8", invoice_date="2026-01-01")
+
+        response = self.client.get("/api/invoicing/supplier-invoices/?date_from=2026-08-01&date_to=2026-08-31")
+        numbers = [i["invoice_number"] for i in response.json()["results"]]
+        self.assertEqual(numbers, [in_range.invoice_number])
+
     def test_anonymous_request_is_rejected(self):
         anon = APIClient()
         response = anon.get("/api/invoicing/supplier-invoices/")
@@ -323,6 +331,14 @@ class ClientInvoiceAPITests(ClientInvoicingTestBase):
         self.client.post(f"/api/invoicing/client-invoices/{invoice.id}/mark_sent/")
         response = self.client.get(f"/api/invoicing/client-invoices/{invoice.id}/")
         self.assertEqual(response.json()["outstanding_balance"], "500.00")
+
+    def test_filter_by_invoice_date_range(self):
+        in_range = self.make_client_invoice(invoice_number="CINV-API-6", invoice_date="2026-08-15")
+        self.make_client_invoice(invoice_number="CINV-API-7", invoice_date="2026-01-01")
+
+        response = self.client.get("/api/invoicing/client-invoices/?date_from=2026-08-01&date_to=2026-08-31")
+        numbers = [i["invoice_number"] for i in response.json()["results"]]
+        self.assertEqual(numbers, [in_range.invoice_number])
 
     def test_anonymous_request_is_rejected(self):
         anon = APIClient()

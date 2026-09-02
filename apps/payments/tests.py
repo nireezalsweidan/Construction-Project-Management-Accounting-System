@@ -268,6 +268,14 @@ class PaymentAPITests(PaymentsTestBase):
         }, format="json")
         self.assertEqual(response.status_code, 400)
 
+    def test_filter_by_payment_date_range(self):
+        in_range = self.make_payment(payment_number="PMT-API-DATE-1", payment_date="2026-08-15")
+        self.make_payment(payment_number="PMT-API-DATE-2", payment_date="2026-01-01")
+
+        response = self.client.get("/api/payments/payments/?date_from=2026-08-01&date_to=2026-08-31")
+        numbers = [p["payment_number"] for p in response.json()["results"]]
+        self.assertEqual(numbers, [in_range.payment_number])
+
     def test_anonymous_request_is_rejected(self):
         anon = APIClient()
         response = anon.get("/api/payments/payments/")
@@ -328,6 +336,17 @@ class ReceiptDetailAndDownloadAPITests(PaymentsTestBase):
         response = self.client.get(f"/api/payments/receipts/?payment={receipt.payment_id}")
         numbers = [r["receipt_number"] for r in response.json()["results"]]
         self.assertEqual(numbers, ["RCPT-DL-5"])
+
+    def test_filter_by_receipt_date_range(self):
+        in_range_payment = self.make_payment(payment_number="PMT-DL-7", amount=Decimal("1000.00"))
+        in_range = Receipt.objects.create(payment=in_range_payment, receipt_number="RCPT-DL-7", receipt_date="2026-08-15", amount=Decimal("1000.00"))
+
+        out_of_range_payment = self.make_payment(payment_number="PMT-DL-8", amount=Decimal("1000.00"))
+        Receipt.objects.create(payment=out_of_range_payment, receipt_number="RCPT-DL-8", receipt_date="2026-01-01", amount=Decimal("1000.00"))
+
+        response = self.client.get("/api/payments/receipts/?date_from=2026-08-01&date_to=2026-08-31")
+        numbers = [r["receipt_number"] for r in response.json()["results"]]
+        self.assertEqual(numbers, [in_range.receipt_number])
 
     def test_anonymous_download_is_rejected(self):
         receipt = self.make_receipt(receipt_number="RCPT-DL-6")

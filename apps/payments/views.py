@@ -6,6 +6,8 @@ from django.http import HttpResponse
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 
+from construction.filtering import filter_date_range
+
 from .models import Payment, PaymentAllocation, Receipt
 from .pdf import render_receipt_pdf
 from .serializers import PaymentAllocationSerializer, PaymentSerializer, ReceiptSerializer
@@ -19,7 +21,7 @@ class PaymentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
     inventory.views.StockMovementViewSet: a recorded payment is history,
     not something edited in place.
 
-    Filterable by ?direction=, ?client=, ?supplier=.
+    Filterable by ?direction=, ?client=, ?supplier=, ?date_from=/?date_to=.
     """
 
     queryset = Payment.objects.select_related('client', 'supplier', 'created_by').prefetch_related('allocations').all()
@@ -42,6 +44,8 @@ class PaymentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
         supplier_id = params.get('supplier')
         if supplier_id:
             queryset = queryset.filter(supplier_id=supplier_id)
+
+        queryset = filter_date_range(queryset, params, 'payment_date')
 
         return queryset
 
@@ -114,6 +118,8 @@ class ReceiptViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
         supplier_id = params.get('supplier')
         if supplier_id:
             queryset = queryset.filter(payment__supplier_id=supplier_id)
+
+        queryset = filter_date_range(queryset, params, 'receipt_date')
 
         return queryset
 

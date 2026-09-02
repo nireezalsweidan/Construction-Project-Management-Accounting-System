@@ -1,6 +1,14 @@
+from decimal import Decimal
+
+from django.contrib.auth.models import User as DjangoUser
 from django.test import TestCase
+from rest_framework.test import APIClient
+
+from clients.models import Client
+from clients.testing import WithClientsTableMixin
 
 from .models import Phase, Project, ProjectEmployee
+from .testing import WithProjectsTableMixin
 
 
 class ProjectModelTests(TestCase):
@@ -125,3 +133,38 @@ class PhaseSerializerTests(TestCase):
             {"status": Phase.STATUS_COMPLETED, "progress_percentage": Decimal("95.00")}
         )
         self.assertEqual(result["progress_percentage"], Decimal("95.00"))
+
+
+class ProjectFilteringAPITests(WithProjectsTableMixin, WithClientsTableMixin, TestCase):
+    """CPMAS-23: ?client=/?date_from=/?date_to= filtering on ProjectViewSet."""
+
+    def setUp(self):
+        self.client_obj = Client.objects.create(name="Jane Homeowner")
+        self.other_client = Client.objects.create(name="Someone Else")
+        django_user = DjangoUser.objects.create_user(username="apitester_projects", password="pass12345")
+        self.client = APIClient()
+        self.client.force_authenticate(user=django_user)
+
+    def make_project(self, **kwargs):
+        defaults = dict(
+            name="Tower A", code="TWR-FILTER-1", project_type=Project.TYPE_WHOLE_BUILDING,
+            start_date="2026-06-01", contract_value=Decimal("100000.00"), buyer=self.client_obj,
+        )
+        defaults.update(kwargs)
+        return Project.objects.create(**defaults)
+
+    def test_filter_by_client(self):
+        matching = self.make_project(code="TWR-FILTER-2")
+        self.make_project(code="TWR-FILTER-3", buyer=self.other_client)
+
+        response = self.client.get(f"/api/projects/projects/?client={self.client_obj.id}")
+        codes = [p["code"] for p in response.json()["results"]]
+        self.assertEqual(codes, [matching.code])
+
+    def test_filter_by_start_date_range(self):
+        in_range = self.make_project(code="TWR-FILTER-4", start_date="2026-06-15")
+        self.make_project(code="TWR-FILTER-5", start_date="2026-01-01")
+
+        response = self.client.get("/api/projects/projects/?date_from=2026-06-01&date_to=2026-06-30")
+        codes = [p["code"] for p in response.json()["results"]]
+        self.assertEqual(codes, [in_range.code])
