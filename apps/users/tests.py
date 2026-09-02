@@ -229,32 +229,42 @@ class UserManagementRbacTests(AuthApiBase):
         self.acc.refresh_from_db()
         self.assertTrue(self.acc.check_password("admin-forced-pass-123"))
 
-    def test_create_auto_generates_username_email_and_password(self):
+    def test_create_requires_email_name_role(self):
         self.login("owner", "owner-pass-123")
+        # Missing email -> 400 (Owner must supply the real email so the
+        # system can send the user their login credentials).
         resp = self.client.post("/api/auth/users/",
                                 {"first_name": "First", "last_name": "User",
                                  "role": Role.ACCOUNTANT},
                                 format="json")
-        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
-        # username -> firstname-lastname; email -> firstname.lastname@cedar.com
-        self.assertEqual(resp.data["username"], "first-user")
-        self.assertEqual(resp.data["email"], "first.user@cedar.com")
-        self.assertNotIn("password", resp.data)
-        created = User.objects.get(username="first-user")
-        # A password was generated and hashed (never plaintext).
-        self.assertTrue(created.password_hash)
-        self.assertFalse(created.check_password("first-user"))
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", resp.data)
+        # Missing name -> 400.
+        resp = self.client.post("/api/auth/users/",
+                                {"email": "email.only@example.com",
+                                 "role": Role.ACCOUNTANT},
+                                format="json")
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_create_emails_credentials(self):
+    def test_create_auto_generates_username_and_emails_credentials(self):
         self.login("owner", "owner-pass-123")
         resp = self.client.post("/api/auth/users/",
                                 {"first_name": "Mail", "last_name": "Recipient",
-                                 "role": Role.OWNER},
+                                 "email": "mail.recipient@example.com",
+                                 "role": Role.ACCOUNTANT},
                                 format="json")
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        # username auto-generated -> firstname-lastname
+        self.assertEqual(resp.data["username"], "mail-recipient")
+        self.assertNotIn("password", resp.data)
+        created = User.objects.get(username="mail-recipient")
+        # password generated + hashed (never plaintext)
+        self.assertTrue(created.password_hash)
+        # credentials emailed to the provided real address
         self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, ["mail.recipient@cedar.com"])
+        self.assertEqual(mail.outbox[0].to, ["mail.recipient@example.com"])
         self.assertIn("Username:", mail.outbox[0].body)
+        self.assertIn("mail-recipient", mail.outbox[0].body)
         self.assertIn("Password:", mail.outbox[0].body)
 
     def test_create_with_explicit_username_email_password(self):

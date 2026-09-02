@@ -40,17 +40,6 @@ def build_username(first_name: str, last_name: str) -> str:
     return username
 
 
-def build_email(first_name: str, last_name: str) -> str:
-    """Generate ``firstname.lastname@cedar.com`` from the person's names."""
-    local = _slugify(f"{first_name} {last_name}").replace("-", ".")
-    base = f"{local}@cedar.com"
-    email, n = base, 1
-    while User.objects.filter(email__iexact=email).exists():
-        n += 1
-        email = f"{local}{n}@cedar.com"
-    return email
-
-
 def generate_password() -> str:
     """
     Generate a strong initial password (passes the 8-char policy) for a
@@ -89,14 +78,13 @@ class UserCreateSerializer(serializers.ModelSerializer):
     Admin/owner registration of a new user.
 
     This is the ONLY way a user account is created -- there is no public
-    sign-up. When the Owner supplies a ``password`` it is hashed via
-    ``User.set_password`` (never stored in plaintext). When any of
-    ``username`` / ``email`` / ``password`` is omitted they are generated:
-    - username -> ``firstname-lastname``
-    - email    -> ``firstname.lastname@cedar.com``
-    - password -> a strong random password
-    and a credentials email is sent to the new user (see ``users.services``
-    ``send_account_credentials_email``, triggered from the view).
+    sign-up. The Owner must supply ``email``, ``first_name``, ``last_name``
+    and ``role`` (the real email is used to send the user their login
+    credentials). If ``username`` is omitted it is auto-generated as
+    ``firstname-lastname``. When ``password`` is omitted a strong random
+    password is generated (see ``generate_password``) and emailed to the new
+    user via ``send_account_credentials_email`` (triggered from the view).
+    Passwords are hashed via ``User.set_password``, never stored in plaintext.
     """
     password = serializers.CharField(write_only=True, required=False,
                                      validators=[validate_password_strength])
@@ -107,9 +95,13 @@ class UserCreateSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'first_name', 'last_name', 'role',
             'phone', 'is_active', 'password',
         ]
+        read_only_fields = ['id']
         extra_kwargs = {
             'username': {'required': False},
-            'email': {'required': False},
+            'email': {'required': True},
+            'first_name': {'required': True},
+            'last_name': {'required': True},
+            'role': {'required': True},
         }
 
     def validate_role(self, value):
@@ -124,11 +116,9 @@ class UserCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {'first_name': 'first_name and last_name are required.'}
             )
-        # Auto-generate username / email from the person's name when absent.
+        # Auto-generate a username from the person's name when omitted.
         if not attrs.get('username'):
             attrs['username'] = build_username(first_name, last_name)
-        if not attrs.get('email'):
-            attrs['email'] = build_email(first_name, last_name)
         return attrs
 
     def create(self, validated_data):
