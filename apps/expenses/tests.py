@@ -25,18 +25,15 @@ from .models import Expense, ExpenseCategory
 from .services import transition_status
 
 
-class ExpensesTestBase(WithProjectsTableMixin, WithUsersTableMixin, WithClientsTableMixin, TestCase):
+class ExpensesTestBase(WithProjectsTableMixin, WithClientsTableMixin, WithUsersTableMixin, TestCase):
     """
     Expense.created_by FKs to users.User (managed=False, see
     users.testing) even though no test here sets it explicitly --
     SQLite validates an FK column's target table exists at INSERT time
     regardless of whether the value being inserted is NULL, so that
-    table has to exist too, not just projects.
-
-    Also mixes in WithClientsTableMixin: projects.Project.buyer is now a
-    real (nullable) FK into clients.Client -- same SQLite FK-target-must-
-    exist quirk applies to creating a Project row here, even though no
-    test in this file ever sets buyer explicitly.
+    table has to exist too, not just projects. Project also FKs to
+    clients.Client (CPMAS-47), so the clients table is materialized here
+    the same way the payments/accounting/invoicing suites do.
     """
 
     """Shared fixtures: a project (real, from CPMAS-47) and an expense category."""

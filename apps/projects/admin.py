@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Phase, Project, ProjectEmployee
+from .models import Budget, BudgetItem, ChangeOrder, Phase, Project, ProjectEmployee
 
 
 @admin.register(Project)
@@ -39,3 +39,31 @@ class PhaseAdmin(admin.ModelAdmin):
     list_filter = ("status",)
     search_fields = ("name", "description")
     ordering = ("project", "sequence_number")
+
+
+class BudgetItemInline(admin.TabularInline):
+    model = BudgetItem
+    extra = 1
+
+
+@admin.register(Budget)
+class BudgetAdmin(admin.ModelAdmin):
+    list_display = ("name", "project", "total_budget", "status", "created_at")
+    list_filter = ("status",)
+    search_fields = ("name",)
+    ordering = ("-created_at",)
+    inlines = [BudgetItemInline]
+
+
+@admin.register(BudgetItem)
+class BudgetItemAdmin(admin.ModelAdmin):
+    list_display = ("budget", "category", "phase", "budgeted_amount")
+    list_filter = ("category",)
+
+
+@admin.register(ChangeOrder)
+class ChangeOrderAdmin(admin.ModelAdmin):
+    list_display = ("number", "project", "amount", "status", "date")
+    list_filter = ("status",)
+    search_fields = ("number", "description")
+    ordering = ("-date",)

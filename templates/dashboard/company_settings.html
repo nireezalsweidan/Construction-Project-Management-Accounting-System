@@ -1,0 +1,100 @@
+{% extends "dashboard/base_dashboard.html" %}
+{% load static %}
+{% block title %}Company settings | Cedar Control{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/company_settings.css' %}">{% endblock %}
+{% block dashboard_content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">ADMINISTRATION</p>
+    <h1>Company settings</h1>
+    <p>Configure company identity, access, accounting rules, taxes, and notifications.</p>
+  </div>
+  <button class="button" type="submit" form="company-settings-form" data-save-top>Save changes</button>
+</section>
+
+{% if saved %}<div class="settings-banner">✓ Company profile saved.</div>{% endif %}
+{% if error %}<div class="settings-banner error">{{ error }}</div>{% endif %}
+
+<section class="settings-tabs" role="tablist">
+  <button type="button" role="tab" class="active" data-settings-tab="profile">Company profile</button>
+  <button type="button" role="tab" data-settings-tab="users">Users &amp; roles</button>
+  <button type="button" role="tab" data-settings-tab="financial">Financial settings</button>
+  <button type="button" role="tab" data-settings-tab="taxes">Tax rates</button>
+  <button type="button" role="tab" data-settings-tab="notifications">Notifications</button>
+  <button type="button" role="tab" data-settings-tab="audit">Audit trail</button>
+</section>
+
+<section class="panel settings-panel">
+  <div class="settings-pane active" data-settings-pane="profile">
+    <div class="settings-pane-head">
+      <div><h2>Company profile</h2><p>Used on invoices, receipts, reports, and official documents</p></div>
+    </div>
+
+    <form id="company-settings-form" method="post" enctype="multipart/form-data" action="{% url 'company-settings' %}">
+      {% csrf_token %}
+      <div class="settings-form-grid">
+        <div class="settings-logo-col">
+          <div class="settings-logo">{{ profile.initials|default:"CC" }}</div>
+          <input type="file" id="settings-logo-input" name="logo" accept=".png,.svg" hidden>
+          <button class="settings-logo-replace" type="button" data-logo-replace>Replace logo</button>
+          <small>PNG or SVG</small>
+        </div>
+
+        <div class="settings-form">
+          <label>Company name *<input type="text" name="name" required value="{{ profile.name|default:'' }}"></label>
+          <label>Registration number<input type="text" name="registration_number" value="{{ profile.registration_number|default:'' }}"></label>
+          <label>Business email<input type="email" name="email" value="{{ profile.email|default:'' }}"></label>
+          <label>Phone<input type="tel" name="phone" value="{{ profile.phone|default:'' }}"></label>
+          <label>Address<textarea name="address" rows="3">{{ profile.address|default:'' }}</textarea></label>
+          <label>Default currency
+            <select name="currency" disabled>
+              <option value="USD" selected>USD — US Dollar</option>
+            </select>
+          </label>
+          <small class="settings-hint">Default currency is fixed to USD for the whole system.</small>
+          <label>Tax registration ID<input type="text" name="tax_information" value="{{ profile.tax_information|default:'' }}"></label>
+          <label>Website<input type="text" name="website" value="{{ profile.website|default:'' }}"></label>
+          <label>Document numbering
+            <select name="document_numbering" disabled>
+              <option value="sfy" selected>Automatic by financial year</option>
+            </select>
+          </label>
+          <small class="settings-hint">Document numbering scheme for new invoices and receipts.</small>
+        </div>
+      </div>
+
+      <div class="settings-form-actions">
+        <button type="button" data-settings-cancel>Cancel</button>
+        <button type="submit" class="button">Save company profile</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="settings-pane" data-settings-pane="users">
+    <div class="settings-pane-head"><div><h2>Users &amp; roles</h2><p>Internal system accounts and their access levels</p></div></div>
+    <div class="settings-placeholder">User management is ready to connect to the users &amp; permissions API. Accounts are internal employees with Owner / Accountant roles — suppliers and clients are data records, not logins.</div>
+  </div>
+
+  <div class="settings-pane" data-settings-pane="financial">
+    <div class="settings-pane-head"><div><h2>Financial settings</h2><p>Accounting rules and system defaults</p></div></div>
+    <div class="settings-placeholder">Financial settings are ready to connect — fiscal-year rules, chart of accounts defaults, and posting policies for the accounting module.</div>
+  </div>
+
+  <div class="settings-pane" data-settings-pane="taxes">
+    <div class="settings-pane-head"><div><h2>Tax rates</h2><p>Taxes available for purchase orders and invoices</p></div></div>
+    <div class="settings-placeholder">Tax rates are ready to connect to the tax_rates table (rate, name, defaults used across POs and invoices).</div>
+  </div>
+
+  <div class="settings-pane" data-settings-pane="notifications">
+    <div class="settings-pane-head"><div><h2>Notifications</h2><p>What the team is alerted about and how</p></div></div>
+    <div class="settings-placeholder">Notification preferences are ready to connect — approval requests, payment due reminders, and stock alerts.</div>
+  </div>
+
+  <div class="settings-pane" data-settings-pane="audit">
+    <div class="settings-pane-head"><div><h2>Audit trail</h2><p>Append-only log of actions across the system</p></div></div>
+    <div class="settings-placeholder">The audit trail is ready to connect to the audit_logs table — who changed what, and when.</div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}<script src="{% static 'js/company_settings.js' %}"></script>{% endblock %}

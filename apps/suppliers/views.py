@@ -10,6 +10,9 @@ payments, and the outstanding payable balance.
 Suppliers themselves are pure data records -- they get no authentication,
 no login, and no user role anywhere in this app.
 """
+from decimal import Decimal
+
+from django.db.models import Sum
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, viewsets
 from rest_framework.decorators import action
@@ -20,7 +23,7 @@ from rest_framework.response import Response
 # registry is fully populated) and follow the existing precedent of
 # clients/views.py importing projects.models at module level.
 from invoicing.models import SupplierInvoice
-from payments.models import Payment
+from payments.models import Payment, PaymentAllocation
 from purchasing.models import PurchaseOrder
 
 from .models import CURRENCY, Supplier, get_supplier_financials
@@ -37,6 +40,7 @@ from .serializers import (
 class SupplierViewSet(viewsets.ModelViewSet):
     """
     /api/suppliers/suppliers/                    GET (list), POST (create)
+    /api/suppliers/suppliers/summary/            GET -- aggregate page totals
     /api/suppliers/suppliers/{id}/               GET, PATCH, PUT, DELETE
     /api/suppliers/suppliers/{id}/purchase_orders/  GET -- the supplier's purchase orders
     /api/suppliers/suppliers/{id}/invoices/      GET -- supplier invoices
@@ -63,6 +67,27 @@ class SupplierViewSet(viewsets.ModelViewSet):
 
     def get_serializer_class(self):
         return SupplierListSerializer if self.action == "list" else SupplierSerializer
+
+    @action(detail=False, methods=["get"], url_path="summary")
+    def summary(self, request):
+        """Aggregate page totals for the dashboard: supplier counts plus the
+        whole-portfolio invoicing / outgoing-payment activity (draft and
+        cancelled invoices excluded, matching get_supplier_financials)."""
+        invoice_qs = SupplierInvoice.objects.exclude(
+            status__in=[SupplierInvoice.Status.DRAFT, SupplierInvoice.Status.CANCELLED]
+        )
+        total_invoiced = invoice_qs.aggregate(total=Sum("total_amount"))["total"] or Decimal("0.00")
+        total_paid = PaymentAllocation.objects.filter(
+            supplier_invoice_id__in=invoice_qs.values_list("id", flat=True)
+        ).aggregate(total=Sum("allocated_amount"))["total"] or Decimal("0.00")
+        return Response({
+            "currency": CURRENCY,
+            "total_suppliers": Supplier.objects.count(),
+            "active_suppliers": Supplier.objects.filter(is_active=True).count(),
+            "total_invoiced": f"{total_invoiced:.2f}",
+            "total_paid": f"{total_paid:.2f}",
+            "outstanding_balance": f"{total_invoiced - total_paid:.2f}",
+        })
 
     @action(detail=True, methods=["get"])
     def purchase_orders(self, request, pk=None):

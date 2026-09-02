@@ -47,15 +47,19 @@
 
   const fmtMoney = v => {
     const n = Number(v);
-    return Number.isFinite(n) ? n.toLocaleString("en-US", { style: "currency", currency: CURRENCY, minimumFractionDigits: 2 }) : CURRENCY + " " + (v == null ? "0.00" : v);
+    return Number.isFinite(n)
+      ? n.toLocaleString("en-US", { style: "currency", currency: CURRENCY, minimumFractionDigits: 0, maximumFractionDigits: 0 })
+      : v == null || v === "" ? "$0" : `${CURRENCY} ${v}`;
   };
 
   const statusPill = s => {
-    if (s === "DRAFT" || s === "CANCELLED") return `<span class="status warning">${s}</span>`;
-    if (s === "PAID" || s === "RECEIVED") return `<span class="status">${s}</span>`;
-    if (s === "OVERDUE") return `<span class="status warning">${s}</span>`;
-    return `<span class="status">${s}</span>`;
+    if (s === "DRAFT" || s === "CANCELLED" || s === "OVERDUE") return `<span class="status warning"><i></i>${s}</span>`;
+    return `<span class="status"><i></i>${s}</span>`;
   };
+
+  const supplierStatusPill = active => active
+    ? `<span class="status active"><i></i>Active</span>`
+    : `<span class="status"><i></i>Inactive</span>`;
 
   /* ---- Table rendering ---- */
   function renderRows() {
@@ -67,18 +71,16 @@
     if (q) list = list.filter(s => [s.name, s.company_name, s.email, s.tax_number].some(v => (v || "").toLowerCase().includes(q)));
 
     if (!list.length) {
-      tbody.innerHTML = `<tr class="empty-row"><td colspan="7"><b>No suppliers found</b><span>Try adjusting the search or status filter.</span></td></tr>`;
+      tbody.innerHTML = `<tr><td><strong>No suppliers found</strong><span>Try adjusting the search or status filter.</span></td><td>—</td><td>—</td><td>—</td><td><span class="status"><i></i>—</span></td></tr>`;
       return;
     }
     tbody.innerHTML = list.map(s => `
       <tr class="row-click" data-supplier-id="${s.id}">
-        <td><b>${esc(s.name)}</b>${s.company_name ? `<small>${esc(s.company_name)}</small>` : ""}</td>
-        <td><b>${esc(s.phone || "—")}</b>${s.email ? `<small>${esc(s.email)}</small>` : ""}</td>
+        <td><strong>${esc(s.name)}</strong><span>View details</span></td>
+        <td><strong>${esc(s.phone || "—")}</strong><span>${esc(s.email || "")}</span></td>
         <td>${esc(s.payment_terms || "—")}</td>
-        <td>${CURRENCY}</td>
         <td data-balance="${s.id}">—</td>
-        <td>${s.is_active ? `<span class="status">Active</span>` : `<span class="status warning">Inactive</span>`}</td>
-        <td>→</td>
+        <td>${supplierStatusPill(s.is_active)}</td>
       </tr>`).join("");
 
     $$("[data-supplier-id]", tbody).forEach(row => {
@@ -96,22 +98,19 @@
   }
 
   function renderMetrics() {
-    const active = state.suppliers.filter(s => s.is_active).length;
-    $("[data-metric=total]").textContent = state.suppliers.length;
-    $("[data-metric=active]").textContent = active;
-    $("[data-metric=invoiced]").textContent = "…";
-    $("[data-metric=outstanding]").textContent = "…";
     (async () => {
-      let invoiced = 0, outstanding = 0;
-      await Promise.all(state.suppliers.map(async s => {
-        try {
-          const b = await api(`${API}${s.id}/balance/`);
-          invoiced += Number(b.total_invoiced || 0);
-          outstanding += Number(b.outstanding_balance || 0);
-        } catch (e) { /* skip */ }
-      }));
-      $("[data-metric=invoiced]").textContent = fmtMoney(invoiced);
-      $("[data-metric=outstanding]").textContent = fmtMoney(outstanding);
+      try {
+        const s = await api(`${API}summary/`);
+        $("[data-metric=total]").textContent = s.total_suppliers;
+        $("[data-metric=active]").textContent = s.active_suppliers;
+        $("[data-metric=invoiced]").textContent = fmtMoney(s.total_invoiced);
+        $("[data-metric=outstanding]").textContent = fmtMoney(s.outstanding_balance);
+      } catch (e) {
+        // Fall back to client-side totals from whatever is loaded.
+        const active = state.suppliers.filter(s => s.is_active).length;
+        $("[data-metric=total]").textContent = state.suppliers.length;
+        $("[data-metric=active]").textContent = active;
+      }
     })();
   }
 
@@ -132,7 +131,9 @@
       $("[data-detail-tax]").textContent = detail.tax_number || "—";
       $("[data-detail-terms]").textContent = detail.payment_terms || "—";
       $("[data-detail-notes]").textContent = detail.notes || "—";
-      $("[data-detail-status]").textContent = detail.is_active ? "Active" : "Inactive";
+      const status = $("[data-detail-status]");
+      status.className = "status" + (detail.is_active ? " active" : "");
+      status.innerHTML = `<i></i>${detail.is_active ? "Active" : "Inactive"}`;
       $("[data-detail-currency]").textContent = detail.currency || CURRENCY;
       $("[data-detail-invoiced]").textContent = fmtMoney(balance.total_invoiced);
       $("[data-detail-paid]").textContent = fmtMoney(balance.total_paid);
@@ -164,18 +165,17 @@
 
   async function loadTab(tab) {
     const panel = $("[data-tab-panel]");
-    panel.innerHTML = `<div class="supplier-empty">Loading ${tabMeta[tab].label.toLowerCase()}…</div>`;
+    const meta = tabMeta[tab];
+    panel.innerHTML = `<table><thead><tr>${meta.cols.map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody><tr><td colspan="${meta.cols.length}"><strong>Loading ${meta.label.toLowerCase()}…</strong></td></tr></tbody></table>`;
     try {
       const rows = await api(`${API}${detailSupplierId}/${tab}/`);
       if (!rows.length) {
-        panel.innerHTML = `<div class="supplier-empty">No ${tabMeta[tab].label.toLowerCase()} recorded for this supplier.</div>`;
+        panel.innerHTML = `<table><thead><tr>${meta.cols.map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody><tr><td colspan="${meta.cols.length}"><strong>No ${meta.label.toLowerCase()} recorded for this supplier.</strong></td></tr></tbody></table>`;
         return;
       }
-      const head = tabMeta[tab].cols.map(c => `<th>${c}</th>`).join("");
-      const body = rows.map(r => `<tr>${tabMeta[tab].get(r).map(c => `<td>${c.v}</td>`).join("")}</tr>`).join("");
-      panel.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+      panel.innerHTML = `<table><thead><tr>${meta.cols.map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${meta.get(r).map(c => `<td>${c.v}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
     } catch (e) {
-      panel.innerHTML = `<div class="supplier-empty">Error: ${esc(e.message)}</div>`;
+      panel.innerHTML = `<table><thead><tr>${meta.cols.map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody><tr><td colspan="${meta.cols.length}"><strong>Error: ${esc(e.message)}</strong></td></tr></tbody></table>`;
     }
   }
 
@@ -238,7 +238,7 @@
     try {
       await refresh();
     } catch (e) {
-      $("[data-supplier-rows]").innerHTML = `<tr class="empty-row"><td colspan="7"><b>Could not load suppliers</b><span>${esc(e.message)}</span></td></tr>`;
+      $("[data-supplier-rows]").innerHTML = `<tr><td><strong>Could not load suppliers</strong><span>${esc(e.message)}</span></td><td>—</td><td>—</td><td>—</td><td><span class="status"><i></i>—</span></td></tr>`;
     }
   });
 })();

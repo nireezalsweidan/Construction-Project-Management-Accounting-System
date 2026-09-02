@@ -1,0 +1,43 @@
+/* Company settings / Administration page styles.
+   Built on the shared dashboard look (cedar.css); these add the settings
+   tabs, the Company profile form, and its placeholder panes. */
+
+.settings-banner{margin-bottom:16px;padding:13px 16px;border-radius:10px;background:linear-gradient(100deg,#9bdcbe,#55b98f);color:#0a3d2b;font-size:10px;font-weight:800}
+.settings-banner.error{background:linear-gradient(100deg,#f3c4bb,#d88678);color:#75372c}
+
+/* ---- Tabs ---- */
+.settings-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.settings-tabs button{border:1px solid #9eb3ae;border-radius:8px;background:#cedbd6;font-size:9px;padding:8px 14px;color:#33443f;cursor:pointer}
+.settings-tabs button:hover{border-color:#0b7367}
+.settings-tabs button.active{background:#0b7367;border-color:#0b7367;color:white;font-weight:800}
+
+/* ---- Panes ---- */
+.settings-panel{overflow:hidden}
+.settings-pane{display:none}
+.settings-pane.active{display:block}
+.settings-pane-head{padding:18px 22px;background:linear-gradient(135deg,#0b7367,#064f4a);color:white}
+.settings-pane-head h2{font-size:16px;margin:0}
+.settings-pane-head p{font-size:9px;color:#bfe0da;margin:5px 0 0}
+.settings-placeholder{padding:40px 24px;text-align:center;color:#647b75;font-size:10px;line-height:1.7;max-width:640px;margin:auto}
+
+/* ---- Company profile form ---- */
+.settings-form-grid{display:grid;grid-template-columns:210px 1fr;gap:30px;padding:26px 24px 8px}
+.settings-logo-col{display:flex;flex-direction:column;align-items:flex-start;gap:9px}
+.settings-logo{width:120px;height:120px;border-radius:16px;display:grid;place-items:center;background:linear-gradient(135deg,#087f75,#064f4a);color:white;font:900 clamp(30px,3vw,40px) "Libre Franklin",sans-serif;border:1px solid #5f9a90}
+.settings-logo-replace{border:1px solid #9eb3ae;border-radius:8px;background:#cedbd6;font-size:9px;padding:8px 14px;cursor:pointer}
+.settings-logo-col small{font-size:8px;color:var(--muted)}
+.settings-form{display:grid;grid-template-columns:1fr 1fr;gap:16px 18px}
+.settings-form label{display:block;font-size:9px;font-weight:800;color:#33443f}
+.settings-form input,.settings-form select,.settings-form textarea{width:100%;margin-top:5px;border:1px solid #a5b8b3;border-radius:8px;background:#fff;padding:9px 11px;font-size:10px;font-family:inherit;box-sizing:border-box;color:var(--ink)}
+.settings-form textarea{resize:vertical}
+.settings-form label:nth-child(1){grid-column:1/-1}
+.settings-form label:nth-child(5){grid-column:1/-1}
+.settings-form-hint,.settings-hint{grid-column:1/-1;font-size:8px;color:#647b75;margin-top:-10px}
+.settings-form-actions{display:flex;justify-content:flex-end;gap:10px;padding:10px 24px 24px}
+.settings-form-actions button{border:1px solid #9eb3ae;border-radius:8px;background:#cedbd6;font-size:9px;padding:9px 18px;cursor:pointer}
+.settings-form-actions .button{margin:0}
+
+@media(max-width:800px){
+  .settings-form-grid{grid-template-columns:1fr;gap:20px}
+  .settings-form{grid-template-columns:1fr}
+}

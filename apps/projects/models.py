@@ -431,3 +431,115 @@ def get_budget_summary(budget):
             "remaining": total_budgeted - total_actual,
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Change Order Management
+# ---------------------------------------------------------------------------
+
+class ChangeOrder(models.Model):
+    """
+    Maps onto the existing `change_orders` table.
+
+    Note: the task spec describes a Draft → Submitted → Approved workflow,
+    but the real DB enum (`change_order_status_enum`) is
+    PENDING / APPROVED / REJECTED / CANCELLED — no Draft/Submitted split.
+    Built against the real enum: creation starts at PENDING (covering both
+    "drafted" and "submitted" as one state), then PENDING branches to
+    APPROVED / REJECTED / CANCELLED.
+    """
+
+    STATUS_PENDING = "PENDING"
+    STATUS_APPROVED = "APPROVED"
+    STATUS_REJECTED = "REJECTED"
+    STATUS_CANCELLED = "CANCELLED"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_REJECTED, "Rejected"),
+        (STATUS_CANCELLED, "Cancelled"),
+    ]
+
+    # APPROVED -> CANCELLED is allowed (e.g. an owner disputes an already
+    # approved change after the fact) — see cancel_change_order() below,
+    # which reverses the contract_value effect when this happens. REJECTED
+    # and CANCELLED are otherwise final; resubmitting means creating a new
+    # change order, not reopening this one.
+    ALLOWED_TRANSITIONS = {
+        STATUS_PENDING: {STATUS_APPROVED, STATUS_REJECTED, STATUS_CANCELLED},
+        STATUS_APPROVED: {STATUS_CANCELLED},
+        STATUS_REJECTED: set(),
+        STATUS_CANCELLED: set(),
+    }
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, db_column="project_id", related_name="change_orders"
+    )
+    number = models.CharField(max_length=100)
+    description = models.TextField()
+    reason = models.TextField(blank=True, null=True)
+
+    # Signed: positive increases the project's contract value, negative
+    # decreases it (e.g. a scope reduction). Applied to Project.contract_value
+    # only once APPROVED — see apply_change_order_to_contract() below.
+    amount = models.DecimalField(max_digits=18, decimal_places=2)
+
+    # db_column has no _id suffix here — matches the real column names
+    # (requested_by, approved_by), same naming quirk your teammate's
+    # PurchaseOrder.created_by / Expense.created_by already follow.
+    requested_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column="requested_by",
+        related_name="change_orders_requested",
+    )
+    approved_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column="approved_by",
+        related_name="change_orders_approved",
+    )
+
+    date = models.DateField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "change_orders"
+        ordering = ["-date", "-created_at"]
+
+    def __str__(self):
+        return f"{self.number} — {self.project_id}"
+
+
+def apply_change_order_to_contract(change_order):
+    """
+    Called when a change order is approved. Uses an F() expression (not a
+    read-then-write) so concurrent approvals on the same project can't
+    race and clobber each other's contract_value update.
+    """
+    from django.db.models import F
+
+    Project.objects.filter(pk=change_order.project_id).update(
+        contract_value=F("contract_value") + change_order.amount
+    )
+
+
+def reverse_change_order_from_contract(change_order):
+    """
+    Called when an already-APPROVED change order is subsequently
+    CANCELLED — undoes exactly what apply_change_order_to_contract() did,
+    so contract_value doesn't stay permanently inflated/deflated by a
+    change that no longer holds.
+    """
+    from django.db.models import F
+
+    Project.objects.filter(pk=change_order.project_id).update(
+        contract_value=F("contract_value") - change_order.amount
+    )
