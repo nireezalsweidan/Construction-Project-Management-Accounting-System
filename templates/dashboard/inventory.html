@@ -1,3 +1,285 @@
-{% extends "dashboard/base_dashboard.html" %}{% load static %}{% block title %}Inventory | Cedar Control{% endblock %}{% block page_css %}<link rel="stylesheet" href="{% static 'css/inventory.css' %}">{% endblock %}{% block dashboard_content %}
-<section class="page-heading"><div><p class="eyebrow">Materials control</p><h1>Inventory</h1><p>Track material availability, movement, and valuation across stores and project sites.</p></div><div class="inventory-heading-actions"><button class="quiet-button" type="button" data-inventory-action="material">Add material</button><button class="quiet-button" type="button" data-inventory-action="warehouse">New warehouse</button><button class="primary-button" type="button" data-inventory-action="movement">＋ Record movement</button></div></section><section class="module-stat-grid"><article class="module-stat tone-1"><span>Stock items</span><strong data-inventory-metric="items">—</strong><em>Current balances</em></article><article class="module-stat tone-2"><span>Low stock</span><strong data-inventory-metric="low">—</strong><em>Needs attention</em></article><article class="module-stat tone-3"><span>Inventory value</span><strong data-inventory-metric="value">—</strong><em>At standard cost</em></article><article class="module-stat tone-4"><span>Transfers today</span><strong data-inventory-metric="transfers">—</strong><em>Recorded today</em></article></section><section class="panel table-panel module-table"><div class="filterbar"><div class="local-search">⌕ <input data-inventory-search type="search" placeholder="Search inventory…" aria-label="Search inventory"></div><select class="quiet-button" data-inventory-warehouse aria-label="Filter by warehouse"><option value="">Store: All</option></select><select class="quiet-button" data-inventory-stock aria-label="Filter stock"><option value="">Stock: All</option><option value="low">Low stock</option><option value="healthy">Healthy</option></select></div><div class="responsive-table"><table><thead><tr><th>Material</th><th>SKU</th><th>Store / location</th><th>Available</th><th>Minimum</th><th>Unit cost</th><th>Status</th><th>Movement</th></tr></thead><tbody data-inventory-rows><tr><td colspan="8"><strong>Loading inventory…</strong></td></tr></tbody></table></div></section><dialog data-inventory-dialog><form data-inventory-form><h2 data-inventory-title></h2><p data-inventory-error role="alert"></p><div data-inventory-fields></div><p><button type="button" class="quiet-button" data-inventory-cancel>Cancel</button><button type="submit" class="primary-button" data-inventory-submit>Save</button></p></form></dialog>
-{% endblock %}{% block page_js %}<script src="{% static 'js/inventory.js' %}"></script>{% endblock %}
+{% extends "dashboard/base_dashboard.html" %}
+{% load static %}
+
+{% block title %}Inventory | Cedar Control{% endblock %}
+
+{% block page_css %}
+<link rel="stylesheet" href="{% static 'css/inventory.css' %}">
+{% endblock %}
+
+{% block dashboard_content %}
+
+<section class="page-heading">
+    <div>
+        <p class="eyebrow">Stock control</p>
+
+        <h1>Inventory</h1>
+
+        <p>
+            Track materials, warehouse quantities, project usage,
+            transfers, and low-stock alerts.
+        </p>
+    </div>
+
+    <div class="inventory-heading-actions">
+        <button
+            class="quiet-button"
+            type="button"
+            data-inventory-action="material"
+        >
+            Add material
+        </button>
+
+        <button
+            class="quiet-button"
+            type="button"
+            data-inventory-action="warehouse"
+        >
+            New warehouse
+        </button>
+
+        <button
+            class="primary-button"
+            type="button"
+            data-inventory-action="movement"
+        >
+            ＋ Record movement
+        </button>
+    </div>
+</section>
+
+
+<!-- Inventory overview -->
+
+<section class="module-stat-grid inventory-stat-grid">
+
+    <article class="module-stat tone-1">
+        <span>Inventory value</span>
+
+        <strong data-inventory-metric="value">
+            —
+        </strong>
+
+        <em>Live overview</em>
+    </article>
+
+
+    <article class="module-stat tone-2">
+        <span>Materials</span>
+
+        <strong data-inventory-metric="items">
+            —
+        </strong>
+
+        <em>Needs attention</em>
+    </article>
+
+
+    <article class="module-stat tone-3">
+        <span>Low-stock alerts</span>
+
+        <strong data-inventory-metric="low">
+            —
+        </strong>
+
+        <em>Current period</em>
+    </article>
+
+
+    <article class="module-stat tone-4">
+        <span>Warehouses</span>
+
+        <strong data-inventory-metric="warehouses">
+            —
+        </strong>
+
+        <em>Updated today</em>
+    </article>
+
+</section>
+
+
+<!-- Inventory table -->
+
+<section class="panel table-panel module-table inventory-table-panel">
+
+    <div class="filterbar">
+
+        <div class="local-search">
+            ⌕
+            <input
+                data-inventory-search
+                type="search"
+                placeholder="Search inventory…"
+                aria-label="Search inventory"
+            >
+        </div>
+
+
+        <!-- Keep this selector because inventory.js uses it -->
+        <select
+            class="quiet-button"
+            data-inventory-warehouse
+            aria-label="Filter by warehouse"
+        >
+            <option value="">
+                Store: All
+            </option>
+        </select>
+
+
+        <!-- Keep this selector because inventory.js uses it -->
+        <select
+            class="quiet-button"
+            data-inventory-stock
+            aria-label="Filter stock status"
+        >
+            <option value="">
+                Status: All
+            </option>
+
+            <option value="low">
+                Low stock
+            </option>
+
+            <option value="healthy">
+                In stock
+            </option>
+        </select>
+
+
+        <button
+            class="quiet-button inventory-filter-button"
+            type="button"
+            data-inventory-date
+        >
+            ▣ Date range
+        </button>
+
+
+        <button
+            class="quiet-button inventory-filter-button"
+            type="button"
+            data-inventory-more-filters
+        >
+            More filters
+        </button>
+
+    </div>
+
+
+    <div class="responsive-table">
+
+        <table>
+
+            <thead>
+                <tr>
+                    <th>Material</th>
+                    <th>SKU</th>
+                    <th>Warehouse</th>
+                    <th>Available</th>
+                    <th>Reserved</th>
+                    <th>Reorder level</th>
+                    <th>Status</th>
+                    <th>Movement</th>
+                </tr>
+            </thead>
+
+
+            <tbody data-inventory-rows>
+
+                <tr>
+                    <td colspan="8">
+                        <strong>Loading inventory…</strong>
+                    </td>
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+
+    <!-- Pagination -->
+
+    <div class="inventory-pagination">
+
+        <span data-inventory-count>
+            Showing 0 of 0 records
+        </span>
+
+        <div class="inventory-pagination-controls">
+
+            <button
+                class="quiet-button"
+                type="button"
+                data-inventory-prev
+                disabled
+            >
+                Previous
+            </button>
+
+            <div data-inventory-pages>
+                <!-- Pages generated by JS -->
+            </div>
+
+            <button
+                class="quiet-button"
+                type="button"
+                data-inventory-next
+                disabled
+            >
+                Next
+            </button>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- Inventory dialog -->
+
+<dialog data-inventory-dialog>
+
+    <form data-inventory-form>
+
+        <h2 data-inventory-title></h2>
+
+        <p
+            data-inventory-error
+            role="alert"
+        ></p>
+
+        <div data-inventory-fields></div>
+
+        <p>
+            <button
+                type="button"
+                class="quiet-button"
+                data-inventory-cancel
+            >
+                Cancel
+            </button>
+
+            <button
+                type="submit"
+                class="primary-button"
+                data-inventory-submit
+            >
+                Save
+            </button>
+        </p>
+
+    </form>
+
+</dialog>
+
+{% endblock %}
+
+
+{% block page_js %}
+<script src="{% static 'js/inventory.js' %}"></script>
+{% endblock %}

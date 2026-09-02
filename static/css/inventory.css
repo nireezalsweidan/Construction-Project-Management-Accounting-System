@@ -1,1 +1,344 @@
-.inventory-heading-actions{display:flex;gap:8px;align-items:center}[data-inventory-dialog]{width:min(680px,calc(100vw - 32px));max-height:calc(100vh - 48px);margin:auto;padding:0;border:0;border-radius:16px;background:var(--panel);box-shadow:0 28px 75px #0d1f1ab8;overflow:auto}[data-inventory-dialog]::backdrop{background:#13231cc4;backdrop-filter:blur(3px)}[data-inventory-dialog] form{display:grid;gap:16px;padding:26px}[data-inventory-dialog] h2{margin:-26px -26px 4px;padding:22px 26px;color:#f7fbf8;background:linear-gradient(135deg,#18352b,#27624e);font:700 22px Georgia,"Times New Roman",serif}[data-inventory-fields]{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}[data-inventory-fields] label{display:flex;flex-direction:column;gap:6px;color:#435148;font-size:11px;font-weight:800}[data-inventory-fields] input,[data-inventory-fields] select,[data-inventory-fields] textarea{min-height:40px;width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:#fbfcfb;font:inherit;outline:0}[data-inventory-fields] textarea{min-height:82px;resize:vertical;grid-column:1/-1}[data-inventory-fields] input:focus,[data-inventory-fields] select:focus,[data-inventory-fields] textarea:focus{border-color:#16857c;box-shadow:0 0 0 3px #16857c1c;background:#fff}[data-inventory-error]{margin:0;color:#ad443b;font-weight:650;font-size:12px}[data-inventory-dialog] form>p:last-child{display:flex;justify-content:flex-end;gap:9px;margin:4px -26px -26px;padding:16px 26px;border-top:1px solid var(--line);background:#fafbfa}[data-inventory-dialog] .primary-button{border:0;background:linear-gradient(135deg,#e5a133,#c97822);color:#18241e;font-weight:800}@media(max-width:700px){.inventory-heading-actions{width:100%;flex-wrap:wrap}.inventory-heading-actions button{flex:1}}@media(max-width:580px){[data-inventory-dialog]{width:calc(100vw - 22px)}[data-inventory-dialog] form{padding:20px}[data-inventory-dialog] h2{margin:-20px -20px 2px;padding:19px 20px}[data-inventory-fields]{grid-template-columns:1fr}[data-inventory-dialog] form>p:last-child{margin:2px -20px -20px;padding:14px 20px}}
+/* =========================================================
+   Inventory
+   Only Inventory-specific styles belong in this file.
+   The shared dashboard/topbar layout is intentionally untouched.
+   ========================================================= */
+
+
+/* =========================================================
+   Page heading
+   ========================================================= */
+
+.inventory-heading-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+
+/* =========================================================
+   Inventory statistics
+   ========================================================= */
+
+.inventory-stat-grid {
+    margin-bottom: 22px;
+}
+
+
+/* =========================================================
+   Filter bar
+   ========================================================= */
+
+.inventory-filter-button {
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+
+/* =========================================================
+   Inventory table
+   ========================================================= */
+
+.inventory-table-panel {
+    overflow: hidden;
+}
+
+.inventory-table td:first-child strong {
+    display: block;
+    margin-bottom: 3px;
+}
+
+.inventory-table td:first-child span {
+    display: block;
+    color: #7b8780;
+    font-size: 11px;
+}
+
+
+/* =========================================================
+   Status
+   ========================================================= */
+
+.inventory-table .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.inventory-table .status i {
+    width: 7px;
+    height: 7px;
+    display: inline-block;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.inventory-table .status.active {
+    color: #16857c;
+}
+
+.inventory-table .status.at-risk {
+    color: #c97822;
+}
+
+
+/* =========================================================
+   Pagination
+   ========================================================= */
+
+.inventory-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+
+    padding: 16px 20px;
+
+    border-top: 1px solid var(--line);
+
+    color: #68756d;
+    font-size: 12px;
+}
+
+.inventory-pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.inventory-pagination-controls [data-inventory-pages] {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.inventory-pagination-controls [data-page] {
+    min-width: 32px;
+    height: 32px;
+
+    border: 1px solid var(--line);
+    border-radius: 8px;
+
+    background: #fbfcfb;
+    color: #435148;
+
+    cursor: pointer;
+}
+
+.inventory-pagination-controls [data-page].active {
+    background: #18352b;
+    border-color: #18352b;
+    color: #f7fbf8;
+}
+
+
+/* =========================================================
+   Inventory movement dialog
+   ========================================================= */
+
+[data-inventory-dialog] {
+    width: min(680px, calc(100vw - 32px));
+    max-height: calc(100vh - 48px);
+
+    margin: auto;
+    padding: 0;
+
+    border: 0;
+    border-radius: 16px;
+
+    background: var(--panel);
+
+    box-shadow: 0 28px 75px #0d1f1ab8;
+
+    overflow: auto;
+}
+
+[data-inventory-dialog]::backdrop {
+    background: #13231cc4;
+    backdrop-filter: blur(3px);
+}
+
+[data-inventory-dialog] form {
+    display: grid;
+    gap: 16px;
+    padding: 26px;
+}
+
+[data-inventory-dialog] h2 {
+    margin: -26px -26px 4px;
+    padding: 22px 26px;
+
+    color: #f7fbf8;
+
+    background: linear-gradient(135deg, #18352b, #27624e);
+
+    font: 700 22px Georgia, "Times New Roman", serif;
+}
+
+
+/* =========================================================
+   Inventory form fields
+   ========================================================= */
+
+[data-inventory-fields] {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+[data-inventory-fields] label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    color: #435148;
+
+    font-size: 11px;
+    font-weight: 800;
+}
+
+[data-inventory-fields] input,
+[data-inventory-fields] select,
+[data-inventory-fields] textarea {
+    min-height: 40px;
+    width: 100%;
+
+    padding: 9px 11px;
+
+    border: 1px solid var(--line);
+    border-radius: 9px;
+
+    background: #fbfcfb;
+
+    font: inherit;
+    outline: 0;
+}
+
+[data-inventory-fields] textarea {
+    min-height: 82px;
+    resize: vertical;
+
+    grid-column: 1 / -1;
+}
+
+[data-inventory-fields] input:focus,
+[data-inventory-fields] select:focus,
+[data-inventory-fields] textarea:focus {
+    border-color: #16857c;
+
+    box-shadow: 0 0 0 3px #16857c1c;
+
+    background: #fff;
+}
+
+
+/* =========================================================
+   Form error
+   ========================================================= */
+
+[data-inventory-error] {
+    margin: 0;
+
+    color: #ad443b;
+
+    font-size: 12px;
+    font-weight: 650;
+}
+
+
+/* =========================================================
+   Dialog footer
+   ========================================================= */
+
+[data-inventory-dialog] form > p:last-child {
+    display: flex;
+    justify-content: flex-end;
+    gap: 9px;
+
+    margin: 4px -26px -26px;
+    padding: 16px 26px;
+
+    border-top: 1px solid var(--line);
+
+    background: #fafbfa;
+}
+
+[data-inventory-dialog] .primary-button {
+    border: 0;
+
+    background: linear-gradient(135deg, #e5a133, #c97822);
+
+    color: #18241e;
+
+    font-weight: 800;
+}
+
+
+/* =========================================================
+   Mobile
+   ========================================================= */
+
+@media (max-width: 900px) {
+
+    /* Only target the Inventory filter container.
+       Do NOT modify the shared .filterbar or .local-search
+       classes globally. */
+
+    .inventory-filterbar {
+        flex-wrap: wrap;
+    }
+
+    .inventory-local-search {
+        width: 100%;
+    }
+
+    .inventory-pagination {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+
+
+@media (max-width: 700px) {
+
+    .inventory-heading-actions {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .inventory-heading-actions button {
+        flex: 1;
+    }
+}
+
+
+@media (max-width: 580px) {
+
+    [data-inventory-dialog] {
+        width: calc(100vw - 22px);
+    }
+
+    [data-inventory-dialog] form {
+        padding: 20px;
+    }
+
+    [data-inventory-dialog] h2 {
+        margin: -20px -20px 2px;
+        padding: 19px 20px;
+    }
+
+    [data-inventory-fields] {
+        grid-template-columns: 1fr;
+    }
+
+    [data-inventory-dialog] form > p:last-child {
+        margin: 2px -20px -20px;
+        padding: 14px 20px;
+    }
+
+    .inventory-pagination-controls {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
