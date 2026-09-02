@@ -1,6 +1,6 @@
 from django.test import TestCase
 
-from .models import Project, ProjectEmployee
+from .models import Phase, Project, ProjectEmployee
 
 
 class ProjectModelTests(TestCase):
@@ -52,3 +52,76 @@ class ProjectSerializerStatusTransitionTests(TestCase):
         serializer.instance = instance
         result = serializer.validate_status(Project.STATUS_ACTIVE)
         self.assertEqual(result, Project.STATUS_ACTIVE)
+
+
+class PhaseModelTests(TestCase):
+    """Project Planning (Phases) — same managed=False testing constraints
+    as ProjectModelTests above: model/serializer logic only, no DB hits."""
+
+    def test_str_representation(self):
+        phase = Phase(sequence_number=1, name="Foundation")
+        self.assertIn("Foundation", str(phase))
+
+    def test_default_status_is_not_started(self):
+        phase = Phase(name="Foundation", sequence_number=1)
+        self.assertEqual(phase.status, Phase.STATUS_NOT_STARTED)
+
+    def test_allowed_transitions_from_not_started(self):
+        allowed = Phase.ALLOWED_TRANSITIONS[Phase.STATUS_NOT_STARTED]
+        self.assertEqual(allowed, {Phase.STATUS_IN_PROGRESS})
+
+    def test_completed_is_final(self):
+        self.assertEqual(Phase.ALLOWED_TRANSITIONS[Phase.STATUS_COMPLETED], set())
+
+
+class PhaseSerializerTests(TestCase):
+    def test_rejects_invalid_status_transition(self):
+        from .serializers import PhaseSerializer
+
+        instance = Phase(status=Phase.STATUS_COMPLETED)
+        serializer = PhaseSerializer()
+        serializer.instance = instance
+        with self.assertRaises(Exception):
+            serializer.validate_status(Phase.STATUS_IN_PROGRESS)
+
+    def test_allows_same_status(self):
+        from .serializers import PhaseSerializer
+
+        instance = Phase(status=Phase.STATUS_IN_PROGRESS)
+        serializer = PhaseSerializer()
+        serializer.instance = instance
+        self.assertEqual(
+            serializer.validate_status(Phase.STATUS_IN_PROGRESS), Phase.STATUS_IN_PROGRESS
+        )
+
+    def test_end_date_before_start_date_rejected(self):
+        from .serializers import PhaseSerializer
+
+        serializer = PhaseSerializer()
+        serializer.instance = None
+        with self.assertRaises(Exception):
+            serializer.validate({"start_date": "2026-09-10", "end_date": "2026-09-01"})
+
+    def test_completing_a_phase_auto_sets_full_progress(self):
+        from decimal import Decimal
+
+        from .serializers import PhaseSerializer
+
+        instance = Phase(status=Phase.STATUS_IN_PROGRESS, progress_percentage=Decimal("60.00"))
+        serializer = PhaseSerializer()
+        serializer.instance = instance
+        result = serializer.validate({"status": Phase.STATUS_COMPLETED})
+        self.assertEqual(result["progress_percentage"], Decimal("100.00"))
+
+    def test_explicit_progress_not_overridden_when_completing(self):
+        from decimal import Decimal
+
+        from .serializers import PhaseSerializer
+
+        instance = Phase(status=Phase.STATUS_IN_PROGRESS, progress_percentage=Decimal("60.00"))
+        serializer = PhaseSerializer()
+        serializer.instance = instance
+        result = serializer.validate(
+            {"status": Phase.STATUS_COMPLETED, "progress_percentage": Decimal("95.00")}
+        )
+        self.assertEqual(result["progress_percentage"], Decimal("95.00"))

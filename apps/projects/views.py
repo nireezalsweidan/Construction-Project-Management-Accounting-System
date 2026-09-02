@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status, viewsets
@@ -5,8 +6,9 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Project, ProjectDocument
+from .models import Phase, Project, ProjectDocument
 from .serializers import (
+    PhaseSerializer,
     ProjectDocumentSerializer,
     ProjectEmployeeSerializer,
     ProjectListSerializer,
@@ -107,3 +109,74 @@ class ProjectViewSet(viewsets.ModelViewSet):
         project = self.get_object()
         qs = ProjectDocument.objects.filter(entity_type="project", entity_id=project.id)
         return Response(ProjectDocumentSerializer(qs, many=True).data)
+
+    @action(detail=True, methods=["get"], url_path="phases")
+    def phases(self, request, pk=None):
+        """Convenience read: same data as GET /phases/?project={id}."""
+        project = self.get_object()
+        qs = project.phases.all()
+        return Response(PhaseSerializer(qs, many=True).data)
+
+
+class PhaseViewSet(viewsets.ModelViewSet):
+    """
+    Project Planning (Phases).
+
+    /api/phases/?project={id}        GET (list, filterable by project), POST (create)
+    /api/phases/{id}/                GET, PATCH, PUT, DELETE
+    /api/phases/{id}/complete/       POST — shortcut: status=COMPLETED, progress=100
+    /api/phases/reorder/             POST — bulk-update sequence_number
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = PhaseSerializer
+    queryset = Phase.objects.all()
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ["project", "status", "responsible_emp_id"]
+    search_fields = ["name", "description"]
+    ordering_fields = ["sequence_number", "start_date", "end_date"]
+    ordering = ["project", "sequence_number"]
+
+    @action(detail=True, methods=["post"])
+    def complete(self, request, pk=None):
+        phase = self.get_object()
+        serializer = self.get_serializer(
+            phase, data={"status": Phase.STATUS_COMPLETED}, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    @action(detail=False, methods=["post"])
+    def reorder(self, request):
+        """
+        Body: {"phases": [{"id": "...", "sequence_number": 1}, {"id": "...", "sequence_number": 2}]}
+        All-or-nothing: every id must belong to an existing phase, or nothing is changed.
+        """
+        items = request.data.get("phases")
+        if not isinstance(items, list) or not items:
+            return Response(
+                {"phases": "Expected a non-empty list of {id, sequence_number}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ids = [str(item.get("id")) for item in items]
+        phases_by_id = {str(p.id): p for p in Phase.objects.filter(id__in=ids)}
+        missing = [i for i in ids if i not in phases_by_id]
+        if missing:
+            return Response(
+                {"detail": f"Unknown phase id(s): {missing}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            updated = []
+            for item in items:
+                phase = phases_by_id[str(item["id"])]
+                phase.sequence_number = item["sequence_number"]
+                phase.save(update_fields=["sequence_number", "updated_at"])
+                updated.append(phase)
+
+        updated.sort(key=lambda p: p.sequence_number)
+        return Response(PhaseSerializer(updated, many=True).data)

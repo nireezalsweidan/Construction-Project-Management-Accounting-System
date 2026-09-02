@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Project, ProjectEmployee
+from .models import Phase, Project, ProjectEmployee
 
 
 @admin.register(Project)
@@ -23,3 +23,19 @@ class ProjectAdmin(admin.ModelAdmin):
 class ProjectEmployeeAdmin(admin.ModelAdmin):
     list_display = ("project", "employee_id", "role_on_project", "assigned_at", "released_at")
     list_filter = ("released_at",)
+
+
+@admin.register(Phase)
+class PhaseAdmin(admin.ModelAdmin):
+    list_display = (
+        "project",
+        "sequence_number",
+        "name",
+        "status",
+        "progress_percentage",
+        "start_date",
+        "end_date",
+    )
+    list_filter = ("status",)
+    search_fields = ("name", "description")
+    ordering = ("project", "sequence_number")
