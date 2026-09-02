@@ -36,6 +36,98 @@
 
 
 /* =========================================================
+   Inventory search bars
+   Match the compact style of the top-menu search.
+   These rules are scoped to Inventory only.
+   ========================================================= */
+
+.inventory-table-panel .local-search,
+.inventory-management-toolbar .local-search {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+
+    width: 100%;
+    max-width: 360px;
+    min-height: 38px;
+
+    padding: 0 11px;
+
+    border: 1px solid var(--line);
+    border-radius: 9px;
+
+    background: #fbfcfb;
+
+    box-sizing: border-box;
+}
+
+.inventory-table-panel .local-search input,
+.inventory-management-toolbar .local-search input {
+    flex: 1;
+
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+
+    margin: 0;
+    padding: 0;
+
+    border: 0;
+    outline: 0;
+
+    background: transparent;
+
+    color: #435148;
+
+    font: inherit;
+    font-size: 12px;
+}
+
+.inventory-table-panel .local-search input::placeholder,
+.inventory-management-toolbar .local-search input::placeholder {
+    color: #8a958f;
+}
+
+.inventory-table-panel .local-search:focus-within,
+.inventory-management-toolbar .local-search:focus-within {
+    border-color: #16857c;
+
+    box-shadow: 0 0 0 3px #16857c1c;
+
+    background: #fff;
+}
+
+
+/* =========================================================
+   Calendar / Date range
+   ========================================================= */
+
+.inventory-date-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    gap: 7px;
+
+    white-space: nowrap;
+}
+
+.inventory-calendar-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 15px;
+    height: 15px;
+
+    color: currentColor;
+
+    font-size: 12px;
+    line-height: 1;
+}
+
+
+/* =========================================================
    Inventory table
    ========================================================= */
 
@@ -50,7 +142,9 @@
 
 .inventory-table td:first-child span {
     display: block;
+
     color: #7b8780;
+
     font-size: 11px;
 }
 
@@ -63,14 +157,18 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
+
     white-space: nowrap;
 }
 
 .inventory-table .status i {
     width: 7px;
     height: 7px;
+
     display: inline-block;
+
     border-radius: 50%;
+
     background: currentColor;
 }
 
@@ -91,6 +189,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+
     gap: 16px;
 
     padding: 16px 20px;
@@ -98,18 +197,21 @@
     border-top: 1px solid var(--line);
 
     color: #68756d;
+
     font-size: 12px;
 }
 
 .inventory-pagination-controls {
     display: flex;
     align-items: center;
+
     gap: 6px;
 }
 
 .inventory-pagination-controls [data-inventory-pages] {
     display: flex;
     align-items: center;
+
     gap: 4px;
 }
 
@@ -129,6 +231,7 @@
 .inventory-pagination-controls [data-page].active {
     background: #18352b;
     border-color: #18352b;
+
     color: #f7fbf8;
 }
 
@@ -156,12 +259,14 @@
 
 [data-inventory-dialog]::backdrop {
     background: #13231cc4;
+
     backdrop-filter: blur(3px);
 }
 
 [data-inventory-dialog] form {
     display: grid;
     gap: 16px;
+
     padding: 26px;
 }
 
@@ -171,7 +276,11 @@
 
     color: #f7fbf8;
 
-    background: linear-gradient(135deg, #18352b, #27624e);
+    background: linear-gradient(
+        135deg,
+        #18352b,
+        #27624e
+    );
 
     font: 700 22px Georgia, "Times New Roman", serif;
 }
@@ -183,13 +292,19 @@
 
 [data-inventory-fields] {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    grid-template-columns: repeat(
+        2,
+        minmax(0, 1fr)
+    );
+
     gap: 16px;
 }
 
 [data-inventory-fields] label {
     display: flex;
     flex-direction: column;
+
     gap: 6px;
 
     color: #435148;
@@ -212,11 +327,15 @@
     background: #fbfcfb;
 
     font: inherit;
+
     outline: 0;
+
+    box-sizing: border-box;
 }
 
 [data-inventory-fields] textarea {
     min-height: 82px;
+
     resize: vertical;
 
     grid-column: 1 / -1;
@@ -254,6 +373,7 @@
 [data-inventory-dialog] form > p:last-child {
     display: flex;
     justify-content: flex-end;
+
     gap: 9px;
 
     margin: 4px -26px -26px;
@@ -267,7 +387,11 @@
 [data-inventory-dialog] .primary-button {
     border: 0;
 
-    background: linear-gradient(135deg, #e5a133, #c97822);
+    background: linear-gradient(
+        135deg,
+        #e5a133,
+        #c97822
+    );
 
     color: #18241e;
 
@@ -276,79 +400,12 @@
 
 
 /* =========================================================
-   Mobile
-   ========================================================= */
-
-@media (max-width: 900px) {
-
-    /* Only target the Inventory filter container.
-       Do NOT modify the shared .filterbar or .local-search
-       classes globally. */
-
-    .inventory-filterbar {
-        flex-wrap: wrap;
-    }
-
-    .inventory-local-search {
-        width: 100%;
-    }
-
-    .inventory-pagination {
-        align-items: flex-start;
-        flex-direction: column;
-    }
-}
-
-
-@media (max-width: 700px) {
-
-    .inventory-heading-actions {
-        width: 100%;
-        flex-wrap: wrap;
-    }
-
-    .inventory-heading-actions button {
-        flex: 1;
-    }
-}
-
-
-@media (max-width: 580px) {
-
-    [data-inventory-dialog] {
-        width: calc(100vw - 22px);
-    }
-
-    [data-inventory-dialog] form {
-        padding: 20px;
-    }
-
-    [data-inventory-dialog] h2 {
-        margin: -20px -20px 2px;
-        padding: 19px 20px;
-    }
-
-    [data-inventory-fields] {
-        grid-template-columns: 1fr;
-    }
-
-    [data-inventory-dialog] form > p:last-child {
-        margin: 2px -20px -20px;
-        padding: 14px 20px;
-    }
-
-    .inventory-pagination-controls {
-        width: 100%;
-        justify-content: space-between;
-    }
-}
-
-/* =========================================================
    Stock movements
    ========================================================= */
 
 .inventory-movements-panel {
     margin-top: 22px;
+
     overflow: hidden;
 }
 
@@ -356,6 +413,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+
     gap: 16px;
 
     padding: 20px;
@@ -377,15 +435,266 @@
 
 .inventory-movements-heading > span {
     color: #68756d;
+
     font-size: 12px;
     font-weight: 700;
 }
 
 
+/* =========================================================
+   Inventory management
+   ========================================================= */
+
+.inventory-management-panel {
+    margin-top: 22px;
+
+    overflow: hidden;
+}
+
+.inventory-management-heading {
+    padding: 22px 20px 16px;
+
+    border-bottom: 1px solid var(--line);
+}
+
+.inventory-management-heading .eyebrow {
+    margin: 0 0 5px;
+}
+
+.inventory-management-heading h2 {
+    margin: 0;
+
+    color: #18352b;
+
+    font: 700 21px Georgia, "Times New Roman", serif;
+}
+
+.inventory-management-heading > div > p:last-child {
+    margin: 6px 0 0;
+
+    color: #68756d;
+
+    font-size: 12px;
+}
+
+
+/* =========================================================
+   Management tabs
+   ========================================================= */
+
+.inventory-management-tabs {
+    display: flex;
+
+    gap: 4px;
+
+    padding: 12px 20px 0;
+
+    border-bottom: 1px solid var(--line);
+}
+
+.inventory-management-tab {
+    padding: 10px 15px;
+
+    border: 0;
+    border-bottom: 2px solid transparent;
+
+    background: transparent;
+
+    color: #68756d;
+
+    font: inherit;
+    font-size: 12px;
+    font-weight: 800;
+
+    cursor: pointer;
+}
+
+.inventory-management-tab.active {
+    border-bottom-color: #16857c;
+
+    color: #18352b;
+}
+
+
+/* =========================================================
+   Management content
+   ========================================================= */
+
+.inventory-management-content {
+    display: none;
+}
+
+.inventory-management-content.active {
+    display: block;
+}
+
+
+/* =========================================================
+   Management toolbar
+   ========================================================= */
+
+.inventory-management-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 12px;
+
+    padding: 16px 20px;
+
+    border-bottom: 1px solid var(--line);
+}
+
+.inventory-management-toolbar .local-search {
+    max-width: 360px;
+
+    width: 100%;
+}
+
+
+/* =========================================================
+   Management row actions
+   ========================================================= */
+
+.inventory-row-actions {
+    display: flex;
+    align-items: center;
+
+    gap: 6px;
+}
+
+.inventory-row-actions .quiet-button {
+    padding: 7px 10px;
+
+    font-size: 11px;
+}
+
+.inventory-row-actions .danger-button {
+    color: #ad443b;
+}
+
+
+/* =========================================================
+   Material secondary text
+   ========================================================= */
+
+.inventory-management-content td:first-child span {
+    display: block;
+
+    margin-top: 3px;
+
+    color: #7b8780;
+
+    font-size: 11px;
+}
+
+
+/* =========================================================
+   Mobile — 900px
+   ========================================================= */
+
+@media (max-width: 900px) {
+
+    /* Only target Inventory filter container.
+       Do NOT modify shared .filterbar globally. */
+
+    .inventory-filterbar {
+        flex-wrap: wrap;
+    }
+
+    .inventory-local-search {
+        width: 100%;
+    }
+
+    .inventory-pagination {
+        align-items: flex-start;
+
+        flex-direction: column;
+    }
+
+}
+
+
+/* =========================================================
+   Mobile — 700px
+   ========================================================= */
+
+@media (max-width: 700px) {
+
+    .inventory-heading-actions {
+        width: 100%;
+
+        flex-wrap: wrap;
+    }
+
+    .inventory-heading-actions button {
+        flex: 1;
+    }
+
+
+    .inventory-management-tabs {
+        overflow-x: auto;
+    }
+
+    .inventory-management-toolbar {
+        align-items: stretch;
+
+        flex-direction: column;
+    }
+
+    .inventory-management-toolbar .local-search {
+        max-width: none;
+
+        width: 100%;
+    }
+
+    .inventory-management-toolbar .primary-button {
+        width: 100%;
+    }
+
+}
+
+
+/* =========================================================
+   Mobile — 580px
+   ========================================================= */
+
 @media (max-width: 580px) {
+
+    [data-inventory-dialog] {
+        width: calc(100vw - 22px);
+    }
+
+    [data-inventory-dialog] form {
+        padding: 20px;
+    }
+
+    [data-inventory-dialog] h2 {
+        margin: -20px -20px 2px;
+
+        padding: 19px 20px;
+    }
+
+    [data-inventory-fields] {
+        grid-template-columns: 1fr;
+    }
+
+    [data-inventory-dialog] form > p:last-child {
+        margin: 2px -20px -20px;
+
+        padding: 14px 20px;
+    }
+
+    .inventory-pagination-controls {
+        width: 100%;
+
+        justify-content: space-between;
+    }
+
 
     .inventory-movements-heading {
         align-items: flex-start;
+
         flex-direction: column;
     }
 

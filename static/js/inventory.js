@@ -1,232 +1,176 @@
 (() => {
+const API = "/api/inventory/";
 
-    const API = "/api/inventory/";
+const $ = (selector) =>
+    document.querySelector(selector);
 
-    const PAGE_SIZE = 8;
+const list = (data) =>
+    Array.isArray(data)
+        ? data
+        : (data?.results || []);
 
+const esc = (value) =>
+    String(value ?? "—").replace(
+        /[&<>"']/g,
+        (char) => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+        })[char]
+    );
 
-    const $ = (selector) =>
-        document.querySelector(selector);
+const money = (value) =>
+    new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 0,
+    }).format(Number(value || 0));
 
-
-    const list = (data) =>
-        Array.isArray(data)
-            ? data
-            : (data?.results || []);
-
-
-    const esc = (value) =>
-        String(value ?? "—").replace(
-            /[&<>"']/g,
-            (char) => ({
-                "&": "&amp;",
-                "<": "&lt;",
-                ">": "&gt;",
-                '"': "&quot;",
-                "'": "&#39;",
-            })[char]
-        );
-
-
-    const money = (value) =>
-        new Intl.NumberFormat(undefined, {
-            style: "currency",
-            currency: "USD",
-            maximumFractionDigits: 0,
-        }).format(Number(value || 0));
-
-
-    const csrf = () =>
-        decodeURIComponent(
-            document.cookie
-                .split("; ")
-                .find(
-                    (cookie) =>
-                        cookie.startsWith("csrftoken=")
-                )
-                ?.split("=")[1] || ""
-        );
-
-
-    let stocks = [];
-    let materials = [];
-    let warehouses = [];
-    let categories = [];
-    let movements = [];
-
-    let currentUser = null;
-
-    let currentPage = 1;
-
-
-    /* =========================================================
-       API REQUEST
-       ========================================================= */
-
-    async function request(url, options = {}) {
-
-        const response = await fetch(url, {
-
-            credentials: "same-origin",
-
-            ...options,
-
-            headers: {
-
-                Accept: "application/json",
-
-                ...(options.method
-                    ? {
-                        "Content-Type": "application/json",
-                        "X-CSRFToken": csrf(),
-                    }
-                    : {}),
-
-                ...options.headers,
-            },
-
-        });
-
-
-        const data =
-            await response
-                .json()
-                .catch(() => ({}));
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                data.detail ||
-                Object.values(data)
-                    .flat()
-                    .join(" ") ||
-                `Request failed (${response.status})`
-            );
-
-        }
-
-
-        return data;
-    }
-
-
-    /* =========================================================
-       HELPERS
-       ========================================================= */
-
-    const opts = (
-        items,
-        value,
-        text,
-        placeholder
-    ) =>
-
-        `<option value="">${placeholder}</option>` +
-
-        items
-            .map(
-                (item) =>
-                    `<option value="${esc(item.id)}"
-                        ${item.id === value ? "selected" : ""}>
-                        ${esc(text(item))}
-                    </option>`
+const csrf = () =>
+    decodeURIComponent(
+        document.cookie
+            .split("; ")
+            .find((cookie) =>
+                cookie.startsWith("csrftoken=")
             )
-            .join("");
+            ?.split("=")[1] || ""
+    );
 
 
-    function getMaterial(id) {
+let stocks = [];
+let materials = [];
+let warehouses = [];
+let categories = [];
+let movements = [];
+let currentUser = null;
 
-        return materials.find(
-            (item) => String(item.id) === String(id)
+
+async function request(url, options = {}) {
+
+    const response = await fetch(url, {
+
+        credentials: "same-origin",
+
+        ...options,
+
+        headers: {
+
+            Accept: "application/json",
+
+            ...(options.method
+                ? {
+                    "Content-Type":
+                        "application/json",
+
+                    "X-CSRFToken": csrf(),
+                }
+                : {}),
+
+            ...options.headers,
+        },
+    });
+
+
+    const data =
+        await response
+            .json()
+            .catch(() => ({}));
+
+
+    if (!response.ok) {
+
+        throw new Error(
+
+            data.detail ||
+
+            Object.values(data)
+                .flat()
+                .join(" ") ||
+
+            `Request failed (${response.status})`
+
         );
 
     }
 
 
-    function getWarehouse(id) {
-
-        return warehouses.find(
-            (item) => String(item.id) === String(id)
-        );
-
-    }
+    return data;
+}
 
 
-    function getCategory(id) {
+const opts = (
+    items,
+    value,
+    text,
+    placeholder
+) =>
 
-        return categories.find(
-            (item) => String(item.id) === String(id)
-        );
+    `<option value="">${placeholder}</option>` +
 
-    }
-
-
-    /* =========================================================
-       FILTERED STOCK
-       ========================================================= */
-
-    function getFilteredStocks() {
-
-        const searchInput =
-            $("[data-inventory-search]");
-
-        const warehouseSelect =
-            $("[data-inventory-warehouse]");
-
-        const categorySelect =
-            $("[data-inventory-category]");
-
-        const stockSelect =
-            $("[data-inventory-stock]");
+    items
+        .map(
+            (item) =>
+                `<option value="${esc(item.id)}" ${
+                    String(item.id) === String(value)
+                        ? "selected"
+                        : ""
+                }>${esc(text(item))}</option>`
+        )
+        .join("");
 
 
-        const query =
-            searchInput
-                ? searchInput.value
-                    .trim()
-                    .toLowerCase()
-                : "";
+function render() {
+
+    const searchInput =
+        $("[data-inventory-search]");
+
+    const warehouseSelect =
+        $("[data-inventory-warehouse]");
+
+    const stockSelect =
+        $("[data-inventory-stock]");
+
+    const rowsContainer =
+        $("[data-inventory-rows]");
 
 
-        const warehouse =
-            warehouseSelect
-                ? warehouseSelect.value
-                : "";
+    if (!rowsContainer) return;
 
 
-        const category =
-            categorySelect
-                ? categorySelect.value
-                : "";
+    const query =
+        searchInput
+            ? searchInput.value
+                .trim()
+                .toLowerCase()
+            : "";
 
 
-        const stockFilter =
-            stockSelect
-                ? stockSelect.value
-                : "";
+    const warehouse =
+        warehouseSelect
+            ? warehouseSelect.value
+            : "";
 
 
-        return stocks.filter((stock) => {
+    const stockFilter =
+        stockSelect
+            ? stockSelect.value
+            : "";
 
-            const material =
-                getMaterial(stock.material);
 
+    const rows =
+        stocks.filter((stock) => {
 
             const matchesWarehouse =
                 !warehouse ||
                 String(stock.warehouse) ===
-                    String(warehouse);
-
-
-            const matchesCategory =
-                !category ||
-                String(material?.category) ===
-                    String(category);
+                String(warehouse);
 
 
             const matchesStock =
                 !stockFilter ||
+
                 (
                     stockFilter === "low"
                         ? stock.is_low_stock
@@ -242,12 +186,7 @@
 
                 stock.warehouse_name,
 
-                material?.name,
-
-                material?.sku,
-
             ]
-                .filter(Boolean)
                 .join(" ")
                 .toLowerCase();
 
@@ -259,548 +198,150 @@
 
             return (
                 matchesWarehouse &&
-                matchesCategory &&
                 matchesStock &&
                 matchesSearch
             );
 
         });
 
-    }
 
+    if (!rows.length) {
 
-    /* =========================================================
-       INVENTORY TABLE
-       ========================================================= */
+        rowsContainer.innerHTML = `
 
-    function render() {
+            <tr>
 
-        const rowsContainer =
-            $("[data-inventory-rows]");
+                <td colspan="8">
 
+                    <strong>
+                        No stock balances found.
+                    </strong>
 
-        if (!rowsContainer) return;
+                </td>
 
+            </tr>
 
-        const filtered =
-            getFilteredStocks();
+        `;
 
+    } else {
 
-        const total =
-            filtered.length;
+        rowsContainer.innerHTML =
 
+            rows
+                .map((stock) => {
 
-        const totalPages =
-            Math.max(
-                1,
-                Math.ceil(
-                    total / PAGE_SIZE
-                )
-            );
-
-
-        if (currentPage > totalPages) {
-            currentPage = totalPages;
-        }
-
-
-        const start =
-            (currentPage - 1) *
-            PAGE_SIZE;
-
-
-        const pageRows =
-            filtered.slice(
-                start,
-                start + PAGE_SIZE
-            );
-
-
-        if (!pageRows.length) {
-
-            rowsContainer.innerHTML = `
-                <tr>
-                    <td colspan="8">
-                        <strong>
-                            No stock balances found.
-                        </strong>
-                    </td>
-                </tr>
-            `;
-
-        } else {
-
-            rowsContainer.innerHTML =
-                pageRows
-                    .map((stock) => {
-
-                        const material =
-                            getMaterial(
-                                stock.material
-                            );
-
-
-                        const unitCost =
-                            Number(
-                                material?.standard_cost || 0
-                            );
-
-
-                        const statusClass =
-                            stock.is_low_stock
-                                ? "at-risk"
-                                : "active";
-
-
-                        const statusText =
-                            stock.is_low_stock
-                                ? "Low stock"
-                                : "In stock";
-
-
-                        const reserved =
-                            stock.reserved_quantity ??
-                            stock.reserved ??
-                            stock.quantity_reserved;
-
-
-                        const reservedDisplay =
-                            reserved !== undefined &&
-                            reserved !== null
-                                ? esc(reserved)
-                                : "—";
-
-
-                        return `
-                            <tr>
-
-                                <td>
-                                    <strong>
-                                        ${esc(
-                                            stock.material_name
-                                        )}
-                                    </strong>
-
-                                    <span>
-                                        ${esc(
-                                            material?.unit ||
-                                            ""
-                                        )}
-                                    </span>
-                                </td>
-
-
-                                <td>
-                                    ${esc(
-                                        stock.material_sku
-                                    )}
-                                </td>
-
-
-                                <td>
-                                    ${esc(
-                                        stock.warehouse_name
-                                    )}
-                                </td>
-
-
-                                <td>
-                                    ${esc(
-                                        stock.quantity
-                                    )}
-                                </td>
-
-
-                                <td>
-                                    ${reservedDisplay}
-                                </td>
-
-
-                                <td>
-                                    ${esc(
-                                        stock.minimum_stock_level
-                                    )}
-                                </td>
-
-
-                                <td>
-
-                                    <span
-                                        class="status ${statusClass}"
-                                    >
-                                        <i></i>
-
-                                        ${statusText}
-                                    </span>
-
-                                </td>
-
-
-                                <td>
-
-                                    <button
-                                        class="quiet-button"
-                                        type="button"
-
-                                        data-movement-material="${esc(
-                                            stock.material
-                                        )}"
-
-                                        data-movement-warehouse="${esc(
-                                            stock.warehouse
-                                        )}"
-                                    >
-                                        Record
-                                    </button>
-
-                                </td>
-
-                            </tr>
-                        `;
-
-                    })
-                    .join("");
-
-        }
-
-
-        renderPagination(
-            total,
-            totalPages
-        );
-
-
-        renderMetrics();
-
-    }
-
-
-    /* =========================================================
-       PAGINATION
-       ========================================================= */
-
-    function renderPagination(
-        total,
-        totalPages
-    ) {
-
-        const count =
-            $("[data-inventory-count]");
-
-        const pages =
-            $("[data-inventory-pages]");
-
-        const previous =
-            $("[data-inventory-prev]");
-
-        const next =
-            $("[data-inventory-next]");
-
-
-        const start =
-            total === 0
-                ? 0
-                : (currentPage - 1) *
-                    PAGE_SIZE + 1;
-
-
-        const end =
-            Math.min(
-                currentPage * PAGE_SIZE,
-                total
-            );
-
-
-        if (count) {
-
-            count.textContent =
-                `Showing ${start}-${end} of ${total} records`;
-
-        }
-
-
-        if (previous) {
-
-            previous.disabled =
-                currentPage <= 1;
-
-        }
-
-
-        if (next) {
-
-            next.disabled =
-                currentPage >= totalPages;
-
-        }
-
-
-        if (!pages) return;
-
-
-        pages.innerHTML =
-            Array.from(
-                { length: totalPages },
-                (_, index) => {
-
-                    const page =
-                        index + 1;
-
-
-                    return `
-                        <button
-                            type="button"
-                            class="quiet-button
-                                ${page === currentPage
-                                    ? "active"
-                                    : ""}"
-
-                            data-page="${page}"
-                        >
-                            ${page}
-                        </button>
-                    `;
-
-                }
-            )
-            .join("");
-
-    }
-
-
-    /* =========================================================
-       METRICS
-       ========================================================= */
-
-    function renderMetrics() {
-
-        const itemsMetric =
-            $("[data-inventory-metric=items]");
-
-
-        const lowMetric =
-            $("[data-inventory-metric=low]");
-
-
-        const valueMetric =
-            $("[data-inventory-metric=value]");
-
-
-        const warehousesMetric =
-            $("[data-inventory-metric=warehouses]");
-
-
-        if (itemsMetric) {
-
-            const uniqueMaterials =
-                new Set(
-                    stocks.map(
-                        (stock) =>
-                            stock.material
-                    )
-                );
-
-            itemsMetric.textContent =
-                uniqueMaterials.size;
-
-        }
-
-
-        if (lowMetric) {
-
-            lowMetric.textContent =
-                stocks.filter(
-                    (stock) =>
-                        stock.is_low_stock
-                ).length;
-
-        }
-
-
-        if (warehousesMetric) {
-
-            warehousesMetric.textContent =
-                warehouses.length;
-
-        }
-
-
-        if (valueMetric) {
-
-            const inventoryValue =
-                stocks.reduce(
-                    (total, stock) => {
-
-                        const material =
-                            getMaterial(
-                                stock.material
-                            );
-
-
-                        const cost =
-                            Number(
-                                material?.standard_cost ||
-                                0
-                            );
-
-
-                        return (
-                            total +
-                            Number(
-                                stock.quantity || 0
-                            ) * cost
+                    const material =
+                        materials.find(
+                            (item) =>
+                                String(item.id) ===
+                                String(stock.material)
                         );
 
-                    },
-                    0
-                );
+
+                    const unitCost =
+                        Number(
+                            material?.standard_cost || 0
+                        );
 
 
-            valueMetric.textContent =
-                money(inventoryValue);
-
-        }
-
-    }
-
-
-    /* =========================================================
-       MOVEMENTS TABLE
-       ========================================================= */
-
-    function renderMovements() {
-
-        const container =
-            $("[data-inventory-movement-rows]");
-
-
-        const count =
-            $("[data-inventory-movement-count]");
-
-
-        if (!container) return;
-
-
-        if (count) {
-
-            count.textContent =
-                `${movements.length} movement${
-                    movements.length === 1
-                        ? ""
-                        : "s"
-                }`;
-
-        }
-
-
-        const recent =
-            [...movements]
-                .sort(
-                    (a, b) =>
-                        new Date(
-                            b.movement_date || 0
-                        ) -
-                        new Date(
-                            a.movement_date || 0
-                        )
-                )
-                .slice(0, 8);
-
-
-        if (!recent.length) {
-
-            container.innerHTML = `
-                <tr>
-                    <td colspan="6">
-                        <strong>
-                            No stock movements found.
-                        </strong>
-                    </td>
-                </tr>
-            `;
-
-            return;
-
-        }
-
-
-        container.innerHTML =
-            recent
-                .map((movement) => {
-
-                    const type =
-                        movement.movement_type ||
-                        "—";
-
-
-                    const typeClass =
-                        type === "OUT"
+                    const statusClass =
+                        stock.is_low_stock
                             ? "at-risk"
                             : "active";
 
 
-                    const quantity =
-                        Number(
-                            movement.quantity || 0
-                        );
-
-
-                    const formattedDate =
-                        movement.movement_date
-                            ? new Date(
-                                movement.movement_date
-                            ).toLocaleDateString()
-                            : "—";
+                    const statusText =
+                        stock.is_low_stock
+                            ? "Low stock"
+                            : "In stock";
 
 
                     return `
+
                         <tr>
 
                             <td>
+
                                 <strong>
                                     ${esc(
-                                        movement.material_name
+                                        stock.material_name
                                     )}
                                 </strong>
-                            </td>
 
-
-                            <td>
-                                ${esc(
-                                    movement.warehouse_name
-                                )}
-                            </td>
-
-
-                            <td>
-                                <span
-                                    class="status ${typeClass}"
-                                >
-                                    <i></i>
-                                    ${esc(type)}
+                                <span>
+                                    View details
                                 </span>
-                            </td>
 
-
-                            <td>
-                                ${esc(quantity)}
                             </td>
 
 
                             <td>
                                 ${esc(
-                                    movement.reference
+                                    stock.material_sku
                                 )}
                             </td>
 
 
                             <td>
                                 ${esc(
-                                    formattedDate
+                                    stock.warehouse_name
                                 )}
+                            </td>
+
+
+                            <td>
+                                ${esc(
+                                    stock.quantity
+                                )}
+                            </td>
+
+
+                            <td>
+                                —
+                            </td>
+
+
+                            <td>
+                                ${esc(
+                                    stock.minimum_stock_level
+                                )}
+                            </td>
+
+
+                            <td>
+
+                                <span
+                                    class="status ${statusClass}"
+                                >
+
+                                    <i></i>
+
+                                    ${statusText}
+
+                                </span>
+
+                            </td>
+
+
+                            <td>
+
+                                <button
+                                    class="quiet-button"
+                                    type="button"
+                                    data-movement-material="${esc(
+                                        stock.material
+                                    )}"
+                                    data-movement-warehouse="${esc(
+                                        stock.warehouse
+                                    )}"
+                                >
+                                    Record
+                                </button>
+
                             </td>
 
                         </tr>
+
                     `;
 
                 })
@@ -809,1211 +350,2172 @@
     }
 
 
-    /* =========================================================
-       LOAD ALL INVENTORY DATA
-       ========================================================= */
+    const itemsMetric =
+        $("[data-inventory-metric=items]");
 
-    async function loadInventoryData() {
+    const lowMetric =
+        $("[data-inventory-metric=low]");
 
-        const [
-            materialsData,
-            warehousesData,
-            categoriesData,
-            stocksData,
-            movementsData,
-        ] = await Promise.all([
+    const valueMetric =
+        $("[data-inventory-metric=value]");
 
-            request(
-                `${API}materials/?page_size=100`
-            ),
-
-            request(
-                `${API}warehouses/?page_size=100`
-            ),
-
-            request(
-                `${API}material-categories/?page_size=100`
-            ),
-
-            request(
-                `${API}stocks/?page_size=100`
-            ),
-
-            request(
-                `${API}stock-movements/?page_size=100`
-            ),
-
-        ]);
+    const warehousesMetric =
+        $("[data-inventory-metric=warehouses]");
 
 
-        materials =
-            list(materialsData);
+    if (itemsMetric) {
 
-
-        warehouses =
-            list(warehousesData);
-
-
-        categories =
-            list(categoriesData);
-
-
-        stocks =
-            list(stocksData);
-
-
-        movements =
-            list(movementsData);
-
-
-        populateFilters();
-
-
-        render();
-
-        renderMovements();
+        itemsMetric.textContent =
+            materials.length;
 
     }
 
 
-    /* =========================================================
-       FILTER OPTIONS
-       ========================================================= */
+    if (lowMetric) {
 
-    function populateFilters() {
-
-        const warehouseFilter =
-            $("[data-inventory-warehouse]");
-
-
-        const categoryFilter =
-            $("[data-inventory-category]");
-
-
-        if (warehouseFilter) {
-
-            warehouseFilter.innerHTML =
-                opts(
-                    warehouses,
-                    "",
-                    (item) => item.name,
-                    "Warehouse: All"
-                );
-
-        }
-
-
-        if (categoryFilter) {
-
-            categoryFilter.innerHTML =
-                opts(
-                    categories,
-                    "",
-                    (item) => item.name,
-                    "Category: All"
-                );
-
-        }
+        lowMetric.textContent =
+            stocks.filter(
+                (stock) =>
+                    stock.is_low_stock
+            ).length;
 
     }
 
 
-    /* =========================================================
-       CURRENT USER
-       ========================================================= */
+    if (valueMetric) {
 
-    async function loadCurrentUser() {
+        const inventoryValue =
+            stocks.reduce(
+                (total, stock) => {
 
-        try {
+                    const material =
+                        materials.find(
+                            (item) =>
+                                String(item.id) ===
+                                String(stock.material)
+                        );
 
-            currentUser =
-                await request(
-                    "/api/auth/me/"
-                );
+
+                    const cost =
+                        Number(
+                            material?.standard_cost || 0
+                        );
 
 
-            return currentUser;
+                    return (
+                        total +
+                        Number(
+                            stock.quantity || 0
+                        ) *
+                        cost
+                    );
 
-        } catch (error) {
-
-            console.warn(
-                "Could not load current user:",
-                error.message
+                },
+                0
             );
 
 
-            currentUser = null;
-
-
-            return null;
-
-        }
+        valueMetric.textContent =
+            money(inventoryValue);
 
     }
 
 
-    /* =========================================================
-       DIALOG
-       ========================================================= */
+    if (warehousesMetric) {
 
-    function openDialog(
-        kind,
-        preset = {}
-    ) {
+        warehousesMetric.textContent =
+            warehouses.length;
 
-        const dialog =
-            $("[data-inventory-dialog]");
+    }
+
+}
 
 
-        const fields =
-            $("[data-inventory-fields]");
+function renderMovements() {
+
+    const rowsContainer =
+        $("[data-inventory-movement-rows]");
+
+    const count =
+        $("[data-inventory-movement-count]");
 
 
-        dialog.dataset.kind =
-            kind;
+    if (!rowsContainer) return;
 
 
-        $("[data-inventory-error]")
-            .textContent = "";
+    if (count) {
+
+        count.textContent =
+            `${movements.length} movement${
+                movements.length === 1
+                    ? ""
+                    : "s"
+            }`;
+
+    }
 
 
-        /* -----------------------------------------------------
-           MATERIAL
-           ----------------------------------------------------- */
+    const recentMovements =
 
-        if (kind === "material") {
+        [...movements]
 
-            $("[data-inventory-title]")
-                .textContent =
-                "Add material";
+            .sort(
+                (a, b) =>
+                    new Date(
+                        b.movement_date || 0
+                    ) -
+                    new Date(
+                        a.movement_date || 0
+                    )
+            )
+
+            .slice(0, 10);
 
 
-            $("[data-inventory-submit]")
-                .textContent =
-                "Create material";
+    if (!recentMovements.length) {
+
+        rowsContainer.innerHTML = `
+
+            <tr>
+
+                <td colspan="6">
+
+                    <strong>
+                        No stock movements found.
+                    </strong>
+
+                </td>
+
+            </tr>
+
+        `;
+
+        return;
+    }
 
 
-            fields.innerHTML = `
+    rowsContainer.innerHTML =
 
-                <label>
-                    Material name
+        recentMovements
 
-                    <input
-                        name="name"
-                        required
+            .map((movement) => {
+
+                const movementType =
+                    movement.movement_type ||
+                    "—";
+
+
+                const statusClass =
+                    movementType === "OUT"
+                        ? "at-risk"
+                        : "active";
+
+
+                const date =
+                    movement.movement_date
+                        ? new Date(
+                            movement.movement_date
+                        ).toLocaleDateString()
+                        : "—";
+
+
+                return `
+
+                    <tr>
+
+                        <td>
+
+                            <strong>
+                                ${esc(
+                                    movement.material_name
+                                )}
+                            </strong>
+
+                        </td>
+
+
+                        <td>
+                            ${esc(
+                                movement.warehouse_name
+                            )}
+                        </td>
+
+
+                        <td>
+
+                            <span
+                                class="status ${statusClass}"
+                            >
+
+                                <i></i>
+
+                                ${esc(
+                                    movementType
+                                )}
+
+                            </span>
+
+                        </td>
+
+
+                        <td>
+                            ${esc(
+                                movement.quantity
+                            )}
+                        </td>
+
+
+                        <td>
+                            ${esc(
+                                movement.reference
+                            )}
+                        </td>
+
+
+                        <td>
+                            ${esc(date)}
+                        </td>
+
+                    </tr>
+
+                `;
+
+            })
+
+            .join("");
+
+}
+
+
+async function loadInventory() {
+
+    const [
+        stockData,
+        movementData
+    ] = await Promise.all([
+
+        request(
+            `${API}stocks/?page_size=100`
+        ),
+
+        request(
+            `${API}stock-movements/?page_size=100`
+        ),
+
+    ]);
+
+
+    stocks =
+        list(stockData);
+
+
+    movements =
+        list(movementData);
+
+
+    const today =
+        new Date()
+            .toISOString()
+            .slice(0, 10);
+
+
+    const transfersToday =
+        movements.filter(
+            (movement) =>
+                movement.movement_type ===
+                "TRANSFER" &&
+
+                movement.movement_date
+                    ?.startsWith(today)
+        ).length;
+
+
+    const transfersMetric =
+        $("[data-inventory-metric=transfers]");
+
+
+    if (transfersMetric) {
+
+        transfersMetric.textContent =
+            transfersToday;
+
+    }
+
+
+    render();
+
+    renderMovements();
+
+}
+
+
+async function loadCurrentUser() {
+
+    try {
+
+        currentUser =
+            await request(
+                "/api/auth/me/"
+            );
+
+        return currentUser;
+
+    } catch (error) {
+
+        console.warn(
+            "Could not load current user:",
+            error.message
+        );
+
+
+        currentUser = null;
+
+        return null;
+
+    }
+
+}
+
+
+function renderMaterialsManagement() {
+
+    const container =
+        $("[data-material-management-rows]");
+
+
+    if (!container) return;
+
+
+    const search =
+        $("[data-material-management-search]")
+            ?.value
+            .trim()
+            .toLowerCase() || "";
+
+
+    const filtered =
+        materials.filter((material) => {
+
+            const category =
+                categories.find(
+                    (item) =>
+                        String(item.id) ===
+                        String(material.category)
+                );
+
+
+            const text = [
+
+                material.name,
+
+                material.sku,
+
+                category?.name,
+
+                material.unit
+
+            ]
+                .join(" ")
+                .toLowerCase();
+
+
+            return (
+                !search ||
+                text.includes(search)
+            );
+
+        });
+
+
+    if (!filtered.length) {
+
+        container.innerHTML = `
+
+            <tr>
+
+                <td colspan="8">
+
+                    <strong>
+                        No materials found.
+                    </strong>
+
+                </td>
+
+            </tr>
+
+        `;
+
+        return;
+
+    }
+
+
+    container.innerHTML =
+
+        filtered
+
+            .map((material) => {
+
+                const category =
+                    categories.find(
+                        (item) =>
+                            String(item.id) ===
+                            String(
+                                material.category
+                            )
+                    );
+
+
+                const active =
+                    material.is_active !== false;
+
+
+                return `
+
+                    <tr>
+
+                        <td>
+
+                            <strong>
+                                ${esc(
+                                    material.name
+                                )}
+                            </strong>
+
+                            ${
+                                material.description
+                                    ? `
+                                        <span>
+                                            ${esc(
+                                                material.description
+                                            )}
+                                        </span>
+                                      `
+                                    : ""
+                            }
+
+                        </td>
+
+
+                        <td>
+                            ${esc(
+                                material.sku
+                            )}
+                        </td>
+
+
+                        <td>
+                            ${esc(
+                                category?.name ||
+                                material.category_name ||
+                                "—"
+                            )}
+                        </td>
+
+
+                        <td>
+                            ${esc(
+                                material.unit
+                            )}
+                        </td>
+
+
+                        <td>
+                            ${money(
+                                material.standard_cost
+                            )}
+                        </td>
+
+
+                        <td>
+                            ${esc(
+                                material.minimum_stock_level
+                            )}
+                        </td>
+
+
+                        <td>
+
+                            <span
+                                class="status ${
+                                    active
+                                        ? "active"
+                                        : "at-risk"
+                                }"
+                            >
+
+                                <i></i>
+
+                                ${
+                                    active
+                                        ? "Active"
+                                        : "Inactive"
+                                }
+
+                            </span>
+
+                        </td>
+
+
+                        <td>
+
+                            <div
+                                class="inventory-row-actions"
+                            >
+
+                                <button
+                                    type="button"
+                                    class="quiet-button"
+                                    data-edit-material="${esc(
+                                        material.id
+                                    )}"
+                                >
+                                    Edit
+                                </button>
+
+
+                                <button
+                                    type="button"
+                                    class="quiet-button danger-button"
+                                    data-delete-material="${esc(
+                                        material.id
+                                    )}"
+                                >
+                                    Delete
+                                </button>
+
+                            </div>
+
+                        </td>
+
+                    </tr>
+
+                `;
+
+            })
+
+            .join("");
+
+}
+
+
+function renderCategoriesManagement() {
+
+    const container =
+        $("[data-category-management-rows]");
+
+
+    if (!container) return;
+
+
+    const search =
+        $("[data-category-management-search]")
+            ?.value
+            .trim()
+            .toLowerCase() || "";
+
+
+    const filtered =
+        categories.filter((category) => {
+
+            const text = [
+
+                category.name,
+
+                category.description
+
+            ]
+                .join(" ")
+                .toLowerCase();
+
+
+            return (
+                !search ||
+                text.includes(search)
+            );
+
+        });
+
+
+    if (!filtered.length) {
+
+        container.innerHTML = `
+
+            <tr>
+
+                <td colspan="3">
+
+                    <strong>
+                        No categories found.
+                    </strong>
+
+                </td>
+
+            </tr>
+
+        `;
+
+        return;
+
+    }
+
+
+    container.innerHTML =
+
+        filtered
+
+            .map((category) => {
+
+                return `
+
+                    <tr>
+
+                        <td>
+
+                            <strong>
+                                ${esc(
+                                    category.name
+                                )}
+                            </strong>
+
+                        </td>
+
+
+                        <td>
+                            ${esc(
+                                category.description
+                            )}
+                        </td>
+
+
+                        <td>
+
+                            <div
+                                class="inventory-row-actions"
+                            >
+
+                                <button
+                                    type="button"
+                                    class="quiet-button"
+                                    data-edit-category="${esc(
+                                        category.id
+                                    )}"
+                                >
+                                    Edit
+                                </button>
+
+
+                                <button
+                                    type="button"
+                                    class="quiet-button danger-button"
+                                    data-delete-category="${esc(
+                                        category.id
+                                    )}"
+                                >
+                                    Delete
+                                </button>
+
+                            </div>
+
+                        </td>
+
+                    </tr>
+
+                `;
+
+            })
+
+            .join("");
+
+}
+
+
+function renderWarehousesManagement() {
+
+    const container =
+        $("[data-warehouse-management-rows]");
+
+
+    if (!container) return;
+
+
+    const search =
+        $("[data-warehouse-management-search]")
+            ?.value
+            .trim()
+            .toLowerCase() || "";
+
+
+    const filtered =
+        warehouses.filter((warehouse) => {
+
+            const text = [
+
+                warehouse.name,
+
+                warehouse.location
+
+            ]
+                .join(" ")
+                .toLowerCase();
+
+
+            return (
+                !search ||
+                text.includes(search)
+            );
+
+        });
+
+
+    if (!filtered.length) {
+
+        container.innerHTML = `
+
+            <tr>
+
+                <td colspan="3">
+
+                    <strong>
+                        No warehouses found.
+                    </strong>
+
+                </td>
+
+            </tr>
+
+        `;
+
+        return;
+
+    }
+
+
+    container.innerHTML =
+
+        filtered
+
+            .map((warehouse) => {
+
+                return `
+
+                    <tr>
+
+                        <td>
+
+                            <strong>
+                                ${esc(
+                                    warehouse.name
+                                )}
+                            </strong>
+
+                        </td>
+
+
+                        <td>
+                            ${esc(
+                                warehouse.location
+                            )}
+                        </td>
+
+
+                        <td>
+
+                            <div
+                                class="inventory-row-actions"
+                            >
+
+                                <button
+                                    type="button"
+                                    class="quiet-button"
+                                    data-edit-warehouse="${esc(
+                                        warehouse.id
+                                    )}"
+                                >
+                                    Edit
+                                </button>
+
+
+                                <button
+                                    type="button"
+                                    class="quiet-button danger-button"
+                                    data-delete-warehouse="${esc(
+                                        warehouse.id
+                                    )}"
+                                >
+                                    Delete
+                                </button>
+
+                            </div>
+
+                        </td>
+
+                    </tr>
+
+                `;
+
+            })
+
+            .join("");
+
+}
+
+
+function renderInventoryManagement() {
+
+    renderMaterialsManagement();
+
+    renderCategoriesManagement();
+
+    renderWarehousesManagement();
+
+}
+
+
+function openDialog(kind, preset = {}) {
+
+    const dialog =
+        $("[data-inventory-dialog]");
+
+    const fields =
+        $("[data-inventory-fields]");
+
+
+    dialog.dataset.kind =
+        kind;
+
+
+    dialog.dataset.id =
+        preset.id || "";
+
+
+    $("[data-inventory-error]")
+        .textContent = "";
+
+
+    if (kind === "material") {
+
+        const editing =
+            Boolean(preset.id);
+
+
+        $("[data-inventory-title]")
+            .textContent =
+                editing
+                    ? "Edit material"
+                    : "Add material";
+
+
+        $("[data-inventory-submit]")
+            .textContent =
+                editing
+                    ? "Save changes"
+                    : "Create material";
+
+
+        fields.innerHTML = `
+
+            <label>
+
+                Material name
+
+                <input
+                    name="name"
+                    value="${esc(
+                        preset.name
+                    )}"
+                    required
+                >
+
+            </label>
+
+
+            <label>
+
+                SKU
+
+                <input
+                    name="sku"
+                    value="${esc(
+                        preset.sku
+                    )}"
+                    required
+                >
+
+            </label>
+
+
+            <label>
+
+                Category
+
+                <select
+                    name="category"
+                    required
+                >
+
+                    ${opts(
+                        categories,
+                        preset.category || "",
+                        (item) => item.name,
+                        "Select category"
+                    )}
+
+                </select>
+
+            </label>
+
+
+            <label>
+
+                Unit
+
+                <input
+                    name="unit"
+                    value="${esc(
+                        preset.unit
+                    )}"
+                    placeholder="e.g. bag, kg, m"
+                    required
+                >
+
+            </label>
+
+
+            <label>
+
+                Standard cost
+
+                <input
+                    name="standard_cost"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value="${esc(
+                        preset.standard_cost
+                    )}"
+                >
+
+            </label>
+
+
+            <label>
+
+                Minimum stock
+
+                <input
+                    name="minimum_stock_level"
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    value="${esc(
+                        preset.minimum_stock_level ??
+                        0
+                    )}"
+                >
+
+            </label>
+
+
+            <label>
+
+                Status
+
+                <select name="is_active">
+
+                    <option
+                        value="true"
+                        ${
+                            preset.is_active !== false
+                                ? "selected"
+                                : ""
+                        }
                     >
-                </label>
+                        Active
+                    </option>
 
-
-                <label>
-                    SKU
-
-                    <input
-                        name="sku"
-                        required
+                    <option
+                        value="false"
+                        ${
+                            preset.is_active === false
+                                ? "selected"
+                                : ""
+                        }
                     >
-                </label>
+                        Inactive
+                    </option>
+
+                </select>
+
+            </label>
 
 
-                <label>
-                    Category
+            <label
+                style="grid-column:1/-1"
+            >
 
-                    <select
-                        name="category"
-                        required
-                    >
+                Description
 
-                        ${opts(
-                            categories,
-                            "",
-                            (item) => item.name,
-                            "Select category"
-                        )}
+                <textarea
+                    name="description"
+                >${esc(
+                    preset.description
+                )}</textarea>
 
-                    </select>
+            </label>
 
-                </label>
+        `;
 
-
-                <label>
-                    Unit
-
-                    <input
-                        name="unit"
-                        placeholder="e.g. bag, kg, m"
-                        required
-                    >
-                </label>
+    }
 
 
-                <label>
-                    Standard cost
+    else if (kind === "warehouse") {
 
-                    <input
-                        name="standard_cost"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                    >
-                </label>
+        const editing =
+            Boolean(preset.id);
 
 
-                <label>
-                    Minimum stock
-
-                    <input
-                        name="minimum_stock_level"
-                        type="number"
-                        min="0"
-                        step="0.001"
-                        value="0"
-                    >
-                </label>
+        $("[data-inventory-title]")
+            .textContent =
+                editing
+                    ? "Edit warehouse"
+                    : "New warehouse";
 
 
-                <label style="grid-column:1/-1">
-                    Description
-
-                    <textarea
-                        name="description"
-                    ></textarea>
-                </label>
-
-            `;
-
-        }
+        $("[data-inventory-submit]")
+            .textContent =
+                editing
+                    ? "Save changes"
+                    : "Create warehouse";
 
 
-        /* -----------------------------------------------------
-           WAREHOUSE
-           ----------------------------------------------------- */
+        fields.innerHTML = `
 
-        else if (kind === "warehouse") {
+            <label>
 
-            $("[data-inventory-title]")
-                .textContent =
-                "New warehouse";
+                Warehouse name
 
+                <input
+                    name="name"
+                    value="${esc(
+                        preset.name
+                    )}"
+                    required
+                >
 
-            $("[data-inventory-submit]")
-                .textContent =
-                "Create warehouse";
-
-
-            fields.innerHTML = `
-
-                <label>
-                    Warehouse name
-
-                    <input
-                        name="name"
-                        required
-                    >
-                </label>
+            </label>
 
 
-                <label>
-                    Location
+            <label>
 
-                    <input
-                        name="location"
-                    >
-                </label>
+                Location
 
-            `;
+                <input
+                    name="location"
+                    value="${esc(
+                        preset.location
+                    )}"
+                >
 
-        }
+            </label>
 
+        `;
 
-        /* -----------------------------------------------------
-           CATEGORY
-           ----------------------------------------------------- */
-
-        else if (kind === "category") {
-
-            $("[data-inventory-title]")
-                .textContent =
-                "New material category";
+    }
 
 
-            $("[data-inventory-submit]")
-                .textContent =
-                "Create category";
+    else if (kind === "category") {
+
+        const editing =
+            Boolean(preset.id);
 
 
-            fields.innerHTML = `
-
-                <label>
-
-                    Category name
-
-                    <input
-                        name="name"
-                        required
-                    >
-
-                </label>
+        $("[data-inventory-title]")
+            .textContent =
+                editing
+                    ? "Edit material category"
+                    : "New material category";
 
 
-                <label>
-
-                    Description
-
-                    <input
-                        name="description"
-                    >
-
-                </label>
-
-            `;
-
-        }
+        $("[data-inventory-submit]")
+            .textContent =
+                editing
+                    ? "Save changes"
+                    : "Create category";
 
 
-        /* -----------------------------------------------------
-           STOCK MOVEMENT
-           ----------------------------------------------------- */
+        fields.innerHTML = `
 
-        else {
+            <label>
 
-            $("[data-inventory-title]")
-                .textContent =
+                Category name
+
+                <input
+                    name="name"
+                    value="${esc(
+                        preset.name
+                    )}"
+                    required
+                >
+
+            </label>
+
+
+            <label
+                style="grid-column:1/-1"
+            >
+
+                Description
+
+                <textarea
+                    name="description"
+                >${esc(
+                    preset.description
+                )}</textarea>
+
+            </label>
+
+        `;
+
+    }
+
+
+    else {
+
+        $("[data-inventory-title]")
+            .textContent =
                 "Record stock movement";
 
 
-            $("[data-inventory-submit]")
-                .textContent =
+        $("[data-inventory-submit]")
+            .textContent =
                 "Record movement";
 
 
-            fields.innerHTML = `
+        fields.innerHTML = `
 
-                <label>
+            <label>
 
-                    Movement type
+                Movement type
 
-                    <select
-                        name="movement_type"
-                        data-movement-type
-                    >
-
-                        <option value="IN">
-                            Stock in
-                        </option>
-
-                        <option value="OUT">
-                            Stock out
-                        </option>
-
-                        <option value="RETURN">
-                            Return
-                        </option>
-
-                        <option value="ADJUSTMENT">
-                            Adjustment
-                        </option>
-
-                        <option value="TRANSFER">
-                            Transfer between stores
-                        </option>
-
-                    </select>
-
-                </label>
-
-
-                <label>
-
-                    Material
-
-                    <select
-                        name="material"
-                        required
-                    >
-
-                        ${opts(
-                            materials,
-                            preset.material,
-                            (item) =>
-                                `${item.sku} — ${item.name}`,
-                            "Select material"
-                        )}
-
-                    </select>
-
-                </label>
-
-
-                <label data-source>
-
-                    Warehouse
-
-                    <select
-                        name="warehouse"
-                        required
-                    >
-
-                        ${opts(
-                            warehouses,
-                            preset.warehouse,
-                            (item) => item.name,
-                            "Select warehouse"
-                        )}
-
-                    </select>
-
-                </label>
-
-
-                <label
-                    data-transfer
-                    hidden
+                <select
+                    name="movement_type"
+                    data-movement-type
                 >
 
-                    From warehouse
+                    <option value="IN">
+                        Stock in
+                    </option>
 
-                    <select
-                        name="from_warehouse"
-                    >
+                    <option value="OUT">
+                        Stock out
+                    </option>
 
-                        ${opts(
-                            warehouses,
-                            preset.warehouse,
-                            (item) => item.name,
-                            "Select source"
-                        )}
+                    <option value="RETURN">
+                        Return
+                    </option>
 
-                    </select>
+                    <option value="ADJUSTMENT">
+                        Adjustment
+                    </option>
 
-                </label>
+                    <option value="TRANSFER">
+                        Transfer between stores
+                    </option>
+
+                </select>
+
+            </label>
 
 
-                <label
-                    data-transfer
-                    hidden
+            <label>
+
+                Material
+
+                <select
+                    name="material"
+                    required
                 >
 
-                    To warehouse
+                    ${opts(
+                        materials,
+                        preset.material,
+                        (item) =>
+                            `${item.sku} — ${item.name}`,
+                        "Select material"
+                    )}
 
-                    <select
-                        name="to_warehouse"
-                    >
+                </select>
 
-                        ${opts(
-                            warehouses,
-                            "",
-                            (item) => item.name,
-                            "Select destination"
-                        )}
-
-                    </select>
-
-                </label>
+            </label>
 
 
-                <label>
+            <label data-source>
 
-                    Quantity
+                Warehouse
 
-                    <input
-                        name="quantity"
-                        type="number"
-                        step="0.001"
-                        min="0.001"
-                        required
-                    >
+                <select
+                    name="warehouse"
+                    required
+                >
 
-                </label>
+                    ${opts(
+                        warehouses,
+                        preset.warehouse,
+                        (item) => item.name,
+                        "Select warehouse"
+                    )}
 
+                </select>
 
-                <label>
-
-                    Reference
-
-                    <input
-                        name="reference"
-                    >
-
-                </label>
+            </label>
 
 
-                <label style="grid-column:1/-1">
+            <label
+                data-transfer
+                hidden
+            >
 
-                    Notes
+                From warehouse
 
-                    <textarea
-                        name="notes"
-                    ></textarea>
+                <select
+                    name="from_warehouse"
+                >
 
-                </label>
+                    ${opts(
+                        warehouses,
+                        preset.warehouse,
+                        (item) => item.name,
+                        "Select source"
+                    )}
 
-            `;
+                </select>
 
-
-            const movementType =
-                fields.querySelector(
-                    "[data-movement-type]"
-                );
-
-
-            movementType.addEventListener(
-                "change",
-                updateMovementFields
-            );
-
-        }
+            </label>
 
 
-        dialog.showModal();
+            <label
+                data-transfer
+                hidden
+            >
 
-    }
+                To warehouse
+
+                <select
+                    name="to_warehouse"
+                >
+
+                    ${opts(
+                        warehouses,
+                        "",
+                        (item) => item.name,
+                        "Select destination"
+                    )}
+
+                </select>
+
+            </label>
 
 
-    /* =========================================================
-       MOVEMENT TYPE UI
-       ========================================================= */
+            <label>
 
-    function updateMovementFields(event) {
+                Quantity
 
-        const fields =
-            $("[data-inventory-fields]");
+                <input
+                    name="quantity"
+                    type="number"
+                    step="0.001"
+                    min="0.001"
+                    required
+                >
+
+            </label>
 
 
-        const transfer =
-            event.target.value === "TRANSFER";
+            <label>
+
+                Reference
+
+                <input
+                    name="reference"
+                >
+
+            </label>
 
 
-        const source =
+            <label
+                style="grid-column:1/-1"
+            >
+
+                Notes
+
+                <textarea
+                    name="notes"
+                ></textarea>
+
+            </label>
+
+        `;
+
+
+        const movementType =
             fields.querySelector(
-                "[data-source]"
+                "[data-movement-type]"
             );
 
 
-        const warehouse =
-            fields.querySelector(
-                "[name=warehouse]"
-            );
+        movementType.addEventListener(
+            "change",
+            (event) => {
+
+                const transfer =
+                    event.target.value ===
+                    "TRANSFER";
 
 
-        const transferFields =
-            fields.querySelectorAll(
-                "[data-transfer]"
-            );
+                const source =
+                    fields.querySelector(
+                        "[data-source]"
+                    );
 
 
-        source.hidden =
-            transfer;
+                const warehouse =
+                    fields.querySelector(
+                        "[name=warehouse]"
+                    );
 
 
-        transferFields.forEach(
-            (field) => {
-
-                field.hidden =
-                    !transfer;
-
-            }
-        );
+                const transferFields =
+                    fields.querySelectorAll(
+                        "[data-transfer]"
+                    );
 
 
-        warehouse.required =
-            !transfer;
-
-
-        fields
-            .querySelectorAll(
-                "[name=from_warehouse],[name=to_warehouse]"
-            )
-            .forEach((field) => {
-
-                field.required =
+                source.hidden =
                     transfer;
 
-            });
 
-    }
+                transferFields.forEach(
+                    (field) => {
 
+                        field.hidden =
+                            !transfer;
 
-    /* =========================================================
-       CREATE / SAVE
-       ========================================================= */
-
-    async function submitForm(event) {
-
-        event.preventDefault();
+                    }
+                );
 
 
-        const form =
-            event.currentTarget;
+                warehouse.required =
+                    !transfer;
 
 
-        const dialog =
-            $("[data-inventory-dialog]");
+                fields
+                    .querySelectorAll(
+                        "[name=from_warehouse],[name=to_warehouse]"
+                    )
+                    .forEach(
+                        (field) => {
 
+                            field.required =
+                                transfer;
 
-        const kind =
-            dialog.dataset.kind;
-
-
-        const data =
-            Object.fromEntries(
-                new FormData(form)
-            );
-
-
-        Object.keys(data).forEach(
-            (key) => {
-
-                if (data[key] === "") {
-
-                    delete data[key];
-
-                }
+                        }
+                    );
 
             }
         );
 
-
-        const error =
-            $("[data-inventory-error]");
-
-
-        const submit =
-            $("[data-inventory-submit]");
-
-
-        error.textContent =
-            "";
-
-
-        submit.disabled =
-            true;
-
-
-        try {
-
-            /* -------------------------------------------------
-               MATERIAL
-               ------------------------------------------------- */
-
-            if (kind === "material") {
-
-                await request(
-                    `${API}materials/`,
-                    {
-                        method: "POST",
-                        body: JSON.stringify(data),
-                    }
-                );
-
-            }
-
-
-            /* -------------------------------------------------
-               WAREHOUSE
-               ------------------------------------------------- */
-
-            else if (kind === "warehouse") {
-
-                await request(
-                    `${API}warehouses/`,
-                    {
-                        method: "POST",
-                        body: JSON.stringify(data),
-                    }
-                );
-
-            }
-
-
-            /* -------------------------------------------------
-               CATEGORY
-               ------------------------------------------------- */
-
-            else if (kind === "category") {
-
-                await request(
-                    `${API}material-categories/`,
-                    {
-                        method: "POST",
-                        body: JSON.stringify(data),
-                    }
-                );
-
-            }
-
-
-            /* -------------------------------------------------
-               TRANSFER
-               ------------------------------------------------- */
-
-            else if (
-                data.movement_type ===
-                "TRANSFER"
-            ) {
-
-                if (!currentUser) {
-
-                    currentUser =
-                        await loadCurrentUser();
-
-                }
-
-
-                if (!currentUser?.id) {
-
-                    throw new Error(
-                        "Could not identify the current user."
-                    );
-
-                }
-
-
-                data.user =
-                    currentUser.id;
-
-
-                data.quantity =
-                    Math.abs(
-                        Number(data.quantity)
-                    );
-
-
-                delete data.warehouse;
-
-                delete data.movement_type;
-
-
-                await request(
-                    `${API}stock-movements/transfer/`,
-                    {
-                        method: "POST",
-                        body: JSON.stringify(data),
-                    }
-                );
-
-            }
-
-
-            /* -------------------------------------------------
-               NORMAL MOVEMENT
-               ------------------------------------------------- */
-
-            else {
-
-                if (!currentUser) {
-
-                    currentUser =
-                        await loadCurrentUser();
-
-                }
-
-
-                if (!currentUser?.id) {
-
-                    throw new Error(
-                        "Could not identify the current user."
-                    );
-
-                }
-
-
-                data.user =
-                    currentUser.id;
-
-
-                if (
-                    data.movement_type ===
-                    "OUT"
-                ) {
-
-                    data.quantity =
-                        -Math.abs(
-                            Number(
-                                data.quantity
-                            )
-                        );
-
-                }
-
-
-                await request(
-                    `${API}stock-movements/`,
-                    {
-                        method: "POST",
-                        body: JSON.stringify(data),
-                    }
-                );
-
-            }
-
-
-            /* -------------------------------------------------
-               REFRESH
-               ------------------------------------------------- */
-
-            dialog.close();
-
-            form.reset();
-
-
-            await loadInventoryData();
-
-
-        } catch (err) {
-
-            error.textContent =
-                err.message;
-
-        } finally {
-
-            submit.disabled =
-                false;
-
-        }
-
     }
 
 
-    /* =========================================================
-       CLEAR FILTERS
-       ========================================================= */
+    dialog.showModal();
 
-    function clearFilters() {
-
-        const search =
-            $("[data-inventory-search]");
-
-        const warehouse =
-            $("[data-inventory-warehouse]");
-
-        const category =
-            $("[data-inventory-category]");
-
-        const stock =
-            $("[data-inventory-stock]");
+}
 
 
-        if (search) {
-            search.value = "";
+async function submitForm(event) {
+
+    event.preventDefault();
+
+
+    const form =
+        event.currentTarget;
+
+
+    const dialog =
+        $("[data-inventory-dialog]");
+
+
+    const kind =
+        dialog.dataset.kind;
+
+
+    const id =
+        dialog.dataset.id;
+
+
+    const data =
+        Object.fromEntries(
+            new FormData(form)
+        );
+
+
+    Object.keys(data).forEach((key) => {
+
+        if (data[key] === "") {
+
+            delete data[key];
+
+        }
+
+    });
+
+
+    const error =
+        $("[data-inventory-error]");
+
+
+    const submit =
+        $("[data-inventory-submit]");
+
+
+    error.textContent = "";
+
+    submit.disabled = true;
+
+
+    try {
+
+        if (kind === "material") {
+
+            data.is_active =
+                data.is_active !== "false";
+
+
+            const url =
+                id
+                    ? `${API}materials/${id}/`
+                    : `${API}materials/`;
+
+
+            await request(
+                url,
+                {
+
+                    method:
+                        id
+                            ? "PATCH"
+                            : "POST",
+
+                    body:
+                        JSON.stringify(data),
+
+                }
+            );
+
         }
 
 
-        if (warehouse) {
-            warehouse.value = "";
+        else if (kind === "warehouse") {
+
+            const url =
+                id
+                    ? `${API}warehouses/${id}/`
+                    : `${API}warehouses/`;
+
+
+            await request(
+                url,
+                {
+
+                    method:
+                        id
+                            ? "PATCH"
+                            : "POST",
+
+                    body:
+                        JSON.stringify(data),
+
+                }
+            );
+
         }
 
 
-        if (category) {
-            category.value = "";
+        else if (kind === "category") {
+
+            const url =
+                id
+                    ? `${API}material-categories/${id}/`
+                    : `${API}material-categories/`;
+
+
+            await request(
+                url,
+                {
+
+                    method:
+                        id
+                            ? "PATCH"
+                            : "POST",
+
+                    body:
+                        JSON.stringify(data),
+
+                }
+            );
+
         }
 
 
-        if (stock) {
-            stock.value = "";
+        else if (
+            data.movement_type ===
+            "TRANSFER"
+        ) {
+
+            if (!currentUser) {
+
+                currentUser =
+                    await loadCurrentUser();
+
+            }
+
+
+            if (!currentUser?.id) {
+
+                throw new Error(
+                    "Could not identify the current user. Please fix the /api/auth/me/ endpoint before recording movements."
+                );
+
+            }
+
+
+            data.user =
+                currentUser.id;
+
+
+            data.quantity =
+                Math.abs(
+                    Number(
+                        data.quantity
+                    )
+                );
+
+
+            delete data.warehouse;
+
+            delete data.movement_type;
+
+
+            await request(
+                `${API}stock-movements/transfer/`,
+                {
+
+                    method: "POST",
+
+                    body:
+                        JSON.stringify(data),
+
+                }
+            );
+
         }
 
 
-        currentPage = 1;
+        else {
 
+            if (!currentUser) {
+
+                currentUser =
+                    await loadCurrentUser();
+
+            }
+
+
+            if (!currentUser?.id) {
+
+                throw new Error(
+                    "Could not identify the current user. Please fix the /api/auth/me/ endpoint before recording movements."
+                );
+
+            }
+
+
+            data.user =
+                currentUser.id;
+
+
+            if (
+                data.movement_type ===
+                "OUT"
+            ) {
+
+                data.quantity =
+                    -Math.abs(
+                        Number(
+                            data.quantity
+                        )
+                    );
+
+            }
+
+
+            await request(
+                `${API}stock-movements/`,
+                {
+
+                    method: "POST",
+
+                    body:
+                        JSON.stringify(data),
+
+                }
+            );
+
+        }
+
+
+        dialog.close();
+
+        form.reset();
+
+
+        await loadReferenceData();
+
+
+        renderInventoryManagement();
 
         render();
 
+
+        await loadInventory();
+
+
+    } catch (err) {
+
+        error.textContent =
+            err.message;
+
+    } finally {
+
+        submit.disabled = false;
+
     }
 
-
-    /* =========================================================
-       INITIALIZE
-       ========================================================= */
-
-    document.addEventListener(
-        "DOMContentLoaded",
-        async () => {
-
-            try {
-
-                await loadInventoryData();
-
-            } catch (error) {
-
-                console.error(
-                    "Inventory loading failed:",
-                    error
-                );
+}
 
 
-                const rows =
-                    $("[data-inventory-rows]");
+async function deleteInventoryItem(
+    endpoint,
+    id,
+    type
+) {
+
+    const confirmed =
+        window.confirm(
+            `Are you sure you want to delete this ${type}?`
+        );
 
 
-                if (rows) {
+    if (!confirmed) return;
 
-                    rows.innerHTML = `
-                        <tr>
-                            <td colspan="8">
-                                <strong>
-                                    Could not load inventory:
-                                    ${esc(
-                                        error.message
-                                    )}
-                                </strong>
-                            </td>
-                        </tr>
-                    `;
 
-                }
+    try {
 
+        await request(
+            `${API}${endpoint}/${id}/`,
+            {
+                method: "DELETE",
             }
+        );
 
 
-            /* -------------------------------------------------
-               Search
-               ------------------------------------------------- */
-
-            $("[data-inventory-search]")
-                ?.addEventListener(
-                    "input",
-                    () => {
-
-                        currentPage = 1;
-
-                        render();
-
-                    }
-                );
+        await loadReferenceData();
 
 
-            /* -------------------------------------------------
-               Warehouse
-               ------------------------------------------------- */
+        renderInventoryManagement();
 
-            $("[data-inventory-warehouse]")
-                ?.addEventListener(
-                    "change",
-                    () => {
+        render();
 
-                        currentPage = 1;
+    } catch (error) {
 
-                        render();
+        window.alert(
+            `Could not delete ${type}: ${error.message}`
+        );
 
-                    }
-                );
+    }
+
+}
 
 
-            /* -------------------------------------------------
-               Category
-               ------------------------------------------------- */
+async function loadReferenceData() {
 
-            $("[data-inventory-category]")
-                ?.addEventListener(
-                    "change",
-                    () => {
+    const [
+        materialsData,
+        warehousesData,
+        categoriesData
+    ] = await Promise.all([
 
-                        currentPage = 1;
+        request(
+            `${API}materials/?page_size=100`
+        ),
 
-                        render();
+        request(
+            `${API}warehouses/?page_size=100`
+        ),
 
-                    }
-                );
+        request(
+            `${API}material-categories/?page_size=100`
+        ),
 
-
-            /* -------------------------------------------------
-               Stock status
-               ------------------------------------------------- */
-
-            $("[data-inventory-stock]")
-                ?.addEventListener(
-                    "change",
-                    () => {
-
-                        currentPage = 1;
-
-                        render();
-
-                    }
-                );
+    ]);
 
 
-            /* -------------------------------------------------
-               Clear filters
-               ------------------------------------------------- */
+    materials =
+        list(materialsData);
 
-            $("[data-inventory-clear]")
-                ?.addEventListener(
+
+    warehouses =
+        list(warehousesData);
+
+
+    categories =
+        list(categoriesData);
+
+
+    const warehouseFilter =
+        $("[data-inventory-warehouse]");
+
+
+    if (warehouseFilter) {
+
+        const currentValue =
+            warehouseFilter.value;
+
+
+        warehouseFilter.innerHTML =
+            opts(
+                warehouses,
+                currentValue,
+                (item) => item.name,
+                "Store: All"
+            );
+
+    }
+
+}
+
+
+document.addEventListener(
+    "DOMContentLoaded",
+    async () => {
+
+        try {
+
+            await loadReferenceData();
+
+
+            renderInventoryManagement();
+
+
+            await loadInventory();
+
+
+        } catch (error) {
+
+            console.error(
+                "Inventory loading failed:",
+                error
+            );
+
+
+            // Previously only the stock/movements tables showed this
+            // error — materials/categories/warehouses stayed stuck on
+            // their static "Loading…" placeholder forever with no
+            // visible error at all. loadReferenceData() failing (e.g.
+            // a 401/403 because there's no authenticated session yet)
+            // threw before renderInventoryManagement() ever ran, and
+            // nothing told the user why. Show the same error on all
+            // five tables now.
+
+            const errorRow = (colspan, label) => `
+                <tr>
+                    <td colspan="${colspan}">
+                        <strong>
+                            Could not load ${label}: ${esc(error.message)}
+                        </strong>
+                    </td>
+                </tr>
+            `;
+
+            const targets = [
+                ["[data-inventory-rows]", 8, "inventory"],
+                ["[data-inventory-movement-rows]", 6, "movements"],
+                ["[data-material-management-rows]", 8, "materials"],
+                ["[data-category-management-rows]", 3, "categories"],
+                ["[data-warehouse-management-rows]", 3, "warehouses"],
+            ];
+
+            targets.forEach(([selector, colspan, label]) => {
+                const el = $(selector);
+                if (el) {
+                    el.innerHTML = errorRow(colspan, label);
+                }
+            });
+
+        }
+
+
+        $("[data-inventory-search]")
+            ?.addEventListener(
+                "input",
+                render
+            );
+
+
+        $("[data-inventory-warehouse]")
+            ?.addEventListener(
+                "change",
+                render
+            );
+
+
+        $("[data-inventory-stock]")
+            ?.addEventListener(
+                "change",
+                render
+            );
+
+
+        document
+            .querySelectorAll(
+                "[data-inventory-action]"
+            )
+            .forEach((button) => {
+
+                button.addEventListener(
                     "click",
-                    clearFilters
-                );
-
-
-            /* -------------------------------------------------
-               Header actions
-               ------------------------------------------------- */
-
-            document
-                .querySelectorAll(
-                    "[data-inventory-action]"
-                )
-                .forEach((button) => {
-
-                    button.addEventListener(
-                        "click",
-                        () => {
-
-                            openDialog(
-                                button.dataset
-                                    .inventoryAction
-                            );
-
-                        }
-                    );
-
-                });
-
-
-            /* -------------------------------------------------
-               Movement button in table
-               ------------------------------------------------- */
-
-            $("[data-inventory-rows]")
-                ?.addEventListener(
-                    "click",
-                    (event) => {
-
-                        const button =
-                            event.target.closest(
-                                "[data-movement-material]"
-                            );
-
-
-                        if (!button) return;
-
+                    () => {
 
                         openDialog(
-                            "movement",
-                            {
-                                material:
-                                    button.dataset
-                                        .movementMaterial,
-
-                                warehouse:
-                                    button.dataset
-                                        .movementWarehouse,
-                            }
+                            button.dataset
+                                .inventoryAction
                         );
 
                     }
                 );
 
-
-            /* -------------------------------------------------
-               Pagination
-               ------------------------------------------------- */
-
-            $("[data-inventory-prev]")
-                ?.addEventListener(
-                    "click",
-                    () => {
-
-                        if (currentPage > 1) {
-
-                            currentPage--;
-
-                            render();
-
-                        }
-
-                    }
-                );
+            });
 
 
-            $("[data-inventory-next]")
-                ?.addEventListener(
-                    "click",
-                    () => {
+        $("[data-inventory-rows]")
+            ?.addEventListener(
+                "click",
+                (event) => {
 
-                        const total =
-                            getFilteredStocks()
-                                .length;
-
-
-                        const totalPages =
-                            Math.max(
-                                1,
-                                Math.ceil(
-                                    total /
-                                    PAGE_SIZE
-                                )
-                            );
+                    const button =
+                        event.target.closest(
+                            "[data-movement-material]"
+                        );
 
 
-                        if (
-                            currentPage <
-                            totalPages
-                        ) {
+                    if (!button) return;
 
-                            currentPage++;
 
-                            render();
+                    openDialog(
+                        "movement",
+                        {
+
+                            material:
+                                button.dataset
+                                    .movementMaterial,
+
+                            warehouse:
+                                button.dataset
+                                    .movementWarehouse,
 
                         }
+                    );
 
-                    }
-                );
-
-
-            $("[data-inventory-pages]")
-                ?.addEventListener(
-                    "click",
-                    (event) => {
-
-                        const button =
-                            event.target.closest(
-                                "[data-page]"
-                            );
+                }
+            );
 
 
-                        if (!button) return;
+        $("[data-inventory-cancel]")
+            ?.addEventListener(
+                "click",
+                () => {
+
+                    $("[data-inventory-dialog]")
+                        .close();
+
+                }
+            );
 
 
-                        currentPage =
-                            Number(
-                                button.dataset.page
-                            );
+        $("[data-inventory-form]")
+            ?.addEventListener(
+                "submit",
+                submitForm
+            );
 
 
-                        render();
+        $("[data-material-management-search]")
+            ?.addEventListener(
+                "input",
+                renderMaterialsManagement
+            );
 
-                    }
-                );
+
+        $("[data-category-management-search]")
+            ?.addEventListener(
+                "input",
+                renderCategoriesManagement
+            );
 
 
-            /* -------------------------------------------------
-               Cancel
-               ------------------------------------------------- */
+        $("[data-warehouse-management-search]")
+            ?.addEventListener(
+                "input",
+                renderWarehousesManagement
+            );
 
-            $("[data-inventory-cancel]")
-                ?.addEventListener(
+
+        document
+            .querySelectorAll(
+                "[data-inventory-management-tab]"
+            )
+            .forEach((button) => {
+
+                button.addEventListener(
                     "click",
                     () => {
+
+                        const target =
+                            button.dataset
+                                .inventoryManagementTab;
+
+
+                        document
+                            .querySelectorAll(
+                                "[data-inventory-management-tab]"
+                            )
+                            .forEach(
+                                (item) => {
+
+                                    item.classList.remove(
+                                        "active"
+                                    );
+
+                                }
+                            );
+
+
+                        document
+                            .querySelectorAll(
+                                "[data-inventory-management-content]"
+                            )
+                            .forEach(
+                                (content) => {
+
+                                    content.classList.remove(
+                                        "active"
+                                    );
+
+                                }
+                            );
+
+
+                        button.classList.add(
+                            "active"
+                        );
+
 
                         $(
-                            "[data-inventory-dialog]"
-                        ).close();
+                            `[data-inventory-management-content="${target}"]`
+                        )
+                            ?.classList.add(
+                                "active"
+                            );
 
                     }
                 );
 
+            });
 
-            /* -------------------------------------------------
-               Submit
-               ------------------------------------------------- */
 
-            $("[data-inventory-form]")
-                ?.addEventListener(
-                    "submit",
-                    submitForm
-                );
+        document.addEventListener(
+            "click",
+            async (event) => {
 
-        }
-    );
+                const editMaterial =
+                    event.target.closest(
+                        "[data-edit-material]"
+                    );
+
+
+                if (editMaterial) {
+
+                    const material =
+                        materials.find(
+                            (item) =>
+                                String(item.id) ===
+                                String(
+                                    editMaterial
+                                        .dataset
+                                        .editMaterial
+                                )
+                        );
+
+
+                    if (material) {
+
+                        openDialog(
+                            "material",
+                            material
+                        );
+
+                    }
+
+
+                    return;
+
+                }
+
+
+                const editCategory =
+                    event.target.closest(
+                        "[data-edit-category]"
+                    );
+
+
+                if (editCategory) {
+
+                    const category =
+                        categories.find(
+                            (item) =>
+                                String(item.id) ===
+                                String(
+                                    editCategory
+                                        .dataset
+                                        .editCategory
+                                )
+                        );
+
+
+                    if (category) {
+
+                        openDialog(
+                            "category",
+                            category
+                        );
+
+                    }
+
+
+                    return;
+
+                }
+
+
+                const editWarehouse =
+                    event.target.closest(
+                        "[data-edit-warehouse]"
+                    );
+
+
+                if (editWarehouse) {
+
+                    const warehouse =
+                        warehouses.find(
+                            (item) =>
+                                String(item.id) ===
+                                String(
+                                    editWarehouse
+                                        .dataset
+                                        .editWarehouse
+                                )
+                        );
+
+
+                    if (warehouse) {
+
+                        openDialog(
+                            "warehouse",
+                            warehouse
+                        );
+
+                    }
+
+
+                    return;
+
+                }
+
+
+                const deleteMaterial =
+                    event.target.closest(
+                        "[data-delete-material]"
+                    );
+
+
+                if (deleteMaterial) {
+
+                    await deleteInventoryItem(
+                        "materials",
+                        deleteMaterial.dataset
+                            .deleteMaterial,
+                        "material"
+                    );
+
+
+                    return;
+
+                }
+
+
+                const deleteCategory =
+                    event.target.closest(
+                        "[data-delete-category]"
+                    );
+
+
+                if (deleteCategory) {
+
+                    await deleteInventoryItem(
+                        "material-categories",
+                        deleteCategory.dataset
+                            .deleteCategory,
+                        "category"
+                    );
+
+
+                    return;
+
+                }
+
+
+                const deleteWarehouse =
+                    event.target.closest(
+                        "[data-delete-warehouse]"
+                    );
+
+
+                if (deleteWarehouse) {
+
+                    await deleteInventoryItem(
+                        "warehouses",
+                        deleteWarehouse.dataset
+                            .deleteWarehouse,
+                        "warehouse"
+                    );
+
+                }
+
+            }
+        );
+
+    }
+);
 
 })();

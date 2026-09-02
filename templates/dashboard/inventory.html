@@ -71,7 +71,7 @@
             —
         </strong>
 
-        <em>Needs attention</em>
+        <em>Tracked stock items</em>
     </article>
 
 
@@ -82,7 +82,7 @@
             —
         </strong>
 
-        <em>Current period</em>
+        <em>Needs attention</em>
     </article>
 
 
@@ -93,7 +93,7 @@
             —
         </strong>
 
-        <em>Updated today</em>
+        <em>Active locations</em>
     </article>
 
 </section>
@@ -153,7 +153,8 @@
             type="button"
             data-inventory-date
         >
-            ▣ Date range
+            <span class="inventory-calendar-icon" aria-hidden="true">▣</span>
+            <span>Date range</span>
         </button>
 
 
@@ -287,6 +288,252 @@
     </div>
 
 </section>
+
+<!-- =========================================================
+     Inventory Management
+     ========================================================= -->
+
+<section class="panel inventory-management-panel">
+
+<div class="inventory-management-heading">
+
+    <div>
+        <p class="eyebrow">Inventory setup</p>
+        <h2>Materials & locations</h2>
+        <p>
+            Manage materials, material categories, and warehouses.
+        </p>
+    </div>
+
+</div>
+
+
+<!-- Management tabs -->
+
+<div class="inventory-management-tabs">
+
+    <button
+        type="button"
+        class="inventory-management-tab active"
+        data-inventory-management-tab="materials"
+    >
+        Materials
+    </button>
+
+    <button
+        type="button"
+        class="inventory-management-tab"
+        data-inventory-management-tab="categories"
+    >
+        Categories
+    </button>
+
+    <button
+        type="button"
+        class="inventory-management-tab"
+        data-inventory-management-tab="warehouses"
+    >
+        Warehouses
+    </button>
+
+</div>
+
+
+<!-- =====================================================
+     MATERIALS
+     ===================================================== -->
+
+<div
+    class="inventory-management-content active"
+    data-inventory-management-content="materials"
+>
+
+    <div class="inventory-management-toolbar">
+
+        <div class="local-search">
+
+            ⌕
+
+            <input
+                type="search"
+                placeholder="Search materials…"
+                data-material-management-search
+            >
+
+        </div>
+
+        <button
+            type="button"
+            class="primary-button"
+            data-inventory-action="material"
+        >
+            ＋ Add material
+        </button>
+
+    </div>
+
+
+    <div class="responsive-table">
+
+        <table>
+
+            <thead>
+                <tr>
+                    <th>Material</th>
+                    <th>SKU</th>
+                    <th>Category</th>
+                    <th>Unit</th>
+                    <th>Standard cost</th>
+                    <th>Minimum stock</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+
+            <tbody data-material-management-rows>
+
+                <tr>
+                    <td colspan="8">
+                        <strong>Loading materials…</strong>
+                    </td>
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     CATEGORIES
+     ===================================================== -->
+
+<div
+    class="inventory-management-content"
+    data-inventory-management-content="categories"
+>
+
+    <div class="inventory-management-toolbar">
+
+        <div class="local-search">
+
+            ⌕
+
+            <input
+                type="search"
+                placeholder="Search categories…"
+                data-category-management-search
+            >
+
+        </div>
+
+        <button
+            type="button"
+            class="primary-button"
+            data-inventory-action="category"
+        >
+            ＋ Add category
+        </button>
+
+    </div>
+
+
+    <div class="responsive-table">
+
+        <table>
+
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+
+            <tbody data-category-management-rows>
+
+                <tr>
+                    <td colspan="3">
+                        <strong>Loading categories…</strong>
+                    </td>
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     WAREHOUSES
+     ===================================================== -->
+
+<div
+    class="inventory-management-content"
+    data-inventory-management-content="warehouses"
+>
+
+    <div class="inventory-management-toolbar">
+
+        <div class="local-search">
+
+            ⌕
+
+            <input
+                type="search"
+                placeholder="Search warehouses…"
+                data-warehouse-management-search
+            >
+
+        </div>
+
+        <button
+            type="button"
+            class="primary-button"
+            data-inventory-action="warehouse"
+        >
+            ＋ Add warehouse
+        </button>
+
+    </div>
+
+
+    <div class="responsive-table">
+
+        <table>
+
+            <thead>
+                <tr>
+                    <th>Warehouse</th>
+                    <th>Location</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+
+            <tbody data-warehouse-management-rows>
+
+                <tr>
+                    <td colspan="3">
+                        <strong>Loading warehouses…</strong>
+                    </td>
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+</section>
+
 
 <!-- Inventory dialog -->
 
