@@ -116,6 +116,16 @@ def suppliers(request):
     return render(request, "dashboard/suppliers.html", {"active_page": "suppliers"})
 
 
+@login_required
+def contractors(request):
+    """
+    Contractor Management page. Renders a dashboard view that talks to the
+    /api/contractors/ endpoints (ContractorViewSet) for contractor profile,
+    project assignments, and linked documents.
+    """
+    return render(request, "dashboard/contractors.html", {"active_page": "contractors"})
+
+
 def _company_profile_form_value(request, key, required=False):
     value = request.POST.get(key, "").strip()
     if required and not value:
