@@ -15,6 +15,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from clients.testing import WithClientsTableMixin
 from projects.models import Project
 from projects.testing import WithProjectsTableMixin
 from suppliers.models import Supplier
@@ -24,13 +25,15 @@ from .models import Expense, ExpenseCategory
 from .services import transition_status
 
 
-class ExpensesTestBase(WithProjectsTableMixin, WithUsersTableMixin, TestCase):
+class ExpensesTestBase(WithProjectsTableMixin, WithClientsTableMixin, WithUsersTableMixin, TestCase):
     """
     Expense.created_by FKs to users.User (managed=False, see
     users.testing) even though no test here sets it explicitly --
     SQLite validates an FK column's target table exists at INSERT time
     regardless of whether the value being inserted is NULL, so that
-    table has to exist too, not just projects.
+    table has to exist too, not just projects. Project also FKs to
+    clients.Client (CPMAS-47), so the clients table is materialized here
+    the same way the payments/accounting/invoicing suites do.
     """
 
     """Shared fixtures: a project (real, from CPMAS-47) and an expense category."""
