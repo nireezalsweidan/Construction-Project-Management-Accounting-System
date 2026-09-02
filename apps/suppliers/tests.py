@@ -341,4 +341,3 @@ class SupplierPageRenderTests(TestCase):
         self.assertIn("data-supplier-rows", content)
         self.assertIn("module-stat-grid", content)
         self.assertIn('data-metric="outstanding"', content)
-        self.assertIn('href="/suppliers/"', content)

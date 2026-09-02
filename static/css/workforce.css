@@ -1,0 +1,8 @@
+/* Workforce page (v3 design).
+   The shared dashboard look (site-exact.css) provides page-heading,
+   module-stat-grid, filterbar, table-panel and responsive-table. These only
+   add small touches for the workforce directory. */
+
+.local-search input{background:transparent;border:0;outline:0;flex:1;min-width:0;color:inherit;font:inherit}
+
+.quiet-button.active{background:#08736c;border-color:#08736c;color:#f5fffc;font-weight:800}
