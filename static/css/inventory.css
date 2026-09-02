@@ -342,3 +342,51 @@
         justify-content: space-between;
     }
 }
+
+/* =========================================================
+   Stock movements
+   ========================================================= */
+
+.inventory-movements-panel {
+    margin-top: 22px;
+    overflow: hidden;
+}
+
+.inventory-movements-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+
+    padding: 20px;
+
+    border-bottom: 1px solid var(--line);
+}
+
+.inventory-movements-heading .eyebrow {
+    margin: 0 0 4px;
+}
+
+.inventory-movements-heading h2 {
+    margin: 0;
+
+    color: #18352b;
+
+    font: 700 20px Georgia, "Times New Roman", serif;
+}
+
+.inventory-movements-heading > span {
+    color: #68756d;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+
+@media (max-width: 580px) {
+
+    .inventory-movements-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+}
