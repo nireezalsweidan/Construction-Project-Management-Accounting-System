@@ -7,6 +7,8 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
+from construction.filtering import filter_date_range
+
 from .models import Account, FinancialTransaction, TransactionLine
 from .serializers import (
     AccountSerializer,
@@ -71,6 +73,8 @@ class FinancialTransactionViewSet(viewsets.ModelViewSet):
         supplier_id = params.get('supplier')
         if supplier_id:
             queryset = queryset.filter(supplier_id=supplier_id)
+
+        queryset = filter_date_range(queryset, params, 'transaction_date')
 
         return queryset
 

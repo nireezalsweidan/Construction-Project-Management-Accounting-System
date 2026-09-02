@@ -33,5 +33,6 @@ urlpatterns = [
     path("dashboard/<slug:module>/", views.module_page, name="module-page"),
     path("suppliers/", views.suppliers, name="suppliers"),
     path("contractors/", views.contractors, name="contractors"),
+    path("receipts/", views.receipts_page, name="receipts"),
     path("settings/company/", views.company_settings, name="company-settings"),
 ]

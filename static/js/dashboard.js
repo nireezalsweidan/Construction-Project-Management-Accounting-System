@@ -24,7 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const navIcons = [
     "layout-dashboard", "folder-kanban", "clipboard-check", "briefcase-business",
     "package-check", "boxes", "users", "file-text", "wallet-cards",
-    "circle-dollar-sign", "trending-up", "settings",
+    "receipt", "circle-dollar-sign", "trending-up", "settings",
   ];
   document.querySelectorAll(".nav-item > b").forEach((node, index) => icon(node, navIcons[index]));
 

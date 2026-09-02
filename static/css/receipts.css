@@ -1,0 +1,7 @@
+/* Receipts page (CPMAS-58) -- built on the shared v3 dashboard look
+   (site-exact.css/v3-fixes.css); only adds what's specific to this page. */
+.local-search input { border: 0; background: none; outline: none; flex: 1; font-family: inherit; font-size: 10px; color: inherit; }
+label.quiet-button { display: inline-flex; align-items: center; gap: 6px; cursor: default; }
+label.quiet-button input[type="date"] { border: 0; background: none; font-family: inherit; font-size: 9px; color: inherit; }
+.receipt-download { border: 1px solid #9eb3ae; border-radius: 7px; background: #cedbd6; padding: 6px 10px; font-size: 8px; font-weight: 800; cursor: pointer; text-decoration: none; color: inherit; }
+.receipt-download:hover { background: #b9cac4; }

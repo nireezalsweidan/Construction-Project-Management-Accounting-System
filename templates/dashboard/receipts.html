@@ -1,0 +1,31 @@
+{% extends "dashboard/base_dashboard.html" %}
+{% load static %}
+{% block title %}Receipts | Cedar Control{% endblock %}
+{% block page_css %}<link rel="stylesheet" href="{% static 'css/receipts.css' %}">{% endblock %}
+{% block dashboard_content %}
+<section class="page-heading">
+  <div><p class="eyebrow">Cash movement</p><h1>Receipts</h1><p>Every issued receipt, searchable by client, supplier, or payment -- downloadable as a PDF.</p></div>
+</section>
+
+<section class="module-stat-grid">
+  <article class="module-stat tone-1"><span>Total receipts</span><strong data-metric="total">—</strong><em>All records</em></article>
+  <article class="module-stat tone-2"><span>This month</span><strong data-metric="this-month">—</strong><em>Issued</em></article>
+</section>
+
+<section class="panel table-panel module-table">
+  <div class="filterbar">
+    <div class="local-search">⌕ <span>Search receipts…</span><input type="text" id="receipt-search-input" placeholder="Receipt #, reference…" aria-label="Search receipts"></div>
+    <label class="quiet-button">From <input type="date" data-date-from></label>
+    <label class="quiet-button">To <input type="date" data-date-to></label>
+  </div>
+  <div class="responsive-table">
+    <table>
+      <thead><tr><th>Receipt</th><th>Date</th><th>Payment</th><th>Client / Supplier</th><th>Method</th><th>Amount</th><th></th></tr></thead>
+      <tbody data-receipt-rows>
+        <tr class="empty-row"><td colspan="7"><b>Loading receipts…</b><span>Fetching from the payments API.</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+{% block page_js %}<script src="{% static 'js/receipts.js' %}" defer></script>{% endblock %}

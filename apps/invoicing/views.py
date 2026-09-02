@@ -8,6 +8,8 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
+from construction.filtering import filter_date_range
+
 from .models import ClientInvoice, ClientInvoiceItem, SupplierInvoice, SupplierInvoiceItem
 from .serializers import (
     ClientInvoiceItemSerializer,
@@ -49,6 +51,8 @@ class SupplierInvoiceViewSet(viewsets.ModelViewSet):
         purchase_order_id = params.get('purchase_order')
         if purchase_order_id:
             queryset = queryset.filter(purchase_order_id=purchase_order_id)
+
+        queryset = filter_date_range(queryset, params, 'invoice_date')
 
         return queryset
 
@@ -147,6 +151,8 @@ class ClientInvoiceViewSet(viewsets.ModelViewSet):
         project_id = params.get('project')
         if project_id:
             queryset = queryset.filter(project_id=project_id)
+
+        queryset = filter_date_range(queryset, params, 'invoice_date')
 
         return queryset
 

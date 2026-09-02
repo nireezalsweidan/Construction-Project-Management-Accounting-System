@@ -66,7 +66,8 @@ INSTALLED_APPS = [
     # CPMAS-29 Inventory & Warehouse Management, CPMAS-30 Purchase Order
     # Management, CPMAS-31 Goods Receiving, CPMAS-32 Supplier Invoices,
     # CPMAS-33 Expense Management, CPMAS-34 Accounting / Financial
-    # Transactions, CPMAS-35 Accounts Receivable & Accounts Payable --
+    # Transactions, CPMAS-35 Accounts Receivable & Accounts Payable,
+    # CPMAS-21 Receipts, CPMAS-22 Notifications --
     # plus projects/clients from CPMAS-47, built by Nireez).
     # taxes, suppliers, and users are wired in here only as minimal FK
     # targets required by apps.inventory (Material.tax_rate/default_supplier,
@@ -90,6 +91,7 @@ INSTALLED_APPS = [
     'expenses',
     'accounting',
     'payments',
+    'notifications',
 ]
 
 MIDDLEWARE = [
@@ -114,6 +116,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'construction.context_processors.app_user',
             ],
         },
     },

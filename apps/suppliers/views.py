@@ -56,6 +56,15 @@ class SupplierViewSet(viewsets.ModelViewSet):
     ordering_fields = ["created_at", "name"]
     ordering = ["name"]
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        is_active = self.request.query_params.get("is_active")
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() in ("true", "1"))
+
+        return queryset
+
     def get_serializer_class(self):
         return SupplierListSerializer if self.action == "list" else SupplierSerializer
 

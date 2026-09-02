@@ -34,6 +34,7 @@ urlpatterns = [
     path('api/employees/', include('employees.urls')),
     path('api/expenses/', include('expenses.urls')),  # CPMAS-35
     path('api/accounting/', include('accounting.urls')),
-    path('api/payments/', include('payments.urls')),
+    path('api/payments/', include('payments.urls')),  # CPMAS-35, CPMAS-21
+    path('api/notifications/', include('notifications.urls')),  # CPMAS-22
     path('api/auth/', include('users.urls')),  # Auth & Authorization (RBAC)
 ]

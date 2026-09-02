@@ -107,6 +107,16 @@ def module_page(request, module):
 
 
 @login_required
+def receipts_page(request):
+    """
+    Receipts page (CPMAS-58/CPMAS-21). Renders a dashboard view that
+    talks to /api/payments/receipts/ (ReceiptViewSet) for listing,
+    search, date-range filtering, and PDF download.
+    """
+    return render(request, "dashboard/receipts.html", {"active_page": "receipts"})
+
+
+@login_required
 def suppliers(request):
     """
     Supplier Management page. Renders a dashboard view that talks to the
