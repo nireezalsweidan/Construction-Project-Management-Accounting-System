@@ -6,8 +6,22 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Phase, Project, ProjectDocument
+from .models import (
+    Budget,
+    BudgetItem,
+    ChangeOrder,
+    Phase,
+    Project,
+    ProjectDocument,
+    apply_change_order_to_contract,
+    get_active_budget,
+    get_budget_summary,
+    reverse_change_order_from_contract,
+)
 from .serializers import (
+    BudgetItemSerializer,
+    BudgetSerializer,
+    ChangeOrderSerializer,
     PhaseSerializer,
     ProjectDocumentSerializer,
     ProjectEmployeeSerializer,
@@ -18,13 +32,13 @@ from .serializers import (
 
 class ProjectViewSet(viewsets.ModelViewSet):
     """
-    /api/projects/                      GET (list), POST (create)
-    /api/projects/{id}/                 GET, PATCH, PUT, DELETE
-    /api/projects/{id}/archive/         POST
-    /api/projects/{id}/unarchive/       POST
-    /api/projects/{id}/employees/       GET (list assignments), POST (assign)
-    /api/projects/{id}/release-employee/ POST  {"employee_id": "..."}
-    /api/projects/{id}/documents/       GET (linked documents)
+    /api/v1/projects/                      GET (list), POST (create)
+    /api/v1/projects/{id}/                 GET, PATCH, PUT, DELETE
+    /api/v1/projects/{id}/archive/         POST
+    /api/v1/projects/{id}/unarchive/       POST
+    /api/v1/projects/{id}/employees/       GET (list assignments), POST (assign)
+    /api/v1/projects/{id}/release-employee/ POST  {"employee_id": "..."}
+    /api/v1/projects/{id}/documents/       GET (linked documents)
     """
 
     permission_classes = [IsAuthenticated]
@@ -117,15 +131,101 @@ class ProjectViewSet(viewsets.ModelViewSet):
         qs = project.phases.all()
         return Response(PhaseSerializer(qs, many=True).data)
 
+    @action(detail=True, methods=["get"], url_path="budget-summary")
+    def budget_summary(self, request, pk=None):
+        """
+        Budget vs Actual for this project's active budget (most recent
+        APPROVED/REVISED budget, falling back to the most recent DRAFT).
+        Pass ?budget={budget_id} to get the summary for a specific
+        budget version instead of the auto-picked active one.
+        """
+        project = self.get_object()
+        budget_id = request.query_params.get("budget")
+        if budget_id:
+            budget = Budget.objects.filter(id=budget_id, project=project).first()
+            if budget is None:
+                return Response(
+                    {"detail": "No budget with that id on this project."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+        else:
+            budget = get_active_budget(project.id)
+            if budget is None:
+                return Response(
+                    {"detail": "This project has no budget yet."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+        return Response(get_budget_summary(budget))
+
+
+class BudgetViewSet(viewsets.ModelViewSet):
+    """
+    Project Budgeting.
+
+    /api/.../budgets/?project={id}       GET (list, filterable by project), POST (create)
+    /api/.../budgets/{id}/                GET, PATCH, PUT, DELETE (includes itemized categories)
+    /api/.../budgets/{id}/items/          GET (list), POST (add a category line)
+    /api/.../budgets/{id}/summary/        GET — Budget vs Actual by category
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = BudgetSerializer
+    queryset = Budget.objects.all()
+
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ["project", "status"]
+    ordering_fields = ["created_at"]
+    ordering = ["-created_at"]
+
+    @action(detail=True, methods=["get", "post"])
+    def items(self, request, pk=None):
+        budget = self.get_object()
+
+        if request.method == "GET":
+            return Response(BudgetItemSerializer(budget.items.all(), many=True).data)
+
+        # budget_id is a required field on BudgetItemSerializer (it maps to
+        # a NOT NULL FK), so it must be present before is_valid() rather
+        # than injected afterward via .save(budget=...) — the URL already
+        # tells us which budget, so fill it in from there.
+        data = request.data.copy()
+        data["budget_id"] = str(budget.id)
+        serializer = BudgetItemSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["get"])
+    def summary(self, request, pk=None):
+        budget = self.get_object()
+        return Response(get_budget_summary(budget))
+
+
+class BudgetItemViewSet(viewsets.ModelViewSet):
+    """
+    Standalone CRUD for individual budget category lines — use this to
+    edit/delete a line without re-fetching the whole budget.
+
+    /api/.../budget-items/?budget={id}    GET, POST
+    /api/.../budget-items/{id}/           GET, PATCH, PUT, DELETE
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = BudgetItemSerializer
+    queryset = BudgetItem.objects.all()
+
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["budget", "category", "phase"]
+
 
 class PhaseViewSet(viewsets.ModelViewSet):
     """
     Project Planning (Phases).
 
-    /api/phases/?project={id}        GET (list, filterable by project), POST (create)
-    /api/phases/{id}/                GET, PATCH, PUT, DELETE
-    /api/phases/{id}/complete/       POST — shortcut: status=COMPLETED, progress=100
-    /api/phases/reorder/             POST — bulk-update sequence_number
+    /api/v1/phases/?project={id}        GET (list, filterable by project), POST (create)
+    /api/v1/phases/{id}/                GET, PATCH, PUT, DELETE
+    /api/v1/phases/{id}/complete/       POST — shortcut: status=COMPLETED, progress=100
+    /api/v1/phases/reorder/             POST — bulk-update sequence_number
     """
 
     permission_classes = [IsAuthenticated]
@@ -180,3 +280,84 @@ class PhaseViewSet(viewsets.ModelViewSet):
 
         updated.sort(key=lambda p: p.sequence_number)
         return Response(PhaseSerializer(updated, many=True).data)
+
+
+class ChangeOrderViewSet(viewsets.ModelViewSet):
+    """
+    Change Order Management.
+
+    /api/.../change-orders/?project={id}   GET (list, filterable by project/status), POST (create)
+    /api/.../change-orders/{id}/           GET, PATCH, PUT (never changes status — see below), DELETE (blocked)
+    /api/.../change-orders/{id}/approve/   POST — PENDING -> APPROVED, adds amount to Project.contract_value
+    /api/.../change-orders/{id}/reject/    POST — PENDING -> REJECTED, no contract effect
+    /api/.../change-orders/{id}/cancel/    POST — PENDING or APPROVED -> CANCELLED; reverses the
+                                            contract_value effect if it was already APPROVED
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = ChangeOrderSerializer
+    queryset = ChangeOrder.objects.all()
+
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ["project", "status"]
+    ordering_fields = ["date", "created_at", "amount"]
+    ordering = ["-date"]
+
+    def perform_destroy(self, instance):
+        # Same reasoning as Project: a financial record with a contract-value
+        # effect shouldn't disappear. Cancel it instead, for audit history.
+        raise NotImplementedError(
+            "Change orders cannot be deleted. Use POST /cancel/ instead."
+        )
+
+    @action(detail=True, methods=["post"])
+    def approve(self, request, pk=None):
+        change_order = self.get_object()
+        if change_order.status != ChangeOrder.STATUS_PENDING:
+            return Response(
+                {"detail": f"Cannot approve a change order in '{change_order.status}' status."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            change_order.status = ChangeOrder.STATUS_APPROVED
+            approved_by = request.data.get("approved_by")
+            if approved_by:
+                change_order.approved_by_id = approved_by
+            change_order.save(update_fields=["status", "approved_by", "updated_at"])
+            apply_change_order_to_contract(change_order)
+
+        change_order.refresh_from_db()
+        return Response(ChangeOrderSerializer(change_order).data)
+
+    @action(detail=True, methods=["post"])
+    def reject(self, request, pk=None):
+        change_order = self.get_object()
+        if change_order.status != ChangeOrder.STATUS_PENDING:
+            return Response(
+                {"detail": f"Cannot reject a change order in '{change_order.status}' status."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        change_order.status = ChangeOrder.STATUS_REJECTED
+        change_order.save(update_fields=["status", "updated_at"])
+        return Response(ChangeOrderSerializer(change_order).data)
+
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, pk=None):
+        change_order = self.get_object()
+        cancellable_from = {ChangeOrder.STATUS_PENDING, ChangeOrder.STATUS_APPROVED}
+        if change_order.status not in cancellable_from:
+            return Response(
+                {"detail": f"Cannot cancel a change order in '{change_order.status}' status."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            was_approved = change_order.status == ChangeOrder.STATUS_APPROVED
+            change_order.status = ChangeOrder.STATUS_CANCELLED
+            change_order.save(update_fields=["status", "updated_at"])
+            if was_approved:
+                reverse_change_order_from_contract(change_order)
+
+        return Response(ChangeOrderSerializer(change_order).data)

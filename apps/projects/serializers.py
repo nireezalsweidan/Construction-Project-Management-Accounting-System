@@ -2,7 +2,9 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
-from .models import Phase, Project, ProjectDocument, ProjectEmployee
+from clients.models import Client
+
+from .models import Budget, BudgetItem, ChangeOrder, Phase, Project, ProjectDocument, ProjectEmployee
 
 
 class ProjectListSerializer(serializers.ModelSerializer):
@@ -47,11 +49,20 @@ class ProjectDocumentSerializer(serializers.ModelSerializer):
 
 
 class PhaseSerializer(serializers.ModelSerializer):
+    # Exposed as "project_id" (matching the physical column exactly) even
+    # though the model field backing it is a real ForeignKey named `project`
+    # — `source="project"` points this JSON key at that relation, so writes
+    # still go through proper FK validation (the id must belong to an
+    # existing Project) while the API surface matches the DB 1:1.
+    project_id = serializers.PrimaryKeyRelatedField(
+        source="project", queryset=Project.objects.all()
+    )
+
     class Meta:
         model = Phase
         fields = [
             "id",
-            "project",
+            "project_id",
             "name",
             "description",
             "start_date",
@@ -108,6 +119,14 @@ class ProjectSerializer(serializers.ModelSerializer):
     )
     phases = PhaseSerializer(many=True, read_only=True)
 
+    # Exposed as "buyer_id" (matching the physical `projects.buyer_id`
+    # column) — see PhaseSerializer.project_id above for why this is a
+    # PrimaryKeyRelatedField with an explicit source rather than just
+    # listing "buyer" in Meta.fields.
+    buyer_id = serializers.PrimaryKeyRelatedField(
+        source="buyer", queryset=Client.objects.all(), allow_null=True, required=False
+    )
+
     class Meta:
         model = Project
         fields = [
@@ -117,7 +136,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "location",
             "project_type",
             "manager_id",
-            "buyer",
+            "buyer_id",
             "estimated_sale_price",
             "actual_sale_price",
             "start_date",
@@ -165,4 +184,108 @@ class ProjectSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"expected_completion_date": "Cannot be earlier than the start date."}
             )
+        return attrs
+
+
+class BudgetItemSerializer(serializers.ModelSerializer):
+    # "budget_id" / "phase_id" — same PrimaryKeyRelatedField + source
+    # pattern as above, matching budget_items.budget_id / .phase_id exactly.
+    budget_id = serializers.PrimaryKeyRelatedField(
+        source="budget", queryset=Budget.objects.all()
+    )
+    phase_id = serializers.PrimaryKeyRelatedField(
+        source="phase", queryset=Phase.objects.all(), allow_null=True, required=False
+    )
+
+    class Meta:
+        model = BudgetItem
+        fields = ["id", "budget_id", "phase_id", "category", "description", "budgeted_amount"]
+        read_only_fields = ["id"]
+
+
+class BudgetSerializer(serializers.ModelSerializer):
+    """Full read/write representation, including itemized categories."""
+
+    items = BudgetItemSerializer(many=True, read_only=True)
+
+    # "project_id" — matches project_budgets.project_id exactly.
+    project_id = serializers.PrimaryKeyRelatedField(
+        source="project", queryset=Project.objects.all()
+    )
+
+    class Meta:
+        model = Budget
+        fields = [
+            "id",
+            "project_id",
+            "name",
+            "total_budget",
+            "status",
+            "created_at",
+            "updated_at",
+            "items",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate_status(self, value):
+        if self.instance is None:
+            return value
+
+        current = self.instance.status
+        if value == current:
+            return value
+
+        allowed = Budget.ALLOWED_TRANSITIONS.get(current, set())
+        if value not in allowed:
+            allowed_display = sorted(allowed) or "none — this is a final status"
+            raise serializers.ValidationError(
+                f"Cannot move a budget from '{current}' to '{value}'. "
+                f"Allowed next status(es): {allowed_display}."
+            )
+        return value
+
+
+class ChangeOrderSerializer(serializers.ModelSerializer):
+    """
+    status/approved_by are read-only here on purpose — every status change
+    goes through the approve/reject/cancel actions on the viewset (same
+    convention as expenses.services.transition_status), never a raw PATCH,
+    since approval also has to atomically update Project.contract_value.
+    """
+
+    project_id = serializers.PrimaryKeyRelatedField(
+        source="project", queryset=Project.objects.all()
+    )
+
+    class Meta:
+        model = ChangeOrder
+        fields = [
+            "id",
+            "project_id",
+            "number",
+            "description",
+            "reason",
+            "amount",
+            "requested_by",
+            "approved_by",
+            "date",
+            "status",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "status", "approved_by", "created_at", "updated_at"]
+
+    def validate(self, attrs):
+        # App-level uniqueness only — the DB column has no unique
+        # constraint on `number`, so this is enforced here, not in Postgres.
+        number = attrs.get("number", getattr(self.instance, "number", None))
+        project = attrs.get("project", getattr(self.instance, "project", None))
+        if number and project:
+            qs = ChangeOrder.objects.filter(project=project, number=number)
+            if self.instance is not None:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError(
+                    {"number": "A change order with this number already exists on this project."}
+                )
         return attrs

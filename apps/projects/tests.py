@@ -1,6 +1,6 @@
 from django.test import TestCase
 
-from .models import Phase, Project, ProjectEmployee
+from .models import Budget, BudgetItem, ChangeOrder, Phase, Project, ProjectEmployee, normalize_category_name
 
 
 class ProjectModelTests(TestCase):
@@ -125,3 +125,87 @@ class PhaseSerializerTests(TestCase):
             {"status": Phase.STATUS_COMPLETED, "progress_percentage": Decimal("95.00")}
         )
         self.assertEqual(result["progress_percentage"], Decimal("95.00"))
+
+
+class BudgetModelTests(TestCase):
+    """
+    Model-level tests only — get_budget_summary()/get_active_budget() run
+    real aggregate queries against managed=False tables and can't be unit
+    tested against SQLite for the same reason noted in clients/SETUP.md.
+    """
+
+    def test_allowed_transitions_from_draft(self):
+        self.assertEqual(Budget.ALLOWED_TRANSITIONS[Budget.STATUS_DRAFT], {Budget.STATUS_APPROVED})
+
+    def test_closed_is_final(self):
+        self.assertEqual(Budget.ALLOWED_TRANSITIONS[Budget.STATUS_CLOSED], set())
+
+    def test_category_choices_match_task_spec(self):
+        expected = {"MATERIALS", "LABOR", "CONTRACTORS", "EQUIPMENT", "OTHER"}
+        actual = {value for value, _ in BudgetItem.CATEGORY_CHOICES}
+        self.assertEqual(expected, actual)
+
+    def test_normalize_category_name(self):
+        self.assertEqual(normalize_category_name("Materials"), "MATERIALS")
+        self.assertEqual(normalize_category_name("  labor "), "LABOR")
+        self.assertEqual(normalize_category_name("Site Equipment"), "SITE_EQUIPMENT")
+
+
+class BudgetSerializerTests(TestCase):
+    def test_rejects_invalid_status_transition(self):
+        from .serializers import BudgetSerializer
+
+        instance = Budget(status=Budget.STATUS_CLOSED)
+        serializer = BudgetSerializer()
+        serializer.instance = instance
+        with self.assertRaises(Exception):
+            serializer.validate_status(Budget.STATUS_APPROVED)
+
+    def test_allows_same_status(self):
+        from .serializers import BudgetSerializer
+
+        instance = Budget(status=Budget.STATUS_APPROVED)
+        serializer = BudgetSerializer()
+        serializer.instance = instance
+        self.assertEqual(serializer.validate_status(Budget.STATUS_APPROVED), Budget.STATUS_APPROVED)
+
+
+class ChangeOrderModelTests(TestCase):
+    """
+    Model-level tests only — apply_change_order_to_contract()/
+    reverse_change_order_from_contract() do real DB writes and can't be
+    unit tested against SQLite here (see clients/SETUP.md and the
+    outstanding managed=False/test-runner notes elsewhere in this repo).
+    """
+
+    def test_str_representation(self):
+        co = ChangeOrder(number="CO-01")
+        self.assertIn("CO-01", str(co))
+
+    def test_default_status_is_pending(self):
+        co = ChangeOrder(number="CO-01")
+        self.assertEqual(co.status, ChangeOrder.STATUS_PENDING)
+
+    def test_allowed_transitions_from_pending(self):
+        allowed = ChangeOrder.ALLOWED_TRANSITIONS[ChangeOrder.STATUS_PENDING]
+        self.assertEqual(
+            allowed, {ChangeOrder.STATUS_APPROVED, ChangeOrder.STATUS_REJECTED, ChangeOrder.STATUS_CANCELLED}
+        )
+
+    def test_approved_can_only_go_to_cancelled(self):
+        self.assertEqual(
+            ChangeOrder.ALLOWED_TRANSITIONS[ChangeOrder.STATUS_APPROVED], {ChangeOrder.STATUS_CANCELLED}
+        )
+
+    def test_rejected_and_cancelled_are_final(self):
+        self.assertEqual(ChangeOrder.ALLOWED_TRANSITIONS[ChangeOrder.STATUS_REJECTED], set())
+        self.assertEqual(ChangeOrder.ALLOWED_TRANSITIONS[ChangeOrder.STATUS_CANCELLED], set())
+
+
+class ChangeOrderSerializerTests(TestCase):
+    def test_status_and_approved_by_are_read_only(self):
+        from .serializers import ChangeOrderSerializer
+
+        read_only = ChangeOrderSerializer().Meta.read_only_fields
+        self.assertIn("status", read_only)
+        self.assertIn("approved_by", read_only)
