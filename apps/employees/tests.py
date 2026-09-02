@@ -353,3 +353,30 @@ class EmployeeProjectAssignmentTests(EmployeeAPITestBase):
             self.assignment_url(self.employee, uuid.uuid4())
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class EmployeePageRenderTests(TestCase):
+    """The dashboard Employees page is server-rendered HTML + client-side JS
+    that speaks to the /api/employees API. These tests confirm the page
+    renders and the view is auth-protected; the JS itself is exercised in
+    the browser against the API endpoints (covered by the API tests above)."""
+
+    def test_page_requires_login(self):
+        response = self.client.get("/employees/")
+        self.assertEqual(response.status_code, 302)  # redirect to login
+
+    def test_page_renders_for_authenticated_user(self):
+        user = DjangoUser.objects.create_user(username="owner", password="pass12345")
+        self.client.force_login(user)
+        response = self.client.get("/employees/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("Employees", content)
+        self.assertIn("employees.js", content)
+        self.assertIn("employees.css", content)
+        self.assertIn("site-exact.css", content)
+        self.assertIn("v3-fixes.css", content)
+        self.assertIn("data-employee-rows", content)
+        self.assertIn("module-stat-grid", content)
+        self.assertIn('data-metric="assignments"', content)
+        self.assertIn("data-employee-dialog", content)

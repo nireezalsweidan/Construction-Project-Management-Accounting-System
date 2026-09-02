@@ -33,6 +33,52 @@ class ReceiptsPageRenderTests(TestCase):
         self.assertTemplateUsed(response, "dashboard/receipts.html")
 
 
+class PartnersPageRenderTests(TestCase):
+    """The Clients & Partners dashboard page is server-rendered HTML whose
+    table and metrics are filled at runtime by partners.js from the
+    /api/clients/, /api/suppliers/ and /api/contractors/ endpoints."""
+
+    def test_redirects_anonymous_user_to_login(self):
+        response = self.client.get("/partners/")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
+
+    def test_page_renders_for_authenticated_user(self):
+        DjangoUser.objects.create_user(username="apitester_partners", password="pass12345")
+        self.client.login(username="apitester_partners", password="pass12345")
+        response = self.client.get("/partners/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("Clients &amp; partners", content)
+        self.assertIn("partners.js", content)
+        self.assertIn("partners.css", content)
+        self.assertIn("data-partner-rows", content)
+        self.assertIn("partner-search-input", content)
+
+
+class WorkforcePageRenderTests(TestCase):
+    """The Workforce dashboard page is server-rendered HTML whose table and
+    metrics are filled at runtime by workforce.js from the /api/employees/
+    endpoint (and each employee's project assignments)."""
+
+    def test_redirects_anonymous_user_to_login(self):
+        response = self.client.get("/workforce/")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
+
+    def test_page_renders_for_authenticated_user(self):
+        DjangoUser.objects.create_user(username="apitester_workforce", password="pass12345")
+        self.client.login(username="apitester_workforce", password="pass12345")
+        response = self.client.get("/workforce/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("Workforce", content)
+        self.assertIn("workforce.js", content)
+        self.assertIn("workforce.css", content)
+        self.assertIn("data-workforce-rows", content)
+        self.assertIn("workforce-search-input", content)
+
+
 class AppUserContextProcessorTests(WithUsersTableMixin, TestCase):
     def setUp(self):
         self.factory = RequestFactory()
