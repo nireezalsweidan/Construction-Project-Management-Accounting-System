@@ -1,0 +1,14 @@
+/* Centered project action dialogs */
+[data-project-dialog],[data-detail-dialog]{width:min(640px,calc(100vw - 32px));max-height:calc(100vh - 48px);margin:auto;padding:0;border:0;border-radius:16px;background:var(--panel);color:var(--ink);box-shadow:0 28px 75px #0d1f1ab8;overflow:auto}
+[data-project-dialog]::backdrop,[data-detail-dialog]::backdrop{background:#13231cc4;backdrop-filter:blur(3px)}
+[data-project-dialog] form,[data-detail-dialog] form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:26px}
+[data-project-dialog] h2,[data-detail-dialog] h2{grid-column:1/-1;margin:-26px -26px 4px;padding:22px 26px;color:#f7fbf8;background:linear-gradient(135deg,#18352b,#27624e);font:700 22px Georgia,"Times New Roman",serif}
+[data-project-dialog] label,[data-detail-dialog] label{display:flex;flex-direction:column;gap:6px;color:#435148;font-size:11px;font-weight:800;letter-spacing:.02em}
+[data-project-dialog] input,[data-project-dialog] select,[data-project-dialog] textarea,[data-detail-dialog] input,[data-detail-dialog] select,[data-detail-dialog] textarea{width:100%;min-height:40px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;outline:0;background:#fbfcfb;color:var(--ink);font:inherit}
+[data-project-dialog] textarea,[data-detail-dialog] textarea{min-height:82px;resize:vertical}
+[data-project-dialog] label:has(textarea),[data-detail-dialog] label:has(textarea){grid-column:1/-1}
+[data-project-dialog] input:focus,[data-project-dialog] select:focus,[data-project-dialog] textarea:focus,[data-detail-dialog] input:focus,[data-detail-dialog] select:focus,[data-detail-dialog] textarea:focus{border-color:#16857c;box-shadow:0 0 0 3px #16857c1c;background:#fff}
+[data-form-error],[data-dialog-error]{grid-column:1/-1;margin:0;color:#ad443b;font-size:12px;font-weight:650}
+[data-project-dialog] form>p:last-child,[data-detail-dialog] form>p:last-child{grid-column:1/-1;display:flex;justify-content:flex-end;gap:9px;margin:4px -26px -26px;padding:16px 26px;border-top:1px solid var(--line);background:#fafbfa}
+[data-project-dialog] .primary-button,[data-detail-dialog] .primary-button{border:0;background:linear-gradient(135deg,#e5a133,#c97822);color:#18241e;font-weight:800}
+@media(max-width:580px){[data-project-dialog],[data-detail-dialog]{width:calc(100vw - 22px);max-height:calc(100vh - 22px)}[data-project-dialog] form,[data-detail-dialog] form{grid-template-columns:1fr;padding:20px}[data-project-dialog] h2,[data-detail-dialog] h2{margin:-20px -20px 2px;padding:19px 20px}[data-project-dialog] form>p:last-child,[data-detail-dialog] form>p:last-child{margin:2px -20px -20px;padding:14px 20px}}
