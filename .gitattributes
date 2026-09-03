@@ -1,0 +1,10 @@
+*.py text eol=lf
+*.txt text
+*.md text
+*.json text
+*.yaml text
+*.yml text
+*.ini text
+*.cfg text
+*.example text
+requirements.txt text

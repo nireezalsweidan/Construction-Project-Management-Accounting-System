@@ -15,8 +15,26 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('', include('apps.core.urls')),
+
+    # Each domain app mounts its own DRF router under /api/<app>/ as it's
+    # built out, so this list grows one line per app rather than
+    # centralizing all routes here.
+    path('api/inventory/', include('inventory.urls')),  # CPMAS-28, CPMAS-29
+    path('api/purchasing/', include('purchasing.urls')),  # CPMAS-30, CPMAS-31
+    path('api/invoicing/', include('invoicing.urls')),  # CPMAS-32
+    path('api/projects/', include('projects.urls')),  # CPMAS-33
+    path('api/clients/', include('clients.urls')),  # CPMAS-34
+    path('api/suppliers/', include('suppliers.urls')),
+    path('api/contractors/', include('contractors.urls')),
+    path('api/employees/', include('employees.urls')),
+    path('api/expenses/', include('expenses.urls')),  # CPMAS-35
+    path('api/accounting/', include('accounting.urls')),
+    path('api/payments/', include('payments.urls')),  # CPMAS-35, CPMAS-21
+    path('api/notifications/', include('notifications.urls')),  # CPMAS-22
+    path('api/auth/', include('users.urls')),  # Auth & Authorization (RBAC)
 ]

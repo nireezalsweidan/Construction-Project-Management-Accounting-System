@@ -1,0 +1,90 @@
+{% extends "dashboard/base_dashboard.html" %}
+{% load static %}
+{% block title %}Accounting | Cedar Control{% endblock %}
+{% block page_css %}<link rel="stylesheet" href="{% static 'css/accounting.css' %}">{% endblock %}
+{% block dashboard_content %}
+<section class="page-heading">
+  <div><p class="eyebrow">Finance</p><h1>Accounting</h1><p>Manage journal entries and financial transactions — post balanced entries to the ledger.</p></div>
+  <div class="page-actions"><button class="primary-button" type="button" data-open-create>＋ New transaction</button></div>
+</section>
+
+<section class="accounting-stat-grid">
+  <article class="module-stat tone-1"><span>Draft transactions</span><strong data-metric="draft">—</strong><em>Not yet posted</em></article>
+  <article class="module-stat tone-2"><span>Posted transactions</span><strong data-metric="posted">—</strong><em>Balanced &amp; live</em></article>
+  <article class="module-stat tone-3"><span>Voided transactions</span><strong data-metric="voided">—</strong><em>No longer valid</em></article>
+  <article class="module-stat tone-4"><span>Total debit</span><strong data-metric="total_debit">$0.00</strong><em>Across all entries</em></article>
+  <article class="module-stat tone-5"><span>Total credit</span><strong data-metric="total_credit">$0.00</strong><em>Across all entries</em></article>
+</section>
+
+<section class="panel table-panel module-table">
+  <div class="filterbar">
+    <div class="local-search">⌕ <span>Search transactions…</span><input type="search" id="transaction-search-input" placeholder="Number, description, reference…" aria-label="Search transactions"></div>
+    <select class="quiet-button" data-status-filter aria-label="Filter by status"><option value="">Status: All</option><option value="DRAFT">Draft</option><option value="POSTED">Posted</option><option value="VOIDED">Voided</option></select>
+    <select class="quiet-button" data-project-filter aria-label="Filter by project"><option value="">Project: All</option></select>
+    <select class="quiet-button" data-client-filter aria-label="Filter by client"><option value="">Client: All</option></select>
+    <select class="quiet-button" data-supplier-filter aria-label="Filter by supplier"><option value="">Supplier: All</option></select>
+    <label class="accounting-date-filter">From<input type="date" data-date-from></label>
+    <label class="accounting-date-filter">To<input type="date" data-date-to></label>
+  </div>
+  <div class="responsive-table"><table>
+    <thead><tr><th>Transaction</th><th>Date</th><th>Description</th><th>Project</th><th>Client</th><th>Supplier</th><th>Debit</th><th>Credit</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody data-transaction-rows><tr class="empty-row"><td colspan="10"><b>Loading transactions…</b><span>Fetching from the accounting API.</span></td></tr></tbody>
+  </table></div>
+  <div class="accounting-pagination">
+    <span data-page-info>Page 1</span>
+    <button type="button" class="quiet-button" data-page-prev disabled>‹ Previous</button>
+    <button type="button" class="quiet-button" data-page-next disabled>Next ›</button>
+  </div>
+</section>
+
+<dialog class="accounting-dialog txn-dialog" data-txn-dialog>
+  <form data-txn-form>
+    <header><div><p class="eyebrow">JOURNAL ENTRY</p><h2 data-txn-dialog-title>New transaction</h2><p class="txn-context">Record a balanced journal entry against the chart of accounts.</p></div><button type="button" data-txn-close aria-label="Close">×</button></header>
+    <div class="txn-form-grid">
+      <label>Transaction number *<input name="transaction_number" required maxlength="100" placeholder="TXN-0001"></label>
+      <label>Transaction date *<input name="transaction_date" type="date" required></label>
+      <label class="full">Description *<textarea name="description" rows="2" required maxlength="2000" placeholder="Describe the entry"></textarea></label>
+      <label>Reference<input name="reference" maxlength="255" placeholder="Optional reference"></label>
+      <label class="full">Dimensions<div class="txn-dim-row"><select name="project"><option value="">Project (optional)</option></select><select name="client"><option value="">Client (optional)</option></select><select name="supplier"><option value="">Supplier (optional)</option></select></div></label>
+    </div>
+    <div class="txn-lines-wrap">
+      <div class="register-heading"><div><h2>Lines</h2><p>Debits and credits must balance to post.</p></div></div>
+      <div class="responsive-table"><table>
+        <thead><tr><th>Account</th><th>Description</th><th>Project</th><th>Debit</th><th>Credit</th><th></th></tr></thead>
+        <tbody data-txn-lines><tr data-line-tpl hidden><td><select class="account-select" data-line-account><option value="">Select account…</option></select></td><td><input class="line-input" data-line-description placeholder="Optional"></td><td><select class="account-select" data-line-project><option value="">—</option></select></td><td><input type="number" class="line-amount" data-line-debit min="0" step="0.01" placeholder="0.00"></td><td><input type="number" class="line-amount" data-line-credit min="0" step="0.01" placeholder="0.00"></td><td><button type="button" class="line-remove" data-line-remove aria-label="Remove line">×</button></td></tr></tbody>
+      </table></div>
+      <button type="button" class="quiet-button" data-add-line>＋ Add line</button>
+    </div>
+    <div class="txn-balance-bar">
+      <span>Debit: <strong data-balance-debit>$0.00</strong></span>
+      <span>Credit: <strong data-balance-credit>$0.00</strong></span>
+      <span class="txn-balance-status" data-balance-status>Balance: Balanced</span>
+    </div>
+    <p class="form-error" data-txn-error hidden></p>
+    <footer><button type="button" class="quiet-button" data-txn-cancel>Cancel</button><button class="quiet-button" type="submit" data-save-draft>Save draft</button><button class="primary-button" type="submit" data-save-post>Save &amp; post</button></footer>
+  </form>
+</dialog>
+
+<dialog class="accounting-dialog txn-detail-dialog" data-detail-dialog>
+  <div class="accounting-detail-shell">
+    <header><div><p class="eyebrow">JOURNAL ENTRY</p><h2 data-detail-title>Transaction detail</h2></div><button type="button" data-detail-close aria-label="Close">×</button></header>
+    <div class="txn-detail-grid" data-detail-fields><p>Loading transaction…</p></div>
+    <section><h3>Lines</h3><div class="responsive-table"><table><thead><tr><th>Account</th><th>Description</th><th>Project</th><th>Debit</th><th>Credit</th></tr></thead><tbody data-detail-lines></tbody></table></div></section>
+    <div class="txn-balance-bar">
+      <span>Debit: <strong data-detail-total-debit>$0.00</strong></span>
+      <span>Credit: <strong data-detail-total-credit>$0.00</strong></span>
+      <span class="txn-balance-status" data-detail-balance>Balance: Balanced</span>
+    </div>
+    <footer class="txn-detail-actions" data-detail-actions></footer>
+  </div>
+</dialog>
+
+<dialog class="accounting-dialog txn-confirm-dialog" data-confirm-dialog>
+  <div class="accounting-confirm-shell">
+    <header><div><p class="eyebrow">CONFIRM</p><h2 data-confirm-title>Are you sure?</h2></div></header>
+    <p class="confirm-message" data-confirm-message></p>
+    <footer><button type="button" class="quiet-button" data-confirm-cancel>Cancel</button><button type="button" class="primary-button" data-confirm-ok>Confirm</button></footer>
+  </div>
+</dialog>
+{% endblock %}
+{% block page_js %}<script src="{% static 'js/accounting.js' %}" defer></script>{% endblock %}

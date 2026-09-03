@@ -1,0 +1,72 @@
+/* Topbar widgets (CPMAS-58): notifications bell dropdown + global search
+   overlay. Additive only -- doesn't touch any rule already defined in
+   cedar.css/site-exact.css, just adds what these two new interactive
+   pieces need. */
+
+.notif-widget { position: relative; }
+.notif-badge {
+  position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px;
+  padding: 0 4px; border-radius: 999px; background: #e2483a; color: #fff;
+  font-size: 8px; font-weight: 800; line-height: 16px; text-align: center;
+}
+.notif-dropdown {
+  position: absolute; top: calc(100% + 10px); right: 0; z-index: 70;
+  width: 320px; max-height: 420px; overflow: auto; border: 1px solid #9cb2ad;
+  border-radius: 12px; background: #eef4f1; box-shadow: 0 20px 45px #0a2b2530;
+}
+.notif-dropdown[hidden] { display: none; }
+.notif-dropdown-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border-bottom: 1px solid #c4d5d0; position: sticky; top: 0;
+  background: #eef4f1;
+}
+.notif-dropdown-head b { font-size: 11px; }
+.notif-dropdown-head button {
+  border: 0; background: none; color: #08756c; font-size: 8px; font-weight: 800;
+  cursor: pointer;
+}
+.notif-item {
+  display: block; width: 100%; text-align: left; padding: 10px 14px; border: 0;
+  border-bottom: 1px solid #c4d5d0; background: none; cursor: pointer; font-family: inherit;
+}
+.notif-item:last-child { border-bottom: 0; }
+.notif-item:hover { background: #e3ece8; }
+.notif-item.is-unread { background: #dcece6; }
+.notif-item b { display: block; font-size: 9px; margin-bottom: 3px; }
+.notif-item span { display: block; font-size: 8px; color: #647b75; }
+.notif-item time { display: block; margin-top: 4px; font-size: 7px; color: #8a9d98; }
+.notif-empty { padding: 24px; text-align: center; font-size: 9px; color: #647b75; margin: 0; }
+
+/* ---- Search overlay ---- */
+.search-overlay {
+  position: fixed; inset: 0; z-index: 80; background: #001b1980;
+  display: flex; align-items: flex-start; justify-content: center; padding: 12vh 20px;
+}
+.search-overlay[hidden] { display: none; }
+.search-overlay-panel {
+  width: min(640px, 100%); max-height: 70vh; display: flex; flex-direction: column;
+  border: 1px solid #95afa9; border-radius: 14px; background: #eef4f1;
+  box-shadow: 0 30px 70px #08201c55; overflow: hidden;
+}
+.search-overlay-input {
+  display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+  border-bottom: 1px solid #c4d5d0;
+}
+.search-overlay-input input {
+  flex: 1; border: 0; background: none; outline: none; font-size: 12px; font-family: inherit;
+}
+.search-overlay-input button {
+  border: 0; background: none; font-size: 16px; cursor: pointer; color: #647b75;
+}
+.search-overlay-results { overflow: auto; padding: 8px 0; }
+.search-empty { padding: 30px; text-align: center; font-size: 9px; color: #647b75; margin: 0; }
+.search-group-label {
+  padding: 8px 16px 4px; font-size: 7px; font-weight: 800; letter-spacing: .1em;
+  text-transform: uppercase; color: #647b75;
+}
+.search-result {
+  display: block; padding: 9px 16px; text-decoration: none; color: inherit; font-size: 9px;
+}
+.search-result:hover { background: #e3ece8; }
+.search-result b { display: block; font-size: 10px; }
+.search-result span { display: block; margin-top: 2px; font-size: 8px; color: #647b75; }

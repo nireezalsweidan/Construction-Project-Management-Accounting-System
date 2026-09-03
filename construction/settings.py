@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 
 from dotenv import load_dotenv
 
@@ -20,17 +21,31 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Domain apps (accounting, inventory, projects, ...) live under BASE_DIR/apps
+# instead of the project root, per the BRD's requirement to split models
+# across domain-specific Django apps. Adding this directory to sys.path lets
+# each app be registered in INSTALLED_APPS by its short name (e.g.
+# "inventory") rather than the more verbose "apps.inventory" dotted path.
+sys.path.insert(0, str(BASE_DIR / "apps"))
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-thrzlv=+*vo7rm%o*!%$3@7-5-&d*a6-sw1i(tk@_%_mle%cgc'
+# Required (not defaulted) on purpose -- see .env.example -- so a
+# deployment can't silently run with the Django-generated placeholder key
+# scaffolding ships with.
+SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in ("1", "true", "yes", "on")
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+    if host.strip()
+]
 
 
 # Application definition
@@ -42,6 +57,41 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    # Third-party
+    'rest_framework',
+    'django_filters',
+
+    # Domain apps registered so far (Sprint 2: CPMAS-28 Material Management,
+    # CPMAS-29 Inventory & Warehouse Management, CPMAS-30 Purchase Order
+    # Management, CPMAS-31 Goods Receiving, CPMAS-32 Supplier Invoices,
+    # CPMAS-33 Expense Management, CPMAS-34 Accounting / Financial
+    # Transactions, CPMAS-35 Accounts Receivable & Accounts Payable,
+    # CPMAS-21 Receipts, CPMAS-22 Notifications --
+    # plus projects/clients from CPMAS-47, built by Nireez).
+    # taxes, suppliers, and users are wired in here only as minimal FK
+    # targets required by apps.inventory (Material.tax_rate/default_supplier,
+    # StockMovement.user) and apps.purchasing (PurchaseOrder.created_by,
+    # PurchaseOrderItem.tax_rate); their own management APIs are separate,
+    # unassigned/other-owner tickets and are not built here. users.User is
+    # additionally managed=False -- it reflects an existing table this app
+    # doesn't own the lifecycle of.
+    'apps.core',
+    'taxes',
+    'suppliers',
+    'users',
+    'inventory',
+    'purchasing',
+    'invoicing',
+    'projects',
+    'clients',
+    'contractors',
+    'employees',
+    'company',
+    'expenses',
+    'accounting',
+    'payments',
+    'notifications',
 ]
 
 MIDDLEWARE = [
@@ -59,13 +109,14 @@ ROOT_URLCONF = 'construction.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'construction.context_processors.app_user',
             ],
         },
     },
@@ -85,8 +136,34 @@ DATABASES = {
         "PASSWORD": os.getenv("DB_PASSWORD"),
         "HOST": os.getenv("DB_HOST"),
         "PORT": os.getenv("DB_PORT"),
+        "OPTIONS": {
+            "sslmode": os.getenv("DB_SSLMODE", "require"),
+        },
     }
 }
+
+# `manage.py test` runs against an in-memory SQLite database instead of
+# the configured Postgres/Supabase connection. Reasons:
+# 1. The test suite must run with zero setup (no live DB credentials,
+#    works in CI) -- it shouldn't depend on a shared Supabase instance
+#    being reachable or on the connection user having CREATEDB rights
+#    (needed for Django's normal "create a throwaway test_<dbname>"
+#    behavior, which the Supabase pooler connection may not have).
+# 2. It's fast and fully isolated: every test runs inside a transaction
+#    that's rolled back, with no risk of leaving data in a real database
+#    (unlike the manual create/cleanup scripts used during development).
+if "test" in sys.argv:
+    DATABASES["default"] = {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": ":memory:",
+    }
+
+# See construction/test_runner.py's docstring: without this, plain
+# `manage.py test` (no extra flags) fails because apps/ is both a real
+# Python package (apps/__init__.py) and reachable via the sys.path
+# insert above under each app's short name -- discovery needs to be
+# told which of the two import paths to use.
+TEST_RUNNER = 'construction.test_runner.AppsDirTestRunner'
 
 
 # Password validation
@@ -117,15 +194,82 @@ TIME_ZONE = 'UTC'
 
 USE_I18N = True
 
-USE_TZ = True
+# The live database's timestamp columns are all TIMESTAMP (no timezone),
+# not TIMESTAMPTZ -- so Django's normal USE_TZ=True aware-datetime
+# handling round-trips values as naive on every read, which then trips
+# "naive datetime" RuntimeWarnings (and semantically wrong re-saves) on
+# any full-instance update. False matches the DB exactly as provisioned;
+# combined with TIME_ZONE='UTC' above, all datetimes are naive but
+# consistently mean UTC throughout the app -- equivalent in practice to
+# aware-UTC, just without Django's aware-datetime machinery fighting the
+# schema. Revisit only if the live TIMESTAMP columns are ever migrated to
+# TIMESTAMPTZ (a separate, cross-cutting schema change, not done here).
+USE_TZ = False
 
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [BASE_DIR / 'static']
+
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'dashboard'
+LOGOUT_REDIRECT_URL = 'landing'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# Email (SMTP)
+# https://docs.djangoproject.com/en/5.2/ref/settings/#email-backend
+#
+# Used by the auth flow to email password-reset links. Values come from env
+# so credentials are never committed; see .env.example. EMAIL_BACKEND may be
+# overridden to django.core.mail.backends.console.EmailBackend for local
+# testing without a real SMTP server.
+EMAIL_BACKEND = os.getenv(
+    'EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend'
+)
+EMAIL_HOST = os.getenv('EMAIL_HOST')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('1', 'true', 'yes', 'on')
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@localhost')
+
+# Base URL of the frontend password-reset page; the reset link appends
+# ?uid=...&token=... to it. Set to your SPA/static site's reset route.
+PASSWORD_RESET_BASE_URL = os.getenv('PASSWORD_RESET_BASE_URL', 'http://localhost:3000/reset-password')
+
+# How long a password-reset token stays valid (Django's default: 3 days).
+PASSWORD_RESET_TIMEOUT = int(os.getenv('PASSWORD_RESET_TIMEOUT', '259200'))
+
+
+# Django REST Framework
+# https://www.django-rest-framework.org/api-guide/settings/
+#
+# BRD 13.1 (Security) requires API authentication and permission checks on
+# every endpoint. Authentication resolves request.user from the Django
+# session to this project's own users.User (see apps/users/authentication.py)
+# rather than Django's built-in Auth model -- the shared DB's auth app is
+# already migrated with auth.User, so this app authenticates against the
+# schema's own `users` table instead of switching AUTH_USER_MODEL.
+# DRF's IsAuthenticated default stays on until role-specific permission
+# classes (users.permissions: IsOwner / IsAccountant) are applied per-view.
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'users.authentication.UserSessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 25,
+    'DEFAULT_FILTER_BACKENDS': [
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
+}

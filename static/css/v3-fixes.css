@@ -1,0 +1,21 @@
+/* Restore the browser reset used by the reference application. */
+*, *::before, *::after {
+  border: 0 solid;
+  margin: 0;
+  padding: 0;
+}
+
+html { line-height: 1.5; -webkit-text-size-adjust: 100%; }
+button, input, optgroup, select, textarea { color: inherit; font: inherit; }
+a { color: inherit; text-decoration: inherit; }
+img, svg { display: block; }
+
+.dashboard-page .app-shell {
+  display: block;
+}
+
+.dashboard-page .main-panel {
+  width: auto;
+}
+
+.dashboard-page svg { stroke-width: 2; }
