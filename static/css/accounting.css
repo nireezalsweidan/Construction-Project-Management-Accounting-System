@@ -102,15 +102,16 @@
 .accounting-stat-grid .module-stat>span{letter-spacing:.06em;text-transform:uppercase}
 .accounting-stat-grid .module-stat>strong{font-size:25px;line-height:1.15}
 .module-table{overflow:hidden;border:1px solid #a9bdb7;box-shadow:0 18px 42px rgba(6,61,60,.10)}
-.module-table .filterbar{gap:10px;padding:16px 18px;background:linear-gradient(180deg,#f3f7f4,#e8f0ec);border-bottom:1px solid #b5c8c2}
-.module-table .local-search{flex:1 1 280px;min-height:38px;border:1px solid #95aea8;border-radius:10px;background:#fff;padding:0 12px;box-shadow:inset 0 1px 2px rgba(6,61,60,.04)}
+.module-table .filterbar{display:grid;grid-template-columns:minmax(240px,2fr) repeat(3,minmax(112px,1fr)) repeat(2,minmax(142px,1fr));align-items:center;gap:10px;width:100%;box-sizing:border-box;padding:16px 18px;background:linear-gradient(180deg,#f3f7f4,#e8f0ec);border-bottom:1px solid #b5c8c2}
+.module-table .filterbar>*{min-width:0;max-width:100%;box-sizing:border-box}
+.module-table .local-search{width:100%;min-height:38px;border:1px solid #95aea8;border-radius:10px;background:#fff;padding:0 12px;box-shadow:inset 0 1px 2px rgba(6,61,60,.04)}
 .module-table .local-search:focus-within{border-color:#078078;box-shadow:0 0 0 3px rgba(8,143,133,.12)}
 .module-table .local-search span{display:none}
 .module-table .local-search input{width:100%;min-width:0;padding:9px 0;font-size:11px}
 .module-table .filterbar select,.accounting-date-filter{min-height:38px;border:1px solid #a5b9b3;border-radius:10px;background:#f8fbf9}
-.module-table .filterbar select{padding:0 28px 0 10px}
-.accounting-date-filter{padding-left:10px}
-.accounting-date-filter input{height:36px;border:0;border-left:1px solid #c4d2ce;border-radius:0 9px 9px 0;background:transparent}
+.module-table .filterbar select{width:100%;padding:0 28px 0 10px;overflow:hidden;text-overflow:ellipsis}
+.accounting-date-filter{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;width:100%;padding-left:10px;overflow:hidden}
+.accounting-date-filter input{width:100%;min-width:0;height:36px;box-sizing:border-box;border:0;border-left:1px solid #c4d2ce;border-radius:0 9px 9px 0;background:transparent;padding:6px}
 .module-table thead th{padding-top:13px;padding-bottom:13px;background:#b6d1ca;letter-spacing:.07em}
 .module-table tbody td{padding-top:14px;padding-bottom:14px}
 .module-table tbody tr{transition:background .15s ease}
@@ -121,3 +122,15 @@
 .txn-form-grid input:focus,.txn-form-grid select:focus,.txn-form-grid textarea:focus,.line-input:focus,.line-amount:focus,.account-select:focus{outline:0;border-color:#078078;box-shadow:0 0 0 3px rgba(8,143,133,.12);background:#fff}
 @media(max-width:1100px){.accounting-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.accounting-stat-grid .module-stat,.accounting-stat-grid .module-stat:nth-child(4),.accounting-stat-grid .module-stat:nth-child(5){grid-column:span 1}.accounting-stat-grid .module-stat:last-child{grid-column:1/-1}}
 @media(max-width:680px){.accounting-stat-grid{grid-template-columns:1fr}.accounting-stat-grid .module-stat,.accounting-stat-grid .module-stat:last-child{grid-column:auto;min-height:105px}.module-table .filterbar{align-items:stretch}.module-table .filterbar select,.accounting-date-filter{flex:1 1 145px}}
+@media(max-width:1380px){
+  .module-table .filterbar{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .module-table .local-search{grid-column:1/-1}
+}
+@media(max-width:820px){
+  .module-table .filterbar{grid-template-columns:repeat(2,minmax(0,1fr));padding:14px}
+  .module-table .local-search{grid-column:1/-1}
+}
+@media(max-width:540px){
+  .module-table .filterbar{grid-template-columns:1fr}
+  .module-table .local-search{grid-column:auto}
+}
