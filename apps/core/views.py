@@ -277,6 +277,18 @@ def receipts_page(request):
     return render(request, "dashboard/receipts.html", {"active_page": "receipts"})
 
 
+@login_required
+def documents_page(request):
+    """
+    Document Management page (CPMAS-25). Renders a dashboard view that
+    talks to /api/documents/documents/ (DocumentViewSet) for browsing,
+    uploading, and deleting files associated with any entity (contracts,
+    invoices, receipts, POs, change orders, ...). Not owner_required --
+    accountants need this too (client/supplier invoices, receipts).
+    """
+    return render(request, "dashboard/documents.html", {"active_page": "documents"})
+
+
 @owner_required
 def suppliers(request):
     """

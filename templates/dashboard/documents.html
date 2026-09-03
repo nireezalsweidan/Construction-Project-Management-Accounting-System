@@ -1,0 +1,80 @@
+{% extends "dashboard/base_dashboard.html" %}
+{% load static %}
+{% block title %}Documents | Cedar Control{% endblock %}
+{% block page_css %}<link rel="stylesheet" href="{% static 'css/documents.css' %}">{% endblock %}
+{% block dashboard_content %}
+<section class="page-heading">
+  <div><p class="eyebrow">Records</p><h1>Documents</h1><p>Contracts, invoices, receipts, purchase orders, and change orders -- uploaded and linked to the record they belong to.</p></div>
+  <button class="primary-button" data-doc-new>＋ Upload document</button>
+</section>
+
+<section class="module-stat-grid">
+  <article class="module-stat tone-1"><span>Total documents</span><strong data-metric="total">—</strong><em>All records</em></article>
+  <article class="module-stat tone-2"><span>Uploaded this month</span><strong data-metric="this-month">—</strong><em>New uploads</em></article>
+</section>
+
+<section class="panel table-panel module-table">
+  <div class="filterbar">
+    <div class="local-search">⌕ <span>Search documents…</span><input type="text" id="doc-search-input" placeholder="File name, document type…" aria-label="Search documents"></div>
+    <select id="doc-entity-filter" class="quiet-button" aria-label="Filter by entity type">
+      <option value="">Entity: All</option>
+      <option value="client">Client</option>
+      <option value="supplier">Supplier</option>
+      <option value="contractor">Contractor</option>
+      <option value="project">Project</option>
+      <option value="purchase_order">Purchase order</option>
+      <option value="expense">Expense</option>
+      <option value="client_invoice">Client invoice</option>
+      <option value="supplier_invoice">Supplier invoice</option>
+      <option value="change_order">Change order</option>
+    </select>
+  </div>
+  <div class="responsive-table">
+    <table>
+      <thead><tr><th>File</th><th>Entity</th><th>Document type</th><th>Size</th><th>Uploaded by</th><th>Uploaded</th><th></th></tr></thead>
+      <tbody data-doc-rows>
+        <tr class="empty-row"><td colspan="7"><b>Loading documents…</b><span>Fetching from the documents API.</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="doc-upload" data-doc-upload hidden>
+  <div class="doc-upload-head">
+    <div><p class="eyebrow">RECORDS</p><h2>Upload document</h2></div>
+    <button type="button" aria-label="Close" class="doc-close" data-doc-upload-close>×</button>
+  </div>
+  <form data-doc-upload-form enctype="multipart/form-data">
+    <div class="doc-upload-grid">
+      <label>Entity type *
+        <select name="entity_type" required>
+          <option value="">Select entity type…</option>
+          <option value="client">Client</option>
+          <option value="supplier">Supplier</option>
+          <option value="contractor">Contractor</option>
+          <option value="project">Project</option>
+          <option value="purchase_order">Purchase order</option>
+          <option value="expense">Expense</option>
+          <option value="client_invoice">Client invoice</option>
+          <option value="supplier_invoice">Supplier invoice</option>
+          <option value="change_order">Change order</option>
+        </select>
+      </label>
+      <label>Entity ID *
+        <input type="text" name="entity_id" placeholder="UUID of the record this belongs to" required>
+      </label>
+      <label>Document type
+        <input type="text" name="document_type" placeholder="e.g. Contract, Invoice, Change order">
+      </label>
+      <label>File *
+        <input type="file" name="file" required>
+      </label>
+    </div>
+    <div class="doc-upload-actions">
+      <button type="button" class="quiet-button" data-doc-upload-cancel>Cancel</button>
+      <button type="submit" class="primary-button">Upload</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block page_js %}<script src="{% static 'js/documents.js' %}" defer></script>{% endblock %}
