@@ -10,6 +10,37 @@ document.addEventListener("DOMContentLoaded", () => {
     if (event.key === "Escape") sidebar?.classList.remove("sidebar-open");
   });
 
+  // Topbar user-account dropdown (My profile / Log out).
+  const userMenu = document.querySelector("[data-user-menu]");
+  const userMenuToggle = document.querySelector("[data-user-menu-toggle]");
+  const userMenuList = document.querySelector("[data-user-menu-list]");
+  if (userMenu && userMenuToggle && userMenuList) {
+    const closeUserMenu = () => {
+      userMenuToggle.classList.remove("open");
+      userMenuToggle.setAttribute("aria-expanded", "false");
+      userMenuList.hidden = true;
+    };
+    userMenuToggle.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const openNow = userMenuList.hidden;
+      closeUserMenu();
+      if (openNow) {
+        userMenuToggle.classList.add("open");
+        userMenuToggle.setAttribute("aria-expanded", "true");
+        userMenuList.hidden = false;
+        // Opening the account menu closes the notifications dropdown.
+        const notifDropdown = document.querySelector("[data-notif-dropdown]");
+        if (notifDropdown) notifDropdown.hidden = true;
+      }
+    });
+    document.addEventListener("click", (event) => {
+      if (!userMenu.contains(event.target)) closeUserMenu();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeUserMenu();
+    });
+  }
+
   if (!window.lucide) return;
   const icon = (element, name) => {
     if (element) element.innerHTML = `<i data-lucide="${name}"></i>`;
@@ -17,15 +48,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   icon(document.querySelector(".brand-mark"), "hard-hat");
   icon(document.querySelector(".menu-button"), "menu");
-  icon(document.querySelector(".global-search > b"), "search");
   icon(document.querySelector(".icon-button"), "bell");
-  icon(document.querySelector(".logout-icon"), "x");
 
   const navIcons = [
     "layout-dashboard", "folder-kanban", "clipboard-check", "briefcase-business",
-    "package-check", "boxes", "users",
-    "file-text", "folder",
-    "wallet-cards", "receipt", "circle-dollar-sign", "trending-up", "settings",
+    "package-check", "boxes", "warehouse", "users",
+    "folder",
+    "file-text", "wallet-cards", "receipt", "circle-dollar-sign", "trending-up", "settings",
   ];
   document.querySelectorAll(".nav-item > b").forEach((node, index) => icon(node, navIcons[index]));
 

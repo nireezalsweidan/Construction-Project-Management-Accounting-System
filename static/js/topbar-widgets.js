@@ -89,7 +89,7 @@
     }
 
     async function loadList() {
-      list.innerHTML = `<p class="notif-empty">Loading…</p>`;
+      list.innerHTML = `<p class="notif-empty">LoadingΓÇª</p>`;
       try {
         const data = await api(`${NOTIF_API}?user=${userId}&ordering=-created_at`);
         renderList((data.results || []).slice(0, 20));
@@ -115,7 +115,17 @@
       e.stopPropagation();
       const opening = dropdown.hidden;
       dropdown.hidden = !dropdown.hidden;
-      if (opening) loadList();
+      if (opening) {
+        loadList();
+        // Opening notifications closes the account dropdown.
+        const userMenuList = document.querySelector("[data-user-menu-list]");
+        if (userMenuList) userMenuList.hidden = true;
+        const userMenuBtn = document.querySelector("[data-user-menu-toggle]");
+        if (userMenuBtn) {
+          userMenuBtn.classList.remove("open");
+          userMenuBtn.setAttribute("aria-expanded", "false");
+        }
+      }
     });
     document.addEventListener("click", () => { dropdown.hidden = true; });
     dropdown.addEventListener("click", (e) => e.stopPropagation());
@@ -137,41 +147,37 @@
   /* ---------------------------------------------------------------- */
 
   function initSearch() {
-    const trigger = $("[data-search-trigger]");
-    const overlay = $("[data-search-overlay]");
     const input = $("[data-search-input]");
-    const closeBtn = $("[data-search-close]");
     const results = $("[data-search-results]");
-    if (!trigger || !overlay || !input) return;
+    if (!input || !results) return;
 
     const SOURCES = [
       { label: "Projects", url: "/api/projects/projects/", render: (r) => ({ title: r.name, sub: r.code, href: `/projects/${r.id}/` }) },
-      { label: "Clients", url: "/api/clients/clients/", render: (r) => ({ title: r.name, sub: r.company_name || r.email || "", href: `/partners/?open_client=${r.id}` }) },
-      { label: "Suppliers", url: "/api/suppliers/suppliers/", render: (r) => ({ title: r.name, sub: r.company_name || r.email || "", href: `/suppliers/?open=${r.id}` }) },
-      // Invoices/Materials pages aren't wired to a per-item detail view yet
-      // (owned by other in-progress tickets) -- link to the list page itself
-      // rather than a specific item, so results are still clickable.
-      { label: "Client invoices", url: "/api/invoicing/client-invoices/", render: (r) => ({ title: r.invoice_number, sub: `${r.client_name || ""} · ${r.status}`, href: "/invoices/" }) },
-      { label: "Supplier invoices", url: "/api/invoicing/supplier-invoices/", render: (r) => ({ title: r.invoice_number, sub: `${r.supplier_name || ""} · ${r.status}`, href: "/invoices/" }) },
+      { label: "Clients", url: "/api/clients/clients/", render: (r) => ({ title: r.name, sub: r.company_name || r.email || "" }) },
+      { label: "Suppliers", url: "/api/suppliers/suppliers/", render: (r) => ({ title: r.name, sub: r.company_name || r.email || "" }) },
+      { label: "Client invoices", url: "/api/invoicing/client-invoices/", render: (r) => ({ title: r.invoice_number, sub: `${r.client_name || ""} ┬╖ ${r.status}` }) },
+      { label: "Supplier invoices", url: "/api/invoicing/supplier-invoices/", render: (r) => ({ title: r.invoice_number, sub: `${r.supplier_name || ""} ┬╖ ${r.status}` }) },
       { label: "Materials", url: "/api/inventory/materials/", render: (r) => ({ title: r.name, sub: r.sku }) },
     ];
 
     let requestToken = 0;
 
-    function open() {
-      overlay.hidden = false;
-      input.value = "";
-      results.innerHTML = `<p class="search-empty">Start typing to search across the workspace.</p>`;
-      setTimeout(() => input.focus(), 0);
-    }
-    function close() { overlay.hidden = true; }
+    function showResults(html) { results.innerHTML = html; results.hidden = false; }
+    function hideResults() { results.hidden = true; }
 
-    trigger.addEventListener("click", open);
-    closeBtn?.addEventListener("click", close);
-    overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+    input.addEventListener("focus", () => {
+      if (input.value.trim()) { /* keep results if already searching */ }
+      else showResults(`<p class="search-empty">Start typing to search across the workspace.</p>`);
+    });
+    input.addEventListener("blur", () => {
+      // Allow click-through of result links before hiding.
+      setTimeout(hideResults, 150);
+    });
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".global-search")) hideResults();
+    });
     document.addEventListener("keydown", (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); open(); }
-      if (e.key === "Escape" && !overlay.hidden) close();
+      if (e.key === "Escape") { input.blur(); hideResults(); }
     });
 
     let debounceTimer;
@@ -179,16 +185,15 @@
       clearTimeout(debounceTimer);
       const q = input.value.trim();
       if (!q) {
-        results.innerHTML = `<p class="search-empty">Start typing to search across the workspace.</p>`;
+        hideResults();
         return;
       }
+      showResults(`<p class="search-empty">SearchingΓÇª</p>`);
       debounceTimer = setTimeout(() => runSearch(q), 250);
     });
 
     async function runSearch(query) {
       const token = ++requestToken;
-      results.innerHTML = `<p class="search-empty">Searching…</p>`;
-
       const groups = await Promise.all(SOURCES.map(async (source) => {
         try {
           const data = await api(`${source.url}?search=${encodeURIComponent(query)}`);
@@ -202,17 +207,17 @@
 
       const nonEmpty = groups.filter((g) => g.rows.length);
       if (!nonEmpty.length) {
-        results.innerHTML = `<p class="search-empty">No matches for "${esc(query)}".</p>`;
+        showResults(`<p class="search-empty">No matches for "${esc(query)}".</p>`);
         return;
       }
 
-      results.innerHTML = nonEmpty.map((g) => `
+      showResults(nonEmpty.map((g) => `
         <div class="search-group-label">${esc(g.label)}</div>
         ${g.rows.map((r) => r.href
           ? `<a class="search-result" href="${r.href}"><b>${esc(r.title)}</b><span>${esc(r.sub)}</span></a>`
           : `<div class="search-result"><b>${esc(r.title)}</b><span>${esc(r.sub)}</span></div>`
         ).join("")}
-      `).join("");
+      `).join(""));
     }
   }
 

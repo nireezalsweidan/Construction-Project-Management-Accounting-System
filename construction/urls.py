@@ -40,6 +40,7 @@ urlpatterns = [
     path('api/notifications/', include('notifications.urls')),  # CPMAS-22
     path('api/documents/', include('documents.urls')),  # CPMAS-25
     path('api/auth/', include('users.urls')),  # Auth & Authorization (RBAC)
+    path('api/company/', include('company.urls')),  # Company profile (view/update)
 ]
 
 # Serve uploaded files locally in development. In production this is
