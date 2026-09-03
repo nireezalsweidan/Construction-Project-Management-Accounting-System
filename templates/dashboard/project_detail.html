@@ -63,35 +63,23 @@
 
   <section class="panel tab-panel" data-project-panel="phases" hidden>
     <div class="panel-head"><div><h2>Project phases</h2><p>Schedule, ownership, and completion tracking</p></div><button class="primary-button" data-action="add-phase"><i data-lucide="plus"></i>Add phase</button></div>
-    <div class="phase-list" data-project-phases>
-      <div class="phase-row"><span class="phase-number">01</span><div class="phase-info"><strong>Site preparation</strong><span>Rami Khalil</span></div><div class="phase-dates"><i data-lucide="calendar-days"></i>04 Mar – 22 Mar</div><div class="progress-cell"><div><div style="width:100%"></div></div><b>100%</b></div><span class="status complete"><i></i>Complete</span><i data-lucide="ellipsis"></i></div>
-      <div class="phase-row"><span class="phase-number">02</span><div class="phase-info"><strong>Foundation</strong><span>Nour Hamdan</span></div><div class="phase-dates"><i data-lucide="calendar-days"></i>23 Mar – 19 Apr</div><div class="progress-cell"><div><div style="width:100%"></div></div><b>100%</b></div><span class="status complete"><i></i>Complete</span><i data-lucide="ellipsis"></i></div>
-      <div class="phase-row"><span class="phase-number">03</span><div class="phase-info"><strong>Structural works</strong><span>Fadi Saad</span></div><div class="phase-dates"><i data-lucide="calendar-days"></i>20 Apr – 12 Aug</div><div class="progress-cell"><div><div style="width:82%"></div></div><b>82%</b></div><span class="status in-progress"><i></i>In progress</span><i data-lucide="ellipsis"></i></div>
-      <div class="phase-row"><span class="phase-number">04</span><div class="phase-info"><strong>MEP installation</strong><span>Maya Daher</span></div><div class="phase-dates"><i data-lucide="calendar-days"></i>04 Aug – 28 Sep</div><div class="progress-cell"><div><div style="width:46%"></div></div><b>46%</b></div><span class="status in-progress"><i></i>In progress</span><i data-lucide="ellipsis"></i></div>
-      <div class="phase-row"><span class="phase-number">05</span><div class="phase-info"><strong>Interior finishing</strong><span>TBD</span></div><div class="phase-dates"><i data-lucide="calendar-days"></i>20 Sep – 30 Nov</div><div class="progress-cell"><div><div style="width:0%"></div></div><b>0%</b></div><span class="status upcoming"><i></i>Upcoming</span><i data-lucide="ellipsis"></i></div>
-    </div>
+    <div class="phase-list" data-project-phases></div>
   </section>
 
   <section data-project-panel="budget" hidden>
-    <div class="budget-hero"><div><strong>$1.84M</strong><span>Approved budget</span></div><div><strong>$1.12M</strong><span>Actual cost</span></div><div><strong>$720K</strong><span>Remaining</span></div><div><strong>+6.8%</strong><span>Against plan</span></div></div>
+    <div class="budget-hero"><div><strong data-budget-hero-total>—</strong><span>Approved budget</span></div><div><strong data-budget-hero-actual>—</strong><span>Actual cost</span></div><div><strong data-budget-hero-remaining>—</strong><span>Remaining</span></div><div><strong data-budget-hero-variance>—</strong><span>Against plan</span></div></div>
     <section class="panel table-panel tab-panel"><div class="panel-head"><div><h2>Budget by cost category</h2><p>Approved allocation compared with actual cost</p></div><button class="primary-button" data-action="add-budget-item"><i data-lucide="plus"></i>Add budget item</button></div>
-      <div class="responsive-table" data-project-budget><table><thead><tr><th>Category</th><th>Approved</th><th>Actual</th><th>Remaining</th><th>Consumption</th><th>Status</th></tr></thead><tbody>
-        <tr><td><strong>Materials</strong></td><td>$780K</td><td>$512K</td><td>$268K</td><td><div class="progress-cell"><div><div style="width:66%"></div></div><b>66%</b></div></td><td><span class="status on-track"><i></i>On track</span></td></tr>
-        <tr><td><strong>Labor</strong></td><td>$390K</td><td>$285K</td><td>$105K</td><td><div class="progress-cell"><div><div style="width:73%"></div></div><b>73%</b></div></td><td><span class="status on-track"><i></i>On track</span></td></tr>
-        <tr><td><strong>Contractors</strong></td><td>$410K</td><td>$247K</td><td>$163K</td><td><div class="progress-cell"><div><div style="width:60%"></div></div><b>60%</b></div></td><td><span class="status on-track"><i></i>On track</span></td></tr>
-        <tr><td><strong>Equipment</strong></td><td>$170K</td><td>$59K</td><td>$111K</td><td><div class="progress-cell"><div><div style="width:35%"></div></div><b>35%</b></div></td><td><span class="status on-track"><i></i>On track</span></td></tr>
-        <tr><td><strong>Other</strong></td><td>$90K</td><td>$22K</td><td>$68K</td><td><div class="progress-cell"><div><div style="width:24%"></div></div><b>24%</b></div></td><td><span class="status on-track"><i></i>On track</span></td></tr>
-      </tbody></table></div>
+      <div class="budget-controls">
+        <button class="primary-button" data-action="new-budget"><i data-lucide="plus"></i>New budget</button>
+        <button class="primary-button" data-action="approve-current-budget" style="display:none;" data-approve-btn><i data-lucide="check"></i>Approve budget</button>
+      </div>
+      <div class="responsive-table" data-project-budget><table><thead><tr><th>Category</th><th>Approved</th><th>Actual</th><th>Remaining</th></tr></thead><tbody>
+        </tbody></table></div>
     </section>
   </section>
 
-  <section class="panel table-panel tab-panel" data-project-panel="procurement" hidden><div class="panel-head"><div><h2>Project procurement</h2><p>Purchase orders and delivery status</p></div><button class="primary-button" data-action="add-record"><i data-lucide="plus"></i>New purchase order</button></div>
-    <div class="responsive-table" data-project-change-orders><table><thead><tr><th>Purchase order</th><th>Supplier</th><th>Order date</th><th>Expected delivery</th><th>Value</th><th>Receiving</th><th>Status</th></tr></thead><tbody>
-      <tr><td><strong>PO-0108</strong></td><td>Mediterranean Steel</td><td>19 Aug</td><td>03 Sep</td><td>$84,200</td><td>60%</td><td><span class="status partially-received"><i></i>Partially received</span></td></tr>
-      <tr><td><strong>PO-0104</strong></td><td>Cedars Electrical</td><td>11 Aug</td><td>29 Aug</td><td>$36,480</td><td>100%</td><td><span class="status received"><i></i>Received</span></td></tr>
-      <tr><td><strong>PO-0099</strong></td><td>Levant Concrete Co.</td><td>02 Aug</td><td>17 Aug</td><td>$52,760</td><td>100%</td><td><span class="status received"><i></i>Received</span></td></tr>
-      <tr><td><strong>PO-0094</strong></td><td>Prime Plumbing</td><td>26 Jul</td><td>08 Sep</td><td>$28,900</td><td>0%</td><td><span class="status"><i></i>Approved</span></td></tr>
-    </tbody></table></div>
+  <section class="panel table-panel tab-panel" data-project-panel="procurement" hidden><div class="panel-head"><div><h2>Project procurement</h2><p>Purchase orders and delivery status</p></div><button class="primary-button" data-action="add-record"><i data-lucide="plus"></i>New change order</button></div>
+    <div class="responsive-table" data-project-change-orders></div>
   </section>
 
   <section class="panel tab-panel" data-project-panel="documents" hidden><div class="panel-head"><div><h2>Project documents</h2><p>Contracts, drawings, invoices, and site records</p></div><button class="primary-button"><i data-lucide="plus"></i>Upload document</button></div>
