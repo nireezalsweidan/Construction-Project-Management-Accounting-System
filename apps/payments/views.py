@@ -2,15 +2,30 @@
 DRF viewsets for the ``payments`` app -- Accounts Receivable & Accounts
 Payable (CPMAS-35) and Receipts (CPMAS-21) slices.
 """
+from uuid import UUID
+
 from django.http import HttpResponse
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 
 from construction.filtering import filter_date_range
+from users.permissions import IsOwnerOrAccountant
 
 from .models import Payment, PaymentAllocation, Receipt
 from .pdf import render_receipt_pdf
 from .serializers import PaymentAllocationSerializer, PaymentSerializer, ReceiptSerializer
+
+
+def _validated_uuid(params, name):
+    """Return a valid UUID filter value or raise a controlled API 400."""
+    value = params.get(name)
+    if not value:
+        return None
+    try:
+        return UUID(str(value))
+    except (TypeError, ValueError, AttributeError):
+        raise ValidationError({name: "Must be a valid UUID."})
 
 
 class PaymentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
@@ -26,6 +41,7 @@ class PaymentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
 
     queryset = Payment.objects.select_related('client', 'supplier', 'created_by').prefetch_related('allocations').all()
     serializer_class = PaymentSerializer
+    permission_classes = [IsOwnerOrAccountant]
     search_fields = ['payment_number', 'reference', 'client__name', 'supplier__name']
     ordering_fields = ['payment_date', 'amount', 'created_at']
 
@@ -37,17 +53,20 @@ class PaymentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
         if direction:
             queryset = queryset.filter(direction=direction.upper())
 
-        client_id = params.get('client')
+        client_id = _validated_uuid(params, 'client')
         if client_id:
             queryset = queryset.filter(client_id=client_id)
 
-        supplier_id = params.get('supplier')
+        supplier_id = _validated_uuid(params, 'supplier')
         if supplier_id:
             queryset = queryset.filter(supplier_id=supplier_id)
 
         queryset = filter_date_range(queryset, params, 'payment_date')
 
         return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
 
 
 class PaymentAllocationViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
@@ -66,20 +85,21 @@ class PaymentAllocationViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
 
     queryset = PaymentAllocation.objects.select_related('payment', 'client_invoice', 'supplier_invoice').all()
     serializer_class = PaymentAllocationSerializer
+    permission_classes = [IsOwnerOrAccountant]
 
     def get_queryset(self):
         queryset = super().get_queryset()
         params = self.request.query_params
 
-        payment_id = params.get('payment')
+        payment_id = _validated_uuid(params, 'payment')
         if payment_id:
             queryset = queryset.filter(payment_id=payment_id)
 
-        client_invoice_id = params.get('client_invoice')
+        client_invoice_id = _validated_uuid(params, 'client_invoice')
         if client_invoice_id:
             queryset = queryset.filter(client_invoice_id=client_invoice_id)
 
-        supplier_invoice_id = params.get('supplier_invoice')
+        supplier_invoice_id = _validated_uuid(params, 'supplier_invoice')
         if supplier_invoice_id:
             queryset = queryset.filter(supplier_invoice_id=supplier_invoice_id)
 
@@ -100,6 +120,7 @@ class ReceiptViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
 
     queryset = Receipt.objects.select_related('payment', 'payment__client', 'payment__supplier').all()
     serializer_class = ReceiptSerializer
+    permission_classes = [IsOwnerOrAccountant]
     search_fields = ['receipt_number', 'reference', 'payment__payment_number']
     ordering_fields = ['receipt_date', 'created_at']
 
@@ -107,15 +128,15 @@ class ReceiptViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
         queryset = super().get_queryset()
         params = self.request.query_params
 
-        payment_id = params.get('payment')
+        payment_id = _validated_uuid(params, 'payment')
         if payment_id:
             queryset = queryset.filter(payment_id=payment_id)
 
-        client_id = params.get('client')
+        client_id = _validated_uuid(params, 'client')
         if client_id:
             queryset = queryset.filter(payment__client_id=client_id)
 
-        supplier_id = params.get('supplier')
+        supplier_id = _validated_uuid(params, 'supplier')
         if supplier_id:
             queryset = queryset.filter(payment__supplier_id=supplier_id)
 

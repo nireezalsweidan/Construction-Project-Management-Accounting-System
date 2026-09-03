@@ -34,6 +34,19 @@ class PaymentSerializer(serializers.ModelSerializer):
             'payment_method', 'client', 'client_name', 'supplier', 'supplier_name',
             'reference', 'notes', 'created_by', 'unallocated_amount', 'created_at',
         ]
+        read_only_fields = ['id', 'created_by', 'created_at']
+
+    def validate_payment_number(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("This field may not be blank.")
+        return value
+
+    def validate_payment_method(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("This field may not be blank.")
+        return value
 
     def get_unallocated_amount(self, obj):
         return DECIMAL_FIELD.to_representation(unallocated_amount(obj))
@@ -43,10 +56,18 @@ class PaymentSerializer(serializers.ModelSerializer):
         client = attrs.get('client')
         supplier = attrs.get('supplier')
 
-        if direction == Payment.Direction.INCOMING and not client:
-            raise serializers.ValidationError("An INCOMING payment must specify a client.")
-        if direction == Payment.Direction.OUTGOING and not supplier:
-            raise serializers.ValidationError("An OUTGOING payment must specify a supplier.")
+        amount = attrs.get('amount')
+        if amount is not None and amount <= 0:
+            raise serializers.ValidationError({'amount': "Payment amount must be positive."})
+
+        if direction == Payment.Direction.INCOMING and (not client or supplier):
+            raise serializers.ValidationError(
+                "An INCOMING payment must specify a client and must not specify a supplier."
+            )
+        if direction == Payment.Direction.OUTGOING and (not supplier or client):
+            raise serializers.ValidationError(
+                "An OUTGOING payment must specify a supplier and must not specify a client."
+            )
 
         return attrs
 
@@ -73,6 +94,8 @@ class PaymentAllocationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Exactly one of client_invoice or supplier_invoice must be set."
             )
+        if attrs.get('allocated_amount') is not None and attrs['allocated_amount'] <= 0:
+            raise serializers.ValidationError({'allocated_amount': "Allocation amount must be positive."})
         return attrs
 
     def create(self, validated_data):
@@ -117,3 +140,14 @@ class ReceiptSerializer(serializers.ModelSerializer):
         if hasattr(payment, 'receipt'):
             raise serializers.ValidationError("This payment already has a receipt.")
         return payment
+
+    def validate(self, attrs):
+        payment = attrs.get('payment')
+        amount = attrs.get('amount')
+        if amount is not None and amount <= 0:
+            raise serializers.ValidationError({'amount': "Receipt amount must be positive."})
+        if payment is not None and amount is not None and amount != payment.amount:
+            raise serializers.ValidationError(
+                {'amount': "Receipt amount must exactly equal the payment amount."}
+            )
+        return attrs

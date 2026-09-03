@@ -1,0 +1,96 @@
+/* Reports page — Decision Intelligence dashboard.
+   Built on the shared v3 dashboard look (site-exact.css/v3-fixes.css);
+   only adds what's specific to this page: stat grid, report cards,
+   P&L summary blocks, bar chart, aging buckets, budget totals. */
+
+/* ---- date filters in page-heading ---- */
+.page-actions{display:flex;align-items:center;gap:10px}
+.report-date-filter{display:inline-flex;align-items:center;gap:6px;font-size:9px;font-weight:800;color:#486460;white-space:nowrap}
+.report-date-filter input{border:1px solid #9cafaa;border-radius:8px;background:#dce6e1;color:#284b48;padding:6px 8px;font:inherit;font-size:10px}
+
+/* ---- 5-card metrics row ---- */
+.reports-stat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
+
+/* ---- Report cards grid ---- */
+.report-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+.report-card{border:1px solid #b5c5c0;border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:8px;transition:transform .15s ease,box-shadow .15s ease}
+.report-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px #063d3c18}
+.report-card h3{margin:0;font-size:14px;color:#123f3d}
+.report-card p{margin:0;color:#607b76;font-size:10px;line-height:1.5}
+.report-card strong{font-size:16px;color:#063d3c;margin-top:auto}
+.report-card button{margin-top:8px;border:1px solid #7fb3a9;background:#eaf3ef;color:#075e59;border-radius:8px;padding:7px 14px;font:inherit;font-size:10.5px;font-weight:800;cursor:pointer;transition:background .15s ease}
+.report-card button:hover{background:#d5e9e2}
+.report-card button:disabled{opacity:.5;cursor:default}
+.report-icon{font-size:20px;margin-bottom:2px}
+.report-card.teal{background:#e8f5f0;border-color:#82c9b8}
+.report-card.blue{background:#e6eef8;border-color:#96b4d8}
+.report-card.coral{background:#fceee8;border-color:#e4a99a}
+.report-card.amber{background:#fdf4e3;border-color:#d6bf88}
+.report-card.violet{background:#f0ecf8;border-color:#b0a4d0}
+.report-card.green{background:#e8f5ee;border-color:#96c8a8}
+
+/* ---- Report detail panels ---- */
+.report-panel{border:1px solid #b5c5c0;border-radius:14px;background:#f4f7f5;padding:20px;margin-bottom:18px}
+.report-panel .panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.report-panel .panel-head h2{margin:0;font-size:16px;color:#123f3d}
+.report-panel .panel-head p{margin:4px 0 0;color:#607b76;font-size:10px}
+
+/* ---- P&L summary ---- */
+.pnl-summary{display:grid;grid-template-columns:1fr 1fr auto;gap:16px;align-items:start}
+.pnl-block{background:#eaf3ef;border:1px solid #b5c5c0;border-radius:10px;padding:16px}
+.pnl-block h3{margin:0 0 6px;font-size:12px;color:#486460;text-transform:uppercase;letter-spacing:.5px}
+.pnl-block>strong{display:block;font-size:20px;color:#063d3c;margin-bottom:10px}
+.pnl-accounts{display:flex;flex-direction:column;gap:6px}
+.pnl-account-row{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#3c5752;padding:4px 0;border-bottom:1px solid #d5e0da}
+.pnl-account-row:last-child{border-bottom:0}
+.pnl-account-row span{color:#607b76}
+.pnl-account-row strong{font-size:11px;color:#123f3d}
+.pnl-profit{background:linear-gradient(135deg,#e8f5f0,#d5ece4);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
+.pnl-profit strong{font-size:24px;color:#063d3c}
+
+/* ---- Bar chart (trend) ---- */
+.bar-chart{display:flex;align-items:flex-end;gap:8px;height:220px;padding:16px 8px;border:1px solid #b5c5c0;border-radius:10px;background:#eaf3ef}
+.bar-chart .bar-group{display:flex;flex-direction:column;align-items:center;flex:1;gap:4px}
+.bar-chart .bars{display:flex;gap:3px;align-items:flex-end;width:100%;height:180px}
+.bar-chart .bar{flex:1;border-radius:4px 4px 0 0;min-height:2px;transition:height .3s ease}
+.bar-chart .bar.revenue{background:linear-gradient(180deg,#0a8f85,#05635e)}
+.bar-chart .bar.expense{background:linear-gradient(180deg,#e4907a,#c0604a)}
+.bar-chart .bar-label{font-size:9px;color:#607b76;font-weight:800}
+.bar-chart .empty-chart{display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:#8a9e99;font-size:12px}
+
+/* ---- Aging buckets ---- */
+.aging-buckets{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.aging-bucket{border:1px solid #b5c5c0;border-radius:10px;padding:14px 16px;background:#eaf3ef;display:flex;flex-direction:column;gap:4px}
+.aging-bucket span{font-size:9px;font-weight:800;color:#486460;text-transform:uppercase;letter-spacing:.5px}
+.aging-bucket strong{font-size:18px;color:#063d3c}
+.aging-bucket:nth-child(4){background:#fceee8;border-color:#e4a99a}
+.aging-bucket:nth-child(4) strong{color:#a23a31}
+
+/* ---- Budget totals bar ---- */
+.budget-totals{display:flex;align-items:center;gap:24px;flex-wrap:wrap;margin-top:14px;padding:12px 16px;border:1px solid #b1c1bc;border-radius:10px;background:#f0f4f1;font-size:11px;font-weight:800;color:#3c5752}
+.budget-totals strong{color:#123f3d}
+
+/* ---- Table panel ---- */
+.panel-table{max-height:400px;overflow-y:auto}
+.panel-table table{min-width:600px}
+
+/* ---- Reports pagination ---- */
+.reports-pagination{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:14px 20px;border-top:1px solid #b5c5c0}
+.reports-pagination span{font-size:11px;color:#607b76;font-weight:800}
+
+/* ---- Responsive ---- */
+@media(max-width:1100px){
+  .reports-stat-grid{grid-template-columns:repeat(3,1fr)}
+  .report-grid{grid-template-columns:repeat(2,1fr)}
+  .pnl-summary{grid-template-columns:1fr}
+  .aging-buckets{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:720px){
+  .report-grid{grid-template-columns:1fr}
+  .aging-buckets{grid-template-columns:1fr}
+  .budget-totals{flex-direction:column;align-items:flex-start;gap:8px}
+  .bar-chart{height:160px}
+}
+@media(max-width:600px){
+  .reports-stat-grid{grid-template-columns:1fr 1fr}
+}

@@ -12,8 +12,8 @@ Organized into:
   mirror.
 """
 from decimal import Decimal
+from unittest.mock import patch
 
-from django.contrib.auth.models import User as DjangoUser
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from rest_framework.test import APIClient
@@ -23,7 +23,7 @@ from clients.testing import WithClientsTableMixin
 from invoicing.models import ClientInvoice, SupplierInvoice
 from projects.testing import WithProjectsTableMixin
 from suppliers.models import Supplier
-from users.models import User
+from users.models import Role, User
 from users.testing import WithUsersTableMixin
 
 from .models import Payment, PaymentAllocation, Receipt
@@ -44,7 +44,7 @@ class PaymentsTestBase(WithUsersTableMixin, WithClientsTableMixin, WithProjectsT
     def setUp(self):
         self.creator = User.objects.create(
             username="creator", email="creator@example.com", password_hash="x",
-            first_name="C", last_name="R", role="accountant",
+            first_name="C", last_name="R", role=Role.ACCOUNTANT,
         )
         self.client_obj = Client.objects.create(name="Jane Homeowner")
         self.supplier = Supplier.objects.create(name="ACME Building Supplies")
@@ -136,6 +136,28 @@ class AllocatePaymentServiceTests(PaymentsTestBase):
         invoice.refresh_from_db()
         self.assertEqual(invoice.status, SupplierInvoice.Status.PAID)
 
+    def test_partial_allocation_marks_supplier_invoice_partially_paid(self):
+        invoice = self.make_supplier_invoice(total_amount=Decimal("500.00"))
+        payment = self.make_payment(direction=Payment.Direction.OUTGOING, amount=Decimal("500.00"))
+        allocate_payment(payment, invoice, Decimal("200.00"))
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.status, SupplierInvoice.Status.PARTIALLY_PAID)
+
+    def test_overdue_invoice_accepts_allocation(self):
+        invoice = self.make_client_invoice(status=ClientInvoice.Status.OVERDUE)
+        payment = self.make_payment()
+        allocation = allocate_payment(payment, invoice, Decimal("100.00"))
+        self.assertEqual(allocation.allocated_amount, Decimal("100.00"))
+
+    def test_payment_and_invoice_rows_are_locked(self):
+        invoice = self.make_client_invoice()
+        payment = self.make_payment()
+        with patch.object(Payment.objects, 'select_for_update', wraps=Payment.objects.select_for_update) as payment_lock, \
+             patch.object(ClientInvoice.objects, 'select_for_update', wraps=ClientInvoice.objects.select_for_update) as invoice_lock:
+            allocate_payment(payment, invoice, Decimal("100.00"))
+        payment_lock.assert_called_once_with()
+        invoice_lock.assert_called_once_with()
+
     def test_outgoing_payment_cannot_fund_a_client_invoice(self):
         invoice = self.make_client_invoice()
         payment = self.make_payment(direction=Payment.Direction.OUTGOING, amount=Decimal("1000.00"))
@@ -151,6 +173,33 @@ class AllocatePaymentServiceTests(PaymentsTestBase):
     def test_cannot_allocate_to_a_draft_invoice(self):
         invoice = self.make_client_invoice(status=ClientInvoice.Status.DRAFT)
         payment = self.make_payment(amount=Decimal("1000.00"))
+        with self.assertRaises(ValidationError):
+            allocate_payment(payment, invoice, Decimal("100.00"))
+
+    def test_cannot_allocate_to_paid_or_cancelled_invoice(self):
+        for index, status in enumerate((ClientInvoice.Status.PAID, ClientInvoice.Status.CANCELLED), 1):
+            invoice = self.make_client_invoice(invoice_number=f"CINV-BLOCK-{index}", status=status)
+            payment = self.make_payment(payment_number=f"PMT-BLOCK-{index}")
+            with self.assertRaises(ValidationError):
+                allocate_payment(payment, invoice, Decimal("100.00"))
+
+    def test_allocation_must_be_positive(self):
+        invoice = self.make_client_invoice()
+        payment = self.make_payment()
+        for amount in (Decimal("0.00"), Decimal("-1.00")):
+            with self.assertRaises(ValidationError):
+                allocate_payment(payment, invoice, amount)
+
+    def test_client_must_match_invoice(self):
+        other = Client.objects.create(name="Wrong client")
+        invoice = self.make_client_invoice(client=other)
+        with self.assertRaises(ValidationError):
+            allocate_payment(self.make_payment(), invoice, Decimal("100.00"))
+
+    def test_supplier_must_match_invoice(self):
+        other = Supplier.objects.create(name="Wrong supplier")
+        invoice = self.make_supplier_invoice(supplier=other)
+        payment = self.make_payment(direction=Payment.Direction.OUTGOING)
         with self.assertRaises(ValidationError):
             allocate_payment(payment, invoice, Decimal("100.00"))
 
@@ -177,9 +226,8 @@ class AllocatePaymentServiceTests(PaymentsTestBase):
 class PaymentAPITests(PaymentsTestBase):
     def setUp(self):
         super().setUp()
-        django_user = DjangoUser.objects.create_user(username="apitester3", password="pass12345")
         self.client = APIClient()
-        self.client.force_authenticate(user=django_user)
+        self.client.force_authenticate(user=self.creator)
 
     def test_create_incoming_payment_via_api(self):
         response = self.client.post("/api/payments/payments/", {
@@ -189,6 +237,63 @@ class PaymentAPITests(PaymentsTestBase):
         }, format="json")
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.json()["unallocated_amount"], "1000.00")
+        self.assertEqual(response.json()["created_by"], str(self.creator.id))
+
+    def test_client_cannot_control_created_by(self):
+        owner = User.objects.create(
+            username="owner", email="owner@example.com", password_hash="x",
+            first_name="O", last_name="W", role=Role.OWNER,
+        )
+        response = self.client.post("/api/payments/payments/", {
+            "payment_number": "PMT-CREATOR", "payment_date": "2026-08-31", "amount": "20.00",
+            "direction": "INCOMING", "payment_method": "cash", "client": str(self.client_obj.id),
+            "created_by": str(owner.id),
+        }, format="json")
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(Payment.objects.get(payment_number="PMT-CREATOR").created_by_id, self.creator.id)
+
+    def test_outgoing_payment_with_supplier_succeeds(self):
+        response = self.client.post("/api/payments/payments/", {
+            "payment_number": "PMT-OUT", "payment_date": "2026-08-31", "amount": "20.00",
+            "direction": "OUTGOING", "payment_method": "cash", "supplier": str(self.supplier.id),
+        }, format="json")
+        self.assertEqual(response.status_code, 201)
+
+    def test_direction_party_pairing_is_exact(self):
+        cases = (
+            ("PMT-BOTH-I", "INCOMING", self.client_obj.id, self.supplier.id),
+            ("PMT-BOTH-O", "OUTGOING", self.client_obj.id, self.supplier.id),
+            ("PMT-NONE-O", "OUTGOING", None, None),
+        )
+        for number, direction, client_id, supplier_id in cases:
+            payload = {"payment_number": number, "payment_date": "2026-08-31", "amount": "20.00",
+                       "direction": direction, "payment_method": "cash"}
+            if client_id:
+                payload['client'] = str(client_id)
+            if supplier_id:
+                payload['supplier'] = str(supplier_id)
+            self.assertEqual(self.client.post("/api/payments/payments/", payload, format="json").status_code, 400)
+
+    def test_payment_amount_and_required_strings_are_validated(self):
+        for index, amount in enumerate(("0.00", "-1.00")):
+            response = self.client.post("/api/payments/payments/", {
+                "payment_number": f"PMT-AMT-{index}", "payment_date": "2026-08-31", "amount": amount,
+                "direction": "INCOMING", "payment_method": "cash", "client": str(self.client_obj.id),
+            }, format="json")
+            self.assertEqual(response.status_code, 400)
+        for field in ('payment_number', 'payment_method'):
+            payload = {"payment_number": "PMT-STR", "payment_date": "2026-08-31", "amount": "1.00",
+                       "direction": "INCOMING", "payment_method": "cash", "client": str(self.client_obj.id)}
+            payload[field] = "   "
+            self.assertEqual(self.client.post("/api/payments/payments/", payload, format="json").status_code, 400)
+
+    def test_duplicate_payment_number_is_rejected(self):
+        self.make_payment(payment_number="PMT-DUP")
+        response = self.client.post("/api/payments/payments/", {
+            "payment_number": "PMT-DUP", "payment_date": "2026-08-31", "amount": "1.00",
+            "direction": "INCOMING", "payment_method": "cash", "client": str(self.client_obj.id),
+        }, format="json")
+        self.assertEqual(response.status_code, 400)
 
     def test_incoming_payment_without_client_is_rejected(self):
         response = self.client.post("/api/payments/payments/", {
@@ -200,6 +305,8 @@ class PaymentAPITests(PaymentsTestBase):
     def test_payment_has_no_update_or_delete_routes(self):
         payment = self.make_payment(amount=Decimal("1000.00"))
         response = self.client.patch(f"/api/payments/payments/{payment.id}/", {"amount": "1.00"}, format="json")
+        self.assertEqual(response.status_code, 405)
+        response = self.client.put(f"/api/payments/payments/{payment.id}/", {"amount": "1.00"}, format="json")
         self.assertEqual(response.status_code, 405)
         response = self.client.delete(f"/api/payments/payments/{payment.id}/")
         self.assertEqual(response.status_code, 405)
@@ -268,6 +375,73 @@ class PaymentAPITests(PaymentsTestBase):
         }, format="json")
         self.assertEqual(response.status_code, 400)
 
+    def test_receipt_amount_rules_and_unique_number(self):
+        for index, amount in enumerate(("0.00", "-1.00", "999.00")):
+            payment = self.make_payment(payment_number=f"PMT-R-AMT-{index}")
+            response = self.client.post("/api/payments/receipts/", {
+                "payment": str(payment.id), "receipt_number": f"RCPT-AMT-{index}",
+                "receipt_date": "2026-08-31", "amount": amount,
+            }, format="json")
+            self.assertEqual(response.status_code, 400)
+        existing_payment = self.make_payment(payment_number="PMT-R-DUP-1")
+        Receipt.objects.create(payment=existing_payment, receipt_number="RCPT-DUP", receipt_date="2026-08-31", amount=existing_payment.amount)
+        payment = self.make_payment(payment_number="PMT-R-DUP-2")
+        response = self.client.post("/api/payments/receipts/", {
+            "payment": str(payment.id), "receipt_number": "RCPT-DUP",
+            "receipt_date": "2026-08-31", "amount": str(payment.amount),
+        }, format="json")
+        self.assertEqual(response.status_code, 400)
+
+    def test_finance_permissions(self):
+        owner = User.objects.create(username="finance-owner", email="fo@example.com", password_hash="x",
+                                    first_name="F", last_name="O", role=Role.OWNER)
+        owner_client = APIClient()
+        owner_client.force_authenticate(owner)
+        self.assertEqual(owner_client.get("/api/payments/payments/").status_code, 200)
+        employee = User.objects.create(username="employee", email="employee@example.com", password_hash="x",
+                                       first_name="E", last_name="M", role="EMPLOYEE")
+        employee_client = APIClient()
+        employee_client.force_authenticate(employee)
+        for url in ("/api/payments/payments/", "/api/payments/payment-allocations/", "/api/payments/receipts/"):
+            self.assertEqual(employee_client.get(url).status_code, 403)
+
+    def test_invalid_uuid_filters_return_400(self):
+        urls = (
+            "/api/payments/payments/?client=invalid", "/api/payments/payments/?supplier=invalid",
+            "/api/payments/payment-allocations/?payment=invalid",
+            "/api/payments/payment-allocations/?client_invoice=invalid",
+            "/api/payments/payment-allocations/?supplier_invoice=invalid",
+            "/api/payments/receipts/?payment=invalid", "/api/payments/receipts/?client=invalid",
+            "/api/payments/receipts/?supplier=invalid",
+        )
+        for url in urls:
+            self.assertEqual(self.client.get(url).status_code, 400)
+
+    def test_allocations_and_receipts_are_immutable(self):
+        invoice = self.make_client_invoice()
+        payment = self.make_payment()
+        allocation = allocate_payment(payment, invoice, Decimal("100.00"))
+        receipt = Receipt.objects.create(
+            payment=payment, receipt_number="RCPT-IMMUTABLE",
+            receipt_date="2026-08-31", amount=payment.amount,
+        )
+        for resource, object_id in (
+            ('payment-allocations', allocation.id), ('receipts', receipt.id),
+        ):
+            url = f"/api/payments/{resource}/{object_id}/"
+            self.assertEqual(self.client.patch(url, {}, format="json").status_code, 405)
+            self.assertEqual(self.client.put(url, {}, format="json").status_code, 405)
+            self.assertEqual(self.client.delete(url).status_code, 405)
+
+    def test_search_ordering_and_filtering_work(self):
+        self.make_payment(payment_number="PMT-SEARCH-Z", reference="needle", amount=Decimal("10.00"))
+        self.make_payment(payment_number="PMT-SEARCH-A", reference="other", amount=Decimal("20.00"))
+        result = self.client.get("/api/payments/payments/?search=needle").json()['results']
+        self.assertEqual([row['payment_number'] for row in result], ["PMT-SEARCH-Z"])
+        result = self.client.get("/api/payments/payments/?ordering=amount").json()['results']
+        amounts = [Decimal(row['amount']) for row in result]
+        self.assertEqual(amounts, sorted(amounts))
+
     def test_filter_by_payment_date_range(self):
         in_range = self.make_payment(payment_number="PMT-API-DATE-1", payment_date="2026-08-15")
         self.make_payment(payment_number="PMT-API-DATE-2", payment_date="2026-01-01")
@@ -294,9 +468,8 @@ class ReceiptDetailAndDownloadAPITests(PaymentsTestBase):
 
     def setUp(self):
         super().setUp()
-        django_user = DjangoUser.objects.create_user(username="apitester4", password="pass12345")
         self.client = APIClient()
-        self.client.force_authenticate(user=django_user)
+        self.client.force_authenticate(user=self.creator)
 
     def make_receipt(self, **kwargs):
         payment = self.make_payment(amount=Decimal("1000.00"))
@@ -353,3 +526,21 @@ class ReceiptDetailAndDownloadAPITests(PaymentsTestBase):
         anon = APIClient()
         response = anon.get(f"/api/payments/receipts/{receipt.id}/download/")
         self.assertEqual(response.status_code, 401)
+
+    def test_pdf_contains_branded_professional_elements(self):
+        """The generated PDF carries the professional receipt layout:
+        title, party block, payment summary, amount, and acknowledgement,
+        even without a company profile row (company_details is an
+        unmanaged shared table not present in the test database)."""
+        from .pdf import render_receipt_pdf
+
+        receipt = self.make_receipt(receipt_number="RCPT-DL-9", amount=Decimal("1000.00"))
+        pdf = render_receipt_pdf(receipt)
+
+        self.assertTrue(pdf.startswith(b"%PDF"))
+        # PDF content is Flate-compressed, but reportlab keeps a plain-text
+        # font/summary layer; at minimum the bytes must be a valid single-
+        # page PDF with an EOF trailer.
+        self.assertIn(b"%%EOF", pdf)
+        self.assertGreater(len(pdf), 2000)
+

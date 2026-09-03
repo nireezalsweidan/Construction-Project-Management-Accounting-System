@@ -1,171 +1,27 @@
-/* Clients & Partners page.
-   A single view of clients, suppliers, and contractors pulled from their
-   DRF endpoints. The page is read-only: it renders the relationship
-   directory (metrics + table) from live data instead of mock rows. */
+/* Clients & Partners: live CRUD for clients, suppliers, and contractors. */
 (() => {
   "use strict";
-
-  const API = {
-    clients: "/api/clients/clients/",
-    suppliers: "/api/suppliers/suppliers/",
-    contractors: "/api/contractors/",
-    supplierSummary: "/api/suppliers/suppliers/summary/",
-  };
-  const CURRENCY = "USD";
-
-  const $ = (sel, root = document) => root.querySelector(sel);
-  const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
-
-  const state = { clients: [], suppliers: [], contractors: [], typeFilter: "all", search: "" };
-
-  /* ---- CSRF token (kept for completeness; this page only GETs) ---- */
-  function getCookie(name) {
-    const m = document.cookie.match(new RegExp("(^|;\\s*)" + name + "=([^;]*)"));
-    return m ? decodeURIComponent(m[2]) : "";
-  }
-
-  async function api(url, options = {}) {
-    const opts = { credentials: "same-origin", headers: { "Content-Type": "application/json", ...(options.headers || {}) }, ...options };
-    if (options.method && !["GET", "HEAD"].includes(options.method)) {
-      opts.headers["X-CSRFToken"] = getCookie("csrftoken");
-    }
-    const res = await fetch(url, opts);
-    if (!res.ok) {
-      let detail = res.statusText;
-      try { detail = JSON.stringify(await res.json()); } catch (e) { /* ignore */ }
-      throw new Error(`${res.status}: ${detail}`);
-    }
-    if (res.status === 204) return null;
-    return res.json();
-  }
-
-  async function fetchAll(url) {
-    const rows = [];
-    let next = url;
-    while (next) {
-      const data = await api(next);
-      rows.push(...(data.results || []));
-      next = data.next;
-    }
-    return rows;
-  }
-
-  const fmtMoney = v => {
-    const n = Number(v);
-    return Number.isFinite(n)
-      ? n.toLocaleString("en-US", { style: "currency", currency: CURRENCY, minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : `${CURRENCY} ${v || "0.00"}`;
-  };
-
-  const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
-  const statusPill = (type, row) => {
-    if (type === "supplier") {
-      const ok = row.is_active;
-      return `<span class="status${ok ? " active" : ""}"><i></i>${ok ? "ACTIVE" : "INACTIVE"}</span>`;
-    }
-    if (type === "contractor") {
-      const s = row.status || "ACTIVE";
-      const cls = s === "ACTIVE" ? " active" : (s === "TERMINATED" ? " warning" : "");
-      return `<span class="status${cls}"><i></i>${esc(s)}</span>`;
-    }
-    return `<span class="status active"><i></i>ACTIVE</span>`;
-  };
-
-  function mergeRows() {
-    const rows = [];
-    state.clients.forEach(c => rows.push({ type: "client", label: "Client", id: c.id, name: c.name, company: c.company_name, contact: c.email || c.phone, detail: c }));
-    state.suppliers.forEach(s => rows.push({ type: "supplier", label: "Supplier", id: s.id, name: s.name, company: s.company_name, contact: s.email || s.phone, detail: s }));
-    state.contractors.forEach(c => rows.push({ type: "contractor", label: "Contractor", id: c.id, name: c.name, company: c.company_name, contact: c.email || c.phone, detail: c }));
-    return rows;
-  }
-
-  function renderRows() {
-    const tbody = $("[data-partner-rows]");
-    let list = mergeRows();
-    if (state.typeFilter !== "all") list = list.filter(r => r.type === state.typeFilter);
-    const q = state.search.trim().toLowerCase();
-    if (q) list = list.filter(r => [r.name, r.company, r.contact].some(v => (v || "").toLowerCase().includes(q)));
-
-    if (!list.length) {
-      tbody.innerHTML = `<tr><td><strong>No partners found</strong><span>Try adjusting the search or type filter.</span></td><td>—</td><td>—</td><td>—</td><td><span class="status"><i></i>—</span></td></tr>`;
-      return;
-    }
-
-    tbody.innerHTML = list.map(r => `
-      <tr data-partner-row>
-        <td><strong>${esc(r.name)}</strong><span>${esc(r.company || r.label)}</span></td>
-        <td><span class="partner-type">${r.label}</span></td>
-        <td>${esc(r.contact || "—")}</td>
-        <td class="partner-balance" data-id="${r.type}:${r.id}">…</td>
-        <td>${statusPill(r.type, r.detail)}</td>
-      </tr>`).join("");
-
-    // Fetch open balances for the visible rows only (avoids N+1 over the whole dataset).
-    const visible = [...list].slice(0, 60);
-    visible.forEach(r => loadBalance(r.type, r.id));
-  }
-
-  async function loadBalance(type, id) {
-    const cell = $(`.partner-balance[data-id="${type}:${id}"]`);
-    if (!cell) return;
-    try {
-      let url, value;
-      if (type === "client") {
-        const d = await api(`${API.clients}${id}/`);
-        value = d.outstanding_balance;
-      } else if (type === "supplier") {
-        const d = await api(`${API.suppliers}${id}/`);
-        value = d.outstanding_balance;
-      } else {
-        value = null;
-      }
-      cell.textContent = (value == null || value === "") ? "—" : fmtMoney(value);
-    } catch (e) {
-      cell.textContent = "—";
-    }
-  }
-
-  async function renderMetrics() {
-    $("[data-metric=clients]").textContent = state.clients.length;
-    $("[data-metric=suppliers]").textContent = state.suppliers.length;
-    $("[data-metric=contractors]").textContent = state.contractors.length;
-    try {
-      const s = await api(API.supplierSummary);
-      $("[data-metric=balance]").textContent = fmtMoney(s.outstanding_balance);
-    } catch (e) {
-      $("[data-metric=balance]").textContent = fmtMoney(0);
-    }
-  }
-
-  function bindFilters() {
-    $$("[data-type-filter]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        state.typeFilter = btn.dataset.typeFilter;
-        $$("[data-type-filter]").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        renderRows();
-      });
-    });
-    const searchInput = $("#partner-search-input");
-    searchInput.addEventListener("input", () => { state.search = searchInput.value; renderRows(); });
-  }
-
-  document.addEventListener("DOMContentLoaded", async () => {
-    bindFilters();
-    try {
-      const [clients, suppliers, contractors] = await Promise.all([
-        fetchAll(API.clients),
-        fetchAll(API.suppliers),
-        fetchAll(API.contractors),
-      ]);
-      state.clients = clients;
-      state.suppliers = suppliers;
-      state.contractors = contractors;
-      await renderMetrics();
-      renderRows();
-    } catch (e) {
-      $("[data-partner-rows]").innerHTML = `<tr><td><strong>Could not load partners</strong><span>${esc(e.message)}</span></td><td>—</td><td>—</td><td>—</td><td><span class="status"><i></i>—</span></td></tr>`;
-    }
-  });
+  const API={clients:"/api/clients/clients/",suppliers:"/api/suppliers/suppliers/",contractors:"/api/contractors/",supplierSummary:"/api/suppliers/suppliers/summary/"};
+  const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+  const state={clients:[],suppliers:[],contractors:[],typeFilter:"all",search:""}, editor={type:null,id:null};
+  const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const money=v=>Number(v||0).toLocaleString("en-US",{style:"currency",currency:"USD",minimumFractionDigits:2});
+  function cookie(name){const m=document.cookie.match(new RegExp("(^|;\\s*)"+name+"=([^;]*)"));return m?decodeURIComponent(m[2]):""}
+  async function api(url,options={}){const headers={"Content-Type":"application/json",...(options.headers||{})};if(options.method&&!['GET','HEAD'].includes(options.method))headers['X-CSRFToken']=cookie('csrftoken');const response=await fetch(url,{credentials:'same-origin',...options,headers});if(!response.ok){let detail=response.statusText;try{const body=await response.json();detail=Object.entries(body).map(([k,v])=>`${k}: ${Array.isArray(v)?v.join(' '):v}`).join('\n')}catch(_){}throw new Error(`${response.status}: ${detail}`)}return response.status===204?null:response.json()}
+  async function all(url){const rows=[];while(url){const data=await api(url);if(Array.isArray(data))return data;rows.push(...(data.results||[]));url=data.next}return rows}
+  const endpoint=type=>API[`${type}s`];
+  function merged(){return[...state.clients.map(x=>({type:'client',label:'Client',...x})),...state.suppliers.map(x=>({type:'supplier',label:'Supplier',...x})),...state.contractors.map(x=>({type:'contractor',label:'Contractor',...x}))]}
+  function status(type,row){if(type==='supplier')return `<span class="status${row.is_active?' active':''}"><i></i>${row.is_active?'ACTIVE':'INACTIVE'}</span>`;if(type==='contractor')return `<span class="status${row.status==='ACTIVE'?' active':row.status==='TERMINATED'?' warning':''}"><i></i>${esc(row.status||'ACTIVE')}</span>`;return '<span class="status active"><i></i>ACTIVE</span>'}
+  async function balance(type,id,cell){try{if(type==='contractor'){cell.textContent='—';return}const data=await api(`${endpoint(type)}${id}/`);cell.textContent=money(data.outstanding_balance)}catch(_){cell.textContent='—'}}
+  function render(){let rows=merged();if(state.typeFilter!=='all')rows=rows.filter(x=>x.type===state.typeFilter);const q=state.search.trim().toLowerCase();if(q)rows=rows.filter(x=>[x.name,x.company_name,x.email,x.phone].some(v=>(v||'').toLowerCase().includes(q)));const body=$("[data-partner-rows]");body.innerHTML=rows.length?rows.map(x=>`<tr><td><strong>${esc(x.name)}</strong><span>${esc(x.company_name||x.label)}</span></td><td><span class="partner-type">${x.label}</span></td><td><strong>${esc(x.email||'—')}</strong><span>${esc(x.phone||'')}</span></td><td class="partner-balance" data-balance="${x.type}:${x.id}">…</td><td>${status(x.type,x)}</td><td><div class="partner-row-actions"><button class="partner-action" data-edit="${x.type}:${x.id}">Edit</button><button class="partner-action delete" data-delete="${x.type}:${x.id}">Delete</button></div></td></tr>`).join(''):'<tr><td colspan="6"><strong>No partners found</strong><span>Try another search or filter.</span></td></tr>';$$('[data-edit]',body).forEach(b=>b.onclick=()=>edit(b.dataset.edit));$$('[data-delete]',body).forEach(b=>b.onclick=()=>openDelete(b.dataset.delete));$$('[data-balance]',body).forEach(cell=>{const[type,id]=cell.dataset.balance.split(':');balance(type,id,cell)});$("[data-metric=clients]").textContent=state.clients.length;$("[data-metric=suppliers]").textContent=state.suppliers.length;$("[data-metric=contractors]").textContent=state.contractors.length}
+  async function reload(){[state.clients,state.suppliers,state.contractors]=await Promise.all([all(API.clients),all(API.suppliers),all(API.contractors)]);try{const summary=await api(API.supplierSummary);$("[data-metric=balance]").textContent=money(summary.outstanding_balance)}catch(_){$("[data-metric=balance]").textContent=money(0)}render()}
+  const common=[{name:'name',label:'Name',required:true},{name:'company_name',label:'Company name'},{name:'phone',label:'Phone',type:'tel'},{name:'email',label:'Email',type:'email'}];
+  const extra={client:[{name:'tax_id',label:'Tax ID'},{name:'address',label:'Address',wide:true},{name:'notes',label:'Notes',tag:'textarea',wide:true}],supplier:[{name:'tax_number',label:'Tax number'},{name:'payment_terms',label:'Payment terms'},{name:'address',label:'Address',wide:true},{name:'notes',label:'Notes',tag:'textarea',wide:true},{name:'is_active',label:'Status',tag:'select',options:[['true','Active'],['false','Inactive']]}],contractor:[{name:'specialization',label:'Specialization'},{name:'payment_terms',label:'Payment terms'},{name:'rate',label:'Rate',type:'number',step:'0.01'},{name:'status',label:'Status',tag:'select',options:[['ACTIVE','Active'],['INACTIVE','Inactive'],['TERMINATED','Terminated']]},{name:'contract_details',label:'Contract details',tag:'textarea',wide:true}]};
+  function field(def,current){const value=current[def.name]??(def.name==='is_active'?true:'');let control;if(def.tag==='textarea')control=`<textarea name="${def.name}" rows="3">${esc(value)}</textarea>`;else if(def.tag==='select')control=`<select name="${def.name}">${def.options.map(([v,l])=>`<option value="${v}"${String(value)===v?' selected':''}>${l}</option>`).join('')}</select>`;else control=`<input name="${def.name}" type="${def.type||'text'}" value="${esc(value)}"${def.required?' required':''}${def.step?` step="${def.step}" min="0"`:''}>`;return `<label${def.wide?' class="wide"':''}>${def.label}${def.required?' *':''}${control}</label>`}
+  function openEditor(type,current={}){editor.type=type;editor.id=current.id||null;const label=type[0].toUpperCase()+type.slice(1);$("[data-partner-eyebrow]").textContent=`${label.toUpperCase()} PROFILE`;$("[data-partner-dialog-title]").textContent=`${editor.id?'Edit':'Add'} ${label}`;$("[data-partner-dialog-subtitle]").textContent=editor.id?'Update profile, contact, and commercial details.':'Create a new record using the live API.';$("[data-partner-submit]").textContent=editor.id?'Save changes':`Create ${label}`;$("[data-partner-form-fields]").innerHTML=[...common,...extra[type]].map(x=>field(x,current)).join('');$("[data-partner-form-error]").hidden=true;$("[data-partner-dialog]").showModal()}
+  async function edit(key){const[type,id]=key.split(':');try{openEditor(type,await api(`${endpoint(type)}${id}/`))}catch(e){alert(`Could not load ${type}: ${e.message}`)}}
+  function openDelete(key){[editor.type,editor.id]=key.split(':');$("[data-delete-message]").textContent=`Delete this ${editor.type}? Linked financial or project records may prevent deletion.`;$("[data-delete-error]").hidden=true;$("[data-partner-delete-dialog]").showModal()}
+  function payload(){const data=Object.fromEntries(new FormData($("[data-partner-form]")).entries());if(editor.type==='supplier')data.is_active=data.is_active==='true';if(editor.type==='contractor'&&!data.rate)data.rate=null;return data}
+  function bind(){$$('[data-add-partner]').forEach(b=>b.onclick=()=>openEditor(b.dataset.addPartner));$$('[data-partner-close]').forEach(b=>b.onclick=()=>$("[data-partner-dialog]").close());$("[data-partner-form]").onsubmit=async event=>{event.preventDefault();const button=$("[data-partner-submit]");button.disabled=true;try{await api(editor.id?`${endpoint(editor.type)}${editor.id}/`:endpoint(editor.type),{method:editor.id?'PATCH':'POST',body:JSON.stringify(payload())});$("[data-partner-dialog]").close();await reload()}catch(e){const node=$("[data-partner-form-error]");node.textContent=e.message;node.hidden=false}finally{button.disabled=false}};$("[data-delete-cancel]").onclick=()=>$("[data-partner-delete-dialog]").close();$("[data-delete-confirm]").onclick=async event=>{event.currentTarget.disabled=true;try{await api(`${endpoint(editor.type)}${editor.id}/`,{method:'DELETE'});$("[data-partner-delete-dialog]").close();await reload()}catch(e){const node=$("[data-delete-error]");node.textContent=e.message;node.hidden=false}finally{event.currentTarget.disabled=false}};$$('[data-type-filter]').forEach(b=>b.onclick=()=>{state.typeFilter=b.dataset.typeFilter;$$('[data-type-filter]').forEach(x=>x.classList.remove('active'));b.classList.add('active');render()});$("#partner-search-input").oninput=e=>{state.search=e.target.value;render()}}
+  document.addEventListener('DOMContentLoaded',async()=>{bind();try{await reload()}catch(e){$("[data-partner-rows]").innerHTML=`<tr><td colspan="6"><strong>Could not load partners</strong><span>${esc(e.message)}</span></td></tr>`}});
 })();

@@ -117,12 +117,14 @@
   /* ---- Detail dialog ---- */
   const dialog = $("[data-supplier-dialog]");
   let detailSupplierId = null;
+  let detailSupplier = null;
   const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   async function openDetail(id) {
     detailSupplierId = id;
     try {
       const [detail, balance] = await Promise.all([api(`${API}${id}/`), api(`${API}${id}/balance/`)]);
+      detailSupplier = detail;
       $("[data-detail-name]").textContent = detail.name || "—";
       $("[data-detail-company]").textContent = detail.company_name || "";
       $("[data-detail-phone]").textContent = detail.phone || "—";
@@ -180,6 +182,10 @@
   }
 
   function bindDialog() {
+    const actions = $(".supplier-dialog-actions");
+    actions.insertAdjacentHTML("afterbegin", '<button type="button" class="quiet-button" data-supplier-edit>Edit</button><button type="button" class="quiet-button" data-supplier-delete>Delete</button>');
+    $("[data-supplier-edit]").addEventListener("click", editSupplier);
+    $("[data-supplier-delete]").addEventListener("click", deleteSupplier);
     $("[data-supplier-close]").addEventListener("click", () => dialog.close());
     dialog.addEventListener("click", e => { if (e.target === dialog) dialog.close(); });
     $$("[data-tab]").forEach(btn => {
@@ -188,6 +194,24 @@
         loadTab(btn.dataset.tab);
       });
     });
+  }
+
+  async function editSupplier() {
+    if (!detailSupplier) return;
+    const name = prompt("Supplier name", detailSupplier.name || "");
+    if (name === null) return;
+    const paymentTerms = prompt("Payment terms", detailSupplier.payment_terms || "");
+    if (paymentTerms === null) return;
+    try {
+      await api(`${API}${detailSupplierId}/`, { method: "PATCH", body: JSON.stringify({ name: name.trim(), payment_terms: paymentTerms.trim() }) });
+      await refresh(); await openDetail(detailSupplierId);
+    } catch (e) { alert("Could not update supplier: " + e.message); }
+  }
+
+  async function deleteSupplier() {
+    if (!detailSupplierId || !confirm("Delete this supplier? This is only possible when it has no protected financial records.")) return;
+    try { await api(`${API}${detailSupplierId}/`, { method: "DELETE" }); dialog.close(); await refresh(); }
+    catch (e) { alert("Could not delete supplier: " + e.message); }
   }
 
   /* ---- Create supplier ---- */

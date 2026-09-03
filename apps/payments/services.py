@@ -69,13 +69,14 @@ def allocate_payment(payment: Payment, invoice, allocated_amount: Decimal) -> Pa
       only fund a ClientInvoice, OUTGOING only a SupplierInvoice --
       money received from a client can't pay a supplier bill and vice
       versa);
-    - the invoice is SENT or PARTIALLY_PAID (DRAFT hasn't been billed
-      yet, PAID/OVERDUE/CANCELLED/VOIDED-equivalent states shouldn't
-      accept more money);
+    - the invoice is SENT, OVERDUE, or PARTIALLY_PAID (DRAFT hasn't been
+      billed yet, while PAID/CANCELLED states shouldn't accept money);
+    - the payment party matches the invoice party;
     - allocated_amount is positive, doesn't exceed the payment's own
       remaining unallocated_amount, and doesn't exceed the invoice's own
       outstanding_balance (over-allocating either side would make the
-      derived balance go negative, which is nonsensical).
+      derived balance go negative); both rows are locked while these
+      values are calculated so concurrent requests cannot over-allocate.
 
     On success: creates the PaymentAllocation, then sets the invoice to
     PAID if its new outstanding balance is <= 0, else PARTIALLY_PAID.
@@ -90,7 +91,20 @@ def allocate_payment(payment: Payment, invoice, allocated_amount: Decimal) -> Pa
     if is_supplier_invoice and payment.direction != Payment.Direction.OUTGOING:
         raise ValidationError("An INCOMING payment cannot be allocated to a supplier invoice.")
 
-    allowed_invoice_statuses = {invoice.Status.SENT, invoice.Status.PARTIALLY_PAID}
+    # Lock both mutable balances before calculating either one. Locking the
+    # payment serializes allocations to different invoices as well.
+    payment = Payment.objects.select_for_update().get(pk=payment.pk)
+    invoice_model = ClientInvoice if is_client_invoice else SupplierInvoice
+    invoice = invoice_model.objects.select_for_update().get(pk=invoice.pk)
+
+    if is_client_invoice and payment.client_id != invoice.client_id:
+        raise ValidationError("The payment client must match the invoice client.")
+    if is_supplier_invoice and payment.supplier_id != invoice.supplier_id:
+        raise ValidationError("The payment supplier must match the invoice supplier.")
+
+    allowed_invoice_statuses = {
+        invoice.Status.SENT, invoice.Status.OVERDUE, invoice.Status.PARTIALLY_PAID,
+    }
     if invoice.status not in allowed_invoice_statuses:
         raise ValidationError(
             f"Cannot allocate a payment to an invoice that is {invoice.get_status_display()}."

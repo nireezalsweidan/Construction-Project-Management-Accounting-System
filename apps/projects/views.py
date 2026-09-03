@@ -209,6 +209,75 @@ class BudgetViewSet(viewsets.ModelViewSet):
         budget = self.get_object()
         return Response(get_budget_summary(budget))
 
+    @action(detail=False, methods=["get"], url_path="portfolio-summary")
+    def portfolio_summary(self, request):
+        """
+        GET /api/projects/budgets/portfolio-summary/?project={id}&status={status}
+
+        Portfolio Budget vs Actual across projects -- one row per project
+        (using each project's active budget via get_active_budget) plus an
+        aggregate of budgeted/actual/variance/remaining. Optional ?project
+        restricts to a single project; otherwise the whole (non-archived)
+        portfolio is summarized.
+        """
+        from decimal import Decimal
+
+        projects = Project.objects.all()
+        project_id = request.query_params.get("project")
+        if project_id:
+            projects = projects.filter(id=project_id)
+        else:
+            projects = projects.filter(is_archived=False)
+
+        rows = []
+        totals = {
+            "projects": 0,
+            "budgeted": Decimal("0.00"),
+            "actual": Decimal("0.00"),
+            "variance": Decimal("0.00"),
+            "remaining": Decimal("0.00"),
+        }
+
+        for project in projects:
+            budget = get_active_budget(project.id)
+            if budget is None:
+                continue
+            summary = get_budget_summary(budget)
+            t = summary["totals"]
+            rows.append(
+                {
+                    "project_id": str(project.id),
+                    "project_name": project.name,
+                    "project_code": project.code,
+                    "budget_id": summary["budget_id"],
+                    "budget_name": summary["budget_name"],
+                    "budget_status": summary["budget_status"],
+                    "total_budget_header": str(summary["total_budget_header"]),
+                    "budgeted": str(t["budgeted"]),
+                    "actual": str(t["actual"]),
+                    "variance": str(t["variance"]),
+                    "remaining": str(t["remaining"]),
+                }
+            )
+            totals["projects"] += 1
+            totals["budgeted"] += t["budgeted"]
+            totals["actual"] += t["actual"]
+            totals["variance"] += t["variance"]
+            totals["remaining"] += t["remaining"]
+
+        return Response(
+            {
+                "projects": rows,
+                "totals": {
+                    "projects": totals["projects"],
+                    "budgeted": str(totals["budgeted"]),
+                    "actual": str(totals["actual"]),
+                    "variance": str(totals["variance"]),
+                    "remaining": str(totals["remaining"]),
+                },
+            }
+        )
+
 
 class BudgetItemViewSet(viewsets.ModelViewSet):
     """

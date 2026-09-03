@@ -241,3 +241,148 @@ class AccountingAPITests(AccountingTestBase):
         # 401 (not 403): with the auth ticket in place, unauthenticated
         # requests are challenged to authenticate before access is denied.
         self.assertEqual(response.status_code, 401)
+
+
+class ReportServiceTests(AccountingTestBase):
+    """Profit & Loss / revenue-expense trend calculations (server-side)."""
+
+    def setUp(self):
+        super().setUp()
+        self.expense_account = Account.objects.create(
+            code="5000", name="Operating Expense", account_type="Expense"
+        )
+        # accounts_payable is a standard expense-related balance account
+        # used as the credit counter for expense lines
+        self.payable_account = Account.objects.create(
+            code="2000", name="Accounts Payable", account_type="Liability"
+        )
+
+    def test_profit_loss_sums_revenue_minus_expense(self):
+        from .reports import profit_loss
+
+        # Revenue entry: cash (debit 1000) / revenue (credit 1000)
+        rev_txn = self.make_transaction(transaction_number="REV-1", transaction_date="2026-08-15")
+        TransactionLine.objects.create(transaction=rev_txn, account=self.cash_account, debit=Decimal("1000.00"))
+        TransactionLine.objects.create(transaction=rev_txn, account=self.revenue_account, credit=Decimal("1000.00"))
+        post_transaction(rev_txn)
+
+        # Expense entry: expense (debit 400) / payable (credit 400)
+        exp_txn = self.make_transaction(transaction_number="EXP-1", transaction_date="2026-08-20")
+        TransactionLine.objects.create(transaction=exp_txn, account=self.expense_account, debit=Decimal("400.00"))
+        TransactionLine.objects.create(transaction=exp_txn, account=self.payable_account, credit=Decimal("400.00"))
+        post_transaction(exp_txn)
+
+        result = profit_loss({})
+        self.assertEqual(result["revenue"]["total"], "1000.00")
+        self.assertEqual(result["expenses"]["total"], "400.00")
+        self.assertEqual(result["net_profit"], "600.00")
+
+    def test_profit_loss_only_counts_posted(self):
+        from .reports import profit_loss
+
+        # Posted revenue
+        rev_txn = self.make_transaction(transaction_number="REV-2", transaction_date="2026-08-15")
+        TransactionLine.objects.create(transaction=rev_txn, account=self.cash_account, debit=Decimal("1000.00"))
+        TransactionLine.objects.create(transaction=rev_txn, account=self.revenue_account, credit=Decimal("1000.00"))
+        post_transaction(rev_txn)
+
+        # Draft revenue (must NOT be counted)
+        draft_txn = self.make_transaction(transaction_number="REV-DRAFT", transaction_date="2026-09-01")
+        TransactionLine.objects.create(transaction=draft_txn, account=self.cash_account, debit=Decimal("9999.00"))
+        TransactionLine.objects.create(transaction=draft_txn, account=self.revenue_account, credit=Decimal("9999.00"))
+        # deliberately not posted
+
+        # Voided revenue (must NOT be counted)
+        void_txn = self.make_transaction(transaction_number="REV-VOID", transaction_date="2026-08-30")
+        TransactionLine.objects.create(transaction=void_txn, account=self.cash_account, debit=Decimal("9999.00"))
+        TransactionLine.objects.create(transaction=void_txn, account=self.revenue_account, credit=Decimal("9999.00"))
+        void_transaction(void_txn)
+
+        result = profit_loss({})
+        self.assertEqual(result["revenue"]["total"], "1000.00")
+
+    def test_profit_loss_date_range(self):
+        from .reports import profit_loss
+
+        in_range = self.make_transaction(transaction_number="REV-3", transaction_date="2026-08-15")
+        TransactionLine.objects.create(transaction=in_range, account=self.cash_account, debit=Decimal("1000.00"))
+        TransactionLine.objects.create(transaction=in_range, account=self.revenue_account, credit=Decimal("1000.00"))
+        post_transaction(in_range)
+
+        out_range = self.make_transaction(transaction_number="REV-4", transaction_date="2026-01-01")
+        TransactionLine.objects.create(transaction=out_range, account=self.cash_account, debit=Decimal("500.00"))
+        TransactionLine.objects.create(transaction=out_range, account=self.revenue_account, credit=Decimal("500.00"))
+        post_transaction(out_range)
+
+        result = profit_loss({"date_from": "2026-08-01", "date_to": "2026-08-31"})
+        self.assertEqual(result["revenue"]["total"], "1000.00")
+
+    def test_trend_groups_by_month(self):
+        from .reports import revenue_expense_trend
+
+        rev_txn = self.make_transaction(transaction_number="REV-5", transaction_date="2026-08-15")
+        TransactionLine.objects.create(transaction=rev_txn, account=self.cash_account, debit=Decimal("1000.00"))
+        TransactionLine.objects.create(transaction=rev_txn, account=self.revenue_account, credit=Decimal("1000.00"))
+        post_transaction(rev_txn)
+
+        aug_exp = self.make_transaction(transaction_number="EXP-2", transaction_date="2026-08-20")
+        TransactionLine.objects.create(transaction=aug_exp, account=self.expense_account, debit=Decimal("400.00"))
+        TransactionLine.objects.create(transaction=aug_exp, account=self.payable_account, credit=Decimal("400.00"))
+        post_transaction(aug_exp)
+
+        sep_exp = self.make_transaction(transaction_number="EXP-3", transaction_date="2026-09-05")
+        TransactionLine.objects.create(transaction=sep_exp, account=self.expense_account, debit=Decimal("100.00"))
+        TransactionLine.objects.create(transaction=sep_exp, account=self.payable_account, credit=Decimal("100.00"))
+        post_transaction(sep_exp)
+
+        series = revenue_expense_trend({})
+        by_month = {row["month"]: row for row in series}
+        self.assertEqual(by_month["2026-08"]["revenue"], "1000.00")
+        self.assertEqual(by_month["2026-08"]["expense"], "400.00")
+        self.assertEqual(by_month["2026-09"]["expense"], "100.00")
+
+
+class ReportAPITests(AccountingTestBase):
+    def setUp(self):
+        super().setUp()
+        django_user = DjangoUser.objects.create_user(username="reporter", password="pass12345")
+        self.client = APIClient()
+        self.client.force_authenticate(user=django_user)
+        self.expense_account = Account.objects.create(
+            code="5000", name="Operating Expense", account_type="Expense"
+        )
+        self.payable_account = Account.objects.create(
+            code="2000", name="Accounts Payable", account_type="Liability"
+        )
+
+    def _post_revenue_and_expense(self):
+        rev = self.make_transaction(transaction_number="REV-API", transaction_date="2026-08-15")
+        TransactionLine.objects.create(transaction=rev, account=self.cash_account, debit=Decimal("1000.00"))
+        TransactionLine.objects.create(transaction=rev, account=self.revenue_account, credit=Decimal("1000.00"))
+        post_transaction(rev)
+        exp = self.make_transaction(transaction_number="EXP-API", transaction_date="2026-08-20")
+        TransactionLine.objects.create(transaction=exp, account=self.expense_account, debit=Decimal("400.00"))
+        TransactionLine.objects.create(transaction=exp, account=self.payable_account, credit=Decimal("400.00"))
+        post_transaction(exp)
+
+    def test_profit_loss_endpoint(self):
+        self._post_revenue_and_expense()
+        response = self.client.get("/api/accounting/reports/profit-loss/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["revenue"]["total"], "1000.00")
+        self.assertEqual(data["expenses"]["total"], "400.00")
+        self.assertEqual(data["net_profit"], "600.00")
+
+    def test_trend_endpoint(self):
+        self._post_revenue_and_expense()
+        response = self.client.get("/api/accounting/reports/trend/")
+        self.assertEqual(response.status_code, 200)
+        by_month = {row["month"]: row for row in response.json()}
+        self.assertEqual(by_month["2026-08"]["revenue"], "1000.00")
+        self.assertEqual(by_month["2026-08"]["expense"], "400.00")
+
+    def test_report_endpoints_require_auth(self):
+        anon = APIClient()
+        self.assertEqual(anon.get("/api/accounting/reports/profit-loss/").status_code, 401)
+        self.assertEqual(anon.get("/api/accounting/reports/trend/").status_code, 401)

@@ -58,7 +58,7 @@ def partners_page(request):
 
 @login_required
 def procurement_page(request):
-    return _dashboard_page(request, "procurement", "procurement", purchase_orders=[])
+    return _dashboard_page(request, "procurement", "procurement")
 
 
 @login_required
@@ -79,6 +79,17 @@ def invoices_page(request):
 @login_required
 def payments_page(request):
     return _dashboard_page(request, "payments", "payments", payments=[])
+
+
+@login_required
+def accounting_page(request):
+    """
+    Accounting / Financial Transactions page (CPMAS-34). Renders a dashboard
+    view that talks to the /api/accounting/ endpoints (AccountViewSet,
+    FinancialTransactionViewSet, TransactionLineViewSet) for listing,
+    creating, editing, posting, and voiding journal entries.
+    """
+    return _dashboard_page(request, "accounting", "accounting")
 
 
 @login_required

@@ -27,6 +27,7 @@ urlpatterns = [
     path("workforce/", views.workforce_page, name="workforce"),
     path("invoices/", views.invoices_page, name="invoices"),
     path("payments/", views.payments_page, name="payments"),
+    path("accounting/", views.accounting_page, name="accounting"),
     path("expenses/", views.expenses_page, name="expenses"),
     path("reports/", views.reports_page, name="reports"),
     path("settings/", views.settings_page, name="settings"),

@@ -104,6 +104,7 @@
   /* ---- Detail dialog ---- */
   const dialog = $("[data-contractor-dialog]");
   let detailContractorId = null;
+  let detailContractor = null;
   let activeTab = "assignments";
   const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -111,6 +112,7 @@
     detailContractorId = id;
     try {
       const detail = await api(`${API}${id}/`);
+      detailContractor = detail;
       $("[data-detail-name]").textContent = detail.name || "—";
       $("[data-detail-company]").textContent = detail.company_name || "";
       $("[data-detail-phone]").textContent = detail.phone || "—";
@@ -261,11 +263,30 @@
   }
 
   function bindDialog() {
+    const actions = $(".contractor-dialog-actions");
+    actions.insertAdjacentHTML("afterbegin", '<button type="button" class="quiet-button" data-contractor-edit>Edit</button><button type="button" class="quiet-button" data-contractor-delete>Delete</button>');
+    $("[data-contractor-edit]").addEventListener("click", editContractor);
+    $("[data-contractor-delete]").addEventListener("click", deleteContractor);
     $("[data-contractor-close]").addEventListener("click", () => dialog.close());
     dialog.addEventListener("click", e => { if (e.target === dialog) dialog.close(); });
     $$("[data-tab]").forEach(btn => {
       btn.addEventListener("click", () => loadTab(btn.dataset.tab));
     });
+  }
+
+  async function editContractor() {
+    if (!detailContractor) return;
+    const name = prompt("Contractor name", detailContractor.name || ""); if (name === null) return;
+    const specialization = prompt("Specialization", detailContractor.specialization || ""); if (specialization === null) return;
+    const rate = prompt("Rate", detailContractor.rate || ""); if (rate === null) return;
+    try { await api(`${API}${detailContractorId}/`, { method: "PATCH", body: JSON.stringify({ name: name.trim(), specialization: specialization.trim(), rate: rate || null }) }); await refresh(); await openDetail(detailContractorId); }
+    catch (e) { alert("Could not update contractor: " + e.message); }
+  }
+
+  async function deleteContractor() {
+    if (!detailContractorId || !confirm("Delete this contractor? Existing protected assignments may prevent deletion.")) return;
+    try { await api(`${API}${detailContractorId}/`, { method: "DELETE" }); dialog.close(); await refresh(); }
+    catch (e) { alert("Could not delete contractor: " + e.message); }
   }
 
   /* ---- Create contractor ---- */

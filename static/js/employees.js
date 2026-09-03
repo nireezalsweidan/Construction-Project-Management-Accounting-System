@@ -99,6 +99,7 @@
   /* ---- Detail dialog ---- */
   const dialog = $("[data-employee-dialog]");
   let detailEmployeeId = null;
+  let detailEmployee = null;
   let activeTab = "assignments";
   const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -106,6 +107,7 @@
     detailEmployeeId = id;
     try {
       const detail = await api(`${API}${id}/`);
+      detailEmployee = detail;
       $("[data-detail-name]").textContent = detail.name || "—";
       $("[data-detail-number]").textContent = detail.employee_number || "";
       $("[data-detail-number-2]").textContent = detail.employee_number || "—";
@@ -230,11 +232,30 @@
   }
 
   function bindDialog() {
+    const actions = $(".employee-dialog-actions");
+    actions.insertAdjacentHTML("afterbegin", '<button type="button" class="quiet-button" data-employee-edit>Edit</button><button type="button" class="quiet-button" data-employee-delete>Delete</button>');
+    $("[data-employee-edit]").addEventListener("click", editEmployee);
+    $("[data-employee-delete]").addEventListener("click", deleteEmployee);
     $("[data-employee-close]").addEventListener("click", () => dialog.close());
     dialog.addEventListener("click", e => { if (e.target === dialog) dialog.close(); });
     $$("[data-tab]").forEach(btn => {
       btn.addEventListener("click", () => loadTab(btn.dataset.tab));
     });
+  }
+
+  async function editEmployee() {
+    if (!detailEmployee) return;
+    const name = prompt("Employee name", detailEmployee.name || ""); if (name === null) return;
+    const position = prompt("Position", detailEmployee.position || ""); if (position === null) return;
+    const rate = prompt("Labor rate", detailEmployee.labor_rate || ""); if (rate === null) return;
+    try { await api(`${API}${detailEmployeeId}/`, { method: "PATCH", body: JSON.stringify({ name: name.trim(), position: position.trim(), labor_rate: rate || null }) }); await refresh(); await openDetail(detailEmployeeId); }
+    catch (e) { alert("Could not update employee: " + e.message); }
+  }
+
+  async function deleteEmployee() {
+    if (!detailEmployeeId || !confirm("Delete this employee? Existing protected assignments may prevent deletion.")) return;
+    try { await api(`${API}${detailEmployeeId}/`, { method: "DELETE" }); dialog.close(); await refresh(); }
+    catch (e) { alert("Could not delete employee: " + e.message); }
   }
 
   /* ---- Create employee ---- */

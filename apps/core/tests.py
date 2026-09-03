@@ -33,6 +33,36 @@ class ReceiptsPageRenderTests(TestCase):
         self.assertTemplateUsed(response, "dashboard/receipts.html")
 
 
+class PaymentsPageRenderTests(TestCase):
+    """The Payments dashboard page hosts the Receipt history register whose
+    'View / PDF' action opens an in-app receipt preview dialog (rather than
+    a browser confirm) and offers a Download PDF link."""
+
+    def test_redirects_anonymous_user_to_login(self):
+        response = self.client.get("/payments/")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
+
+    def test_page_renders_for_authenticated_user(self):
+        DjangoUser.objects.create_user(username="apitester_payments", password="pass12345")
+        self.client.login(username="apitester_payments", password="pass12345")
+        response = self.client.get("/payments/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("Receipt history", content)
+        self.assertIn("data-inline-receipt-rows", content)
+
+    def test_receipt_preview_dialog_is_present(self):
+        DjangoUser.objects.create_user(username="apitester_payments2", password="pass12345")
+        self.client.login(username="apitester_payments2", password="pass12345")
+        response = self.client.get("/payments/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("data-receipt-preview-dialog", content)
+        self.assertIn("data-receipt-preview-download", content)
+        self.assertIn("data-receipt-preview-details", content)
+
+
 class PartnersPageRenderTests(TestCase):
     """The Clients & Partners dashboard page is server-rendered HTML whose
     table and metrics are filled at runtime by partners.js from the
@@ -77,6 +107,107 @@ class WorkforcePageRenderTests(TestCase):
         self.assertIn("workforce.css", content)
         self.assertIn("data-workforce-rows", content)
         self.assertIn("workforce-search-input", content)
+
+
+class ProcurementPageRenderTests(TestCase):
+    """The Procurement dashboard page is server-rendered HTML whose purchase
+    order / goods receiving tables and metrics are filled at runtime by
+    procurement.js from the /api/purchasing/ and /api/inventory/ endpoints.
+    Receiving is append-only: the page exposes no edit/delete UI and issues
+    no PATCH/PUT/DELETE for goods receipts."""
+
+    def test_redirects_anonymous_user_to_login(self):
+        response = self.client.get("/procurement/")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
+
+    def test_page_renders_for_authenticated_user(self):
+        DjangoUser.objects.create_user(username="apitester_procurement", password="pass12345")
+        self.client.login(username="apitester_procurement", password="pass12345")
+        response = self.client.get("/procurement/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("Procurement", content)
+        self.assertIn("procurement.js", content)
+        self.assertIn("procurement.css", content)
+        self.assertIn("data-po-rows", content)
+        self.assertIn("data-receipt-rows", content)
+        self.assertIn("data-receive-dialog", content)
+        self.assertIn("data-receipt-detail-dialog", content)
+        self.assertIn("data-receive-po-select", content)
+        self.assertNotIn("purchase_orders", content)
+
+
+class AccountingPageRenderTests(TestCase):
+    """The Accounting / Financial Transactions dashboard page is
+    server-rendered HTML whose journal table and metrics are filled at
+    runtime by accounting.js from the /api/accounting/ endpoints
+    (AccountViewSet, FinancialTransactionViewSet, TransactionLineViewSet).
+    The page is frontend-only against the existing backend: no models,
+    serializers, or viewsets are modified."""
+
+    def test_redirects_anonymous_user_to_login(self):
+        response = self.client.get("/accounting/")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
+
+    def test_page_renders_for_authenticated_user(self):
+        DjangoUser.objects.create_user(username="apitester_accounting", password="pass12345")
+        self.client.login(username="apitester_accounting", password="pass12345")
+        response = self.client.get("/accounting/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("Accounting", content)
+        self.assertIn("accounting.js", content)
+        self.assertIn("accounting.css", content)
+        self.assertIn("data-transaction-rows", content)
+        self.assertIn("data-open-create", content)
+        self.assertIn("data-txn-dialog", content)
+        self.assertIn("data-detail-dialog", content)
+        self.assertIn("data-metric", content)
+
+    def test_sidebar_contains_accounting_link(self):
+        DjangoUser.objects.create_user(username="apitester_accounting2", password="pass12345")
+        self.client.login(username="apitester_accounting2", password="pass12345")
+        response = self.client.get("/accounting/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("href=\"/accounting/\"", content)
+        self.assertIn(">Accounting</span>", content)
+
+
+class ReportsPageRenderTests(TestCase):
+    """The Reports / Decision Intelligence dashboard page is server-rendered
+    HTML whose report panels, stat cards, P&L, trend chart, aging buckets,
+    budget table, and transaction ledger are filled at runtime by reports.js
+    from the /api/accounting/reports/, /api/clients/clients/aging/, and
+    /api/projects/budgets/portfolio-summary/ endpoints."""
+
+    def test_redirects_anonymous_user_to_login(self):
+        response = self.client.get("/reports/")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
+
+    def test_page_renders_for_authenticated_user(self):
+        DjangoUser.objects.create_user(username="apitester_reports", password="pass12345")
+        self.client.login(username="apitester_reports", password="pass12345")
+        response = self.client.get("/reports/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("Reports", content)
+        self.assertIn("reports.js", content)
+        self.assertIn("reports.css", content)
+        self.assertIn("data-metric", content)
+        self.assertIn("data-report-nav", content)
+
+    def test_sidebar_contains_reports_link(self):
+        DjangoUser.objects.create_user(username="apitester_reports2", password="pass12345")
+        self.client.login(username="apitester_reports2", password="pass12345")
+        response = self.client.get("/reports/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("href=\"/reports/\"", content)
+        self.assertIn(">Reports</span>", content)
 
 
 class AppUserContextProcessorTests(WithUsersTableMixin, TestCase):

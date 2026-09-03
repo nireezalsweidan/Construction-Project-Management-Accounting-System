@@ -1,1 +1,72 @@
-{% extends "dashboard/base_dashboard.html" %}{% block title %}Procurement | Cedar Control{% endblock %}{% block dashboard_content %}<section class="page-heading"><div><p class="eyebrow">Operations</p><h1>Procurement</h1><p>Control purchase requests, orders, receiving, and supplier commitments.</p></div><button class="primary-button">＋ New purchase order</button></section><section class="module-stat-grid"><article class="module-stat tone-1"><span>Open purchase orders</span><strong>{{ open_orders|default:"14" }}</strong><em>Live overview</em></article><article class="module-stat tone-2"><span>Awaiting approval</span><strong>{{ awaiting_approval|default:"4" }}</strong><em>Needs attention</em></article><article class="module-stat tone-3"><span>Committed value</span><strong>{{ committed_value|default:"$684K" }}</strong><em>Current period</em></article><article class="module-stat tone-4"><span>Due this week</span><strong>{{ due_week|default:"6" }}</strong><em>Updated today</em></article></section><section class="panel table-panel module-table"><div class="filterbar"><div class="local-search">⌕ <span>Search procurement…</span></div><button class="quiet-button">Status: All</button><button class="quiet-button">Date range</button></div><div class="responsive-table"><table><thead><tr><th>Purchase order</th><th>Supplier</th><th>Project</th><th>Order date</th><th>Expected delivery</th><th>Value</th><th>Status</th></tr></thead><tbody>{% for order in purchase_orders %}<tr><td><strong>{{ order.number }}</strong><span>View details</span></td><td>{{ order.supplier }}</td><td>{{ order.project }}</td><td>{{ order.order_date }}</td><td>{{ order.expected_delivery }}</td><td>{{ order.total }}</td><td><span class="status {{ order.status|slugify }}"><i></i>{{ order.status }}</span></td></tr>{% empty %}<tr><td><strong>PO-0112</strong><span>View details</span></td><td>Mediterranean Steel</td><td>Cedar Heights</td><td>28 Aug 2026</td><td>12 Sep 2026</td><td>$92,600</td><td><span class="status in-progress"><i></i>Pending approval</span></td></tr><tr><td><strong>PO-0108</strong><span>View details</span></td><td>Cedars Electrical</td><td>Marina Pavilion</td><td>19 Aug 2026</td><td>03 Sep 2026</td><td>$84,200</td><td><span class="status partially-received"><i></i>Partially received</span></td></tr>{% endfor %}</tbody></table></div></section>{% endblock %}
+{% extends "dashboard/base_dashboard.html" %}
+{% load static %}
+{% block title %}Procurement | Cedar Control{% endblock %}
+{% block page_css %}<link rel="stylesheet" href="{% static 'css/procurement.css' %}">{% endblock %}
+{% block dashboard_content %}
+<section class="page-heading">
+  <div><p class="eyebrow">Operations</p><h1>Procurement</h1><p>Control purchase requests, orders, receiving, and supplier commitments.</p></div>
+  <div class="page-actions"><button class="primary-button" type="button" data-open-receive>＋ Receive goods</button><button class="quiet-button" type="button">＋ New purchase order</button></div>
+</section>
+
+<section class="module-stat-grid">
+  <article class="module-stat tone-1"><span>Open purchase orders</span><strong data-metric="open_pos">—</strong><em>Not cancelled or received</em></article>
+  <article class="module-stat tone-2"><span>Approved / receivable</span><strong data-metric="receivable">—</strong><em>Ready to receive</em></article>
+  <article class="module-stat tone-3"><span>Goods received</span><strong data-metric="goods_received">—</strong><em>Receipt records</em></article>
+  <article class="module-stat tone-4"><span>Awaiting delivery</span><strong data-metric="awaiting_delivery">—</strong><em>Approved, not fully received</em></article>
+</section>
+
+<section class="panel table-panel module-table">
+  <div class="filterbar">
+    <div class="local-search">⌕ <span>Search purchase orders…</span><input type="search" id="po-search-input" placeholder="PO number, supplier…" aria-label="Search purchase orders"></div>
+    <select class="quiet-button" data-po-status aria-label="Filter purchase orders by status"><option value="">Status: All</option><option value="DRAFT">Draft</option><option value="SUBMITTED">Submitted</option><option value="APPROVED">Approved</option><option value="PARTIALLY_RECEIVED">Partially received</option><option value="RECEIVED">Received</option><option value="CANCELLED">Cancelled</option></select>
+  </div>
+  <div class="responsive-table"><table>
+    <thead><tr><th>PO number</th><th>Supplier</th><th>Order date</th><th>Expected delivery</th><th>Value</th><th>Received</th><th>Status</th><th></th></tr></thead>
+    <tbody data-po-rows><tr class="empty-row"><td colspan="8"><b>Loading purchase orders…</b><span>Fetching from the purchasing API.</span></td></tr></tbody>
+  </table></div>
+</section>
+
+<section class="panel table-panel module-table">
+  <div class="filterbar">
+    <div class="local-search">⌕ <span>Search goods receipts…</span><input type="search" id="receipt-search-input" placeholder="Receipt number, PO number…" aria-label="Search goods receipts"></div>
+    <select class="quiet-button" data-receipt-po-filter aria-label="Filter goods receipts by purchase order"><option value="">Purchase order: All</option></select>
+  </div>
+  <div class="responsive-table"><table>
+    <thead><tr><th>Receipt number</th><th>Purchase order</th><th>Warehouse</th><th>Received date</th><th>Items</th><th>Notes</th><th></th></tr></thead>
+    <tbody data-receipt-rows><tr class="empty-row"><td colspan="7"><b>Loading goods receipts…</b><span>Fetching from the purchasing API.</span></td></tr></tbody>
+  </table></div>
+  <div class="procurement-pagination">
+    <button type="button" class="quiet-button" data-page-prev disabled>‹ Previous</button>
+    <span data-page-info>Page 1</span>
+    <button type="button" class="quiet-button" data-page-next disabled>Next ›</button>
+  </div>
+</section>
+
+<dialog class="procurement-dialog receive-dialog" data-receive-dialog>
+  <form data-receive-form>
+    <header><div><p class="eyebrow">GOODS RECEIVING</p><h2>Receive goods</h2><p class="receive-context">Record materials received against an approved purchase order.</p></div><button type="button" data-receive-close aria-label="Close">×</button></header>
+    <div class="receive-form-grid">
+      <label class="full">Purchase order *<select name="purchase_order" data-receive-po-select required><option value="">Select purchase order…</option></select></label>
+      <label>Warehouse *<select name="warehouse" data-warehouse-select required><option value="">Loading warehouses…</option></select></label>
+      <label>Receipt number *<input name="receipt_number" required maxlength="100" placeholder="GR-0001"></label>
+      <label>Received date *<input name="received_date" type="date" required></label>
+      <label class="full">Notes<textarea name="notes" rows="3" placeholder="Optional notes about this delivery"></textarea></label>
+    </div>
+    <div class="receive-items-wrap">
+      <div class="register-heading"><div><h2>Items</h2><p>Enter the quantity received for each line.</p></div></div>
+      <div class="responsive-table"><table><thead><tr><th>Material</th><th>Ordered</th><th>Received</th><th>Remaining</th><th>Qty to receive</th></tr></thead><tbody data-receive-items><tr class="empty-row"><td colspan="5">Select a purchase order to load its items.</td></tr></tbody></table></div>
+    </div>
+    <p class="form-error" data-receive-error hidden></p>
+    <footer><button type="button" class="quiet-button" data-receive-close>Cancel</button><button class="primary-button" type="submit" data-receive-submit>Receive goods</button></footer>
+  </form>
+</dialog>
+
+<dialog class="procurement-dialog receipt-detail-dialog" data-receipt-detail-dialog>
+  <div class="procurement-detail-shell">
+    <header><div><p class="eyebrow">RECEIPT RECORD</p><h2 data-receipt-detail-title>Receipt detail</h2></div><button type="button" data-receipt-detail-close aria-label="Close">×</button></header>
+    <div class="receive-fields" data-receipt-detail-fields><p>Loading receipt…</p></div>
+    <section><h3>Items</h3><div class="responsive-table"><table><thead><tr><th>Material</th><th>Received</th><th>Notes</th></tr></thead><tbody data-receipt-detail-items></tbody></table></div></section>
+  </div>
+</dialog>
+{% endblock %}
+{% block page_js %}<script src="{% static 'js/procurement.js' %}" defer></script>{% endblock %}

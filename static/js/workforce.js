@@ -1,150 +1,22 @@
-/* Workforce page.
-   A single view of the team pulled from the employees API: employee
-   profiles plus their active project assignments and labor rates. Rendered
-   as live metrics + a table instead of mock rows. */
+/* Workforce: employee profiles and their live project assignments. */
 (() => {
   "use strict";
-
-  const API = "/api/employees/";
-  const CURRENCY = "USD";
-
-  const $ = (sel, root = document) => root.querySelector(sel);
-  const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
-
-  const state = { employees: [], assignments: [], statusFilter: "all", search: "" };
-
-  function getCookie(name) {
-    const m = document.cookie.match(new RegExp("(^|;\\s*)" + name + "=([^;]*)"));
-    return m ? decodeURIComponent(m[2]) : "";
-  }
-
-  async function api(url, options = {}) {
-    const opts = { credentials: "same-origin", headers: { "Content-Type": "application/json", ...(options.headers || {}) }, ...options };
-    if (options.method && !["GET", "HEAD"].includes(options.method)) {
-      opts.headers["X-CSRFToken"] = getCookie("csrftoken");
-    }
-    const res = await fetch(url, opts);
-    if (!res.ok) {
-      let detail = res.statusText;
-      try { detail = JSON.stringify(await res.json()); } catch (e) { /* ignore */ }
-      throw new Error(`${res.status}: ${detail}`);
-    }
-    if (res.status === 204) return null;
-    return res.json();
-  }
-
-  async function fetchAll(url) {
-    const rows = [];
-    let next = url;
-    while (next) {
-      const data = await api(next);
-      rows.push(...(data.results || []));
-      next = data.next;
-    }
-    return rows;
-  }
-
-  const fmtMoney = v => {
-    const n = Number(v);
-    return Number.isFinite(n)
-      ? n.toLocaleString("en-US", { style: "currency", currency: CURRENCY, minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : `${CURRENCY} ${v || "0.00"}`;
-  };
-
-  const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
-  const statusPill = s => {
-    const safe = s || "ACTIVE";
-    const cls = safe === "ACTIVE" ? " active" : (safe === "TERMINATED" ? " warning" : "");
-    return `<span class="status${cls}"><i></i>${esc(safe)}</span>`;
-  };
-
-  function activeProject(assignments) {
-    const active = assignments.find(a => !a.released_at) || assignments[assignments.length - 1] || null;
-    if (!active) return "—";
-    return `${esc(active.project.name)}<span>${esc(active.project.code)}</span>`;
-  }
-
-  function renderRows() {
-    const tbody = $("[data-workforce-rows]");
-    let list = state.employees;
-    if (state.statusFilter !== "all") list = list.filter(e => e.employment_status === state.statusFilter);
-    const q = state.search.trim().toLowerCase();
-    if (q) list = list.filter(e => [e.name, e.employee_number, e.position, e.department, e.email].some(v => (v || "").toLowerCase().includes(q)));
-
-    if (!list.length) {
-      tbody.innerHTML = `<tr><td><strong>No team members found</strong><span>Try adjusting the search or status filter.</span></td><td>—</td><td>—</td><td>—</td><td>—</td><td><span class="status"><i></i>—</span></td></tr>`;
-      return;
-    }
-
-    tbody.innerHTML = list.map(e => {
-      const assigns = state.assignments[e.id] || [];
-      return `
-        <tr>
-          <td><strong>${esc(e.name)}</strong><span>${esc(e.employee_number)}</span></td>
-          <td>${esc(e.position || "—")}</td>
-          <td>${esc(e.department || "—")}</td>
-          <td>${activeProject(assigns)}</td>
-          <td>${e.labor_rate != null ? fmtMoney(e.labor_rate) : "—"}</td>
-          <td>${statusPill(e.employment_status)}</td>
-        </tr>`;
-    }).join("");
-  }
-
-  async function renderMetrics() {
-    const employees = state.employees;
-    $("[data-metric=active]").textContent = employees.filter(e => e.employment_status === "ACTIVE").length;
-    $("[data-metric=onleave]").textContent = employees.filter(e => e.employment_status === "ON_LEAVE").length;
-    const assignmentList = Object.values(state.assignments).flat();
-    $("[data-metric=assignments]").textContent = assignmentList.length;
-    const staffed = new Set(assignmentList.filter(a => !a.released_at).map(a => a.project.id));
-    $("[data-metric=projects]").textContent = staffed.size;
-  }
-
-  function bindFilters() {
-    $$("[data-status-filter]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        state.statusFilter = btn.dataset.statusFilter;
-        $$("[data-status-filter]").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        renderRows();
-      });
-    });
-    const searchInput = $("#workforce-search-input");
-    searchInput.addEventListener("input", () => { state.search = searchInput.value; renderRows(); });
-  }
-
-  async function loadAssignments(employee) {
-    try {
-      const data = await api(`${API}${employee.id}/projects/`);
-      return data;
-    } catch (e) {
-      return [];
-    }
-  }
-
-  async function loadEmployee(employee) {
-    try {
-      const detail = await api(`${API}${employee.id}/`);
-      const assigns = await loadAssignments(employee);
-      return { ...detail, assignments: assigns };
-    } catch (e) {
-      return { ...employee, labor_rate: null, assignments: [] };
-    }
-  }
-
-  document.addEventListener("DOMContentLoaded", async () => {
-    bindFilters();
-    try {
-      const list = await fetchAll(API);
-      const loaded = await Promise.all(list.map(loadEmployee));
-      state.employees = loaded;
-      state.assignments = {};
-      loaded.forEach(e => { state.assignments[e.id] = e.assignments || []; });
-      await renderMetrics();
-      renderRows();
-    } catch (e) {
-      $("[data-workforce-rows]").innerHTML = `<tr><td><strong>Could not load workforce</strong><span>${esc(e.message)}</span></td><td>—</td><td>—</td><td>—</td><td>—</td><td><span class="status"><i></i>—</span></td></tr>`;
-    }
-  });
+  const API="/api/employees/", $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+  const state={employees:[],assignments:{},statusFilter:"all",search:""};
+  const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const money=v=>Number(v||0).toLocaleString("en-US",{style:"currency",currency:"USD",minimumFractionDigits:2});
+  function cookie(name){const m=document.cookie.match(new RegExp("(^|;\\s*)"+name+"=([^;]*)"));return m?decodeURIComponent(m[2]):""}
+  async function api(url,options={}){const headers={"Content-Type":"application/json",...(options.headers||{})};if(options.method&&!['GET','HEAD'].includes(options.method))headers['X-CSRFToken']=cookie('csrftoken');const response=await fetch(url,{credentials:'same-origin',...options,headers});if(!response.ok){let detail=response.statusText;try{detail=JSON.stringify(await response.json())}catch(_){}throw new Error(`${response.status}: ${detail}`)}return response.status===204?null:response.json()}
+  async function all(url){const rows=[];while(url){const data=await api(url);if(Array.isArray(data))return data;rows.push(...(data.results||[]));url=data.next}return rows}
+  function status(value){const s=value||'ACTIVE';return `<span class="status${s==='ACTIVE'?' active':s==='TERMINATED'?' warning':''}"><i></i>${esc(s)}</span>`}
+  function projectCell(id){const list=state.assignments[id]||[],active=list.find(a=>!a.released_at)||list[0];return active?`${esc(active.project.name)}<span>${esc(active.project.code)}</span>`:'—'}
+  function render(){let list=state.employees;if(state.statusFilter!=='all')list=list.filter(x=>x.employment_status===state.statusFilter);const q=state.search.toLowerCase().trim();if(q)list=list.filter(x=>[x.name,x.employee_number,x.position,x.department,x.email].some(v=>(v||'').toLowerCase().includes(q)));const body=$("[data-workforce-rows]");body.innerHTML=list.length?list.map(x=>`<tr><td><strong>${esc(x.name)}</strong><span>${esc(x.employee_number)}</span></td><td>${esc(x.position||'—')}</td><td>${esc(x.department||'—')}</td><td>${projectCell(x.id)}</td><td>${x.labor_rate!=null?money(x.labor_rate):'—'}</td><td>${status(x.employment_status)} <button class="quiet-button" data-workforce-edit="${x.id}">Edit</button> <button class="quiet-button" data-workforce-delete="${x.id}">Delete</button></td></tr>`).join(''):'<tr><td colspan="6"><strong>No employees found.</strong></td></tr>';$$('[data-workforce-edit]',body).forEach(b=>b.onclick=()=>editEmployee(b.dataset.workforceEdit));$$('[data-workforce-delete]',body).forEach(b=>b.onclick=()=>deleteEmployee(b.dataset.workforceDelete));$("[data-metric=active]").textContent=state.employees.filter(x=>x.employment_status==='ACTIVE').length;$("[data-metric=onleave]").textContent=state.employees.filter(x=>x.employment_status==='ON_LEAVE').length;const assignments=Object.values(state.assignments).flat();$("[data-metric=assignments]").textContent=assignments.filter(a=>!a.released_at).length;$("[data-metric=projects]").textContent=new Set(assignments.filter(a=>!a.released_at).map(a=>a.project.id)).size}
+  const ask=(label,value='',required=false)=>{const result=prompt(label,value||'');if(result===null)return null;if(required&&!result.trim()){alert(`${label} is required.`);return null}return result.trim()};
+  function payload(current={}){const name=ask('Employee name',current.name,true);if(name===null)return null;const employee_number=ask('Employee number',current.employee_number,true);if(employee_number===null)return null;const phone=ask('Phone',current.phone);if(phone===null)return null;const email=ask('Email',current.email);if(email===null)return null;const position=ask('Position',current.position);if(position===null)return null;const department=ask('Department',current.department);if(department===null)return null;const labor_rate=ask('Labor rate',current.labor_rate);if(labor_rate===null)return null;const employment_status=ask('Status: ACTIVE, ON_LEAVE, or TERMINATED',current.employment_status||'ACTIVE',true);if(employment_status===null)return null;return{name,employee_number,phone,email,position,department,labor_rate:labor_rate||null,employment_status:employment_status.toUpperCase()}}
+  async function reload(){state.employees=await all(API);state.assignments={};await Promise.all(state.employees.map(async x=>{try{state.assignments[x.id]=await api(`${API}${x.id}/projects/`)}catch(_){state.assignments[x.id]=[]}}));render()}
+  async function addEmployee(){const data=payload();if(!data)return;try{await api(API,{method:'POST',body:JSON.stringify(data)});await reload()}catch(e){alert('Could not create employee: '+e.message)}}
+  async function editEmployee(id){try{const current=await api(`${API}${id}/`),data=payload(current);if(!data)return;await api(`${API}${id}/`,{method:'PATCH',body:JSON.stringify(data)});await reload()}catch(e){alert('Could not update employee: '+e.message)}}
+  async function deleteEmployee(id){if(!confirm('Delete this employee? Existing project assignments may prevent deletion.'))return;try{await api(`${API}${id}/`,{method:'DELETE'});await reload()}catch(e){alert('Could not delete employee: '+e.message)}}
+  function bind(){$("[data-workforce-add]").onclick=addEmployee;$$('[data-status-filter]').forEach(b=>b.onclick=()=>{state.statusFilter=b.dataset.statusFilter;$$('[data-status-filter]').forEach(x=>x.classList.remove('active'));b.classList.add('active');render()});$("#workforce-search-input").oninput=e=>{state.search=e.target.value;render()}}
+  document.addEventListener('DOMContentLoaded',async()=>{bind();try{await reload()}catch(e){$("[data-workforce-rows]").innerHTML=`<tr><td colspan="6"><strong>Could not load workforce</strong><span>${esc(e.message)}</span></td></tr>`}});
 })();
