@@ -1,3 +1,4 @@
+from django.contrib.auth import views as auth_views
 from django.urls import path
 
 from . import views
@@ -6,10 +7,16 @@ from . import views
 urlpatterns = [
     path("", views.landing, name="landing"),
     path("cedar-control/", views.cedar_control, name="cedar-control"),
-    path("accounts/login/", views.login, name="login"),
-    path("accounts/logout/", views.logout, name="logout"),
-    path("accounts/forgot-password/", views.forgot_password, name="forgot-password"),
-    path("accounts/reset-password/", views.reset_password, name="reset-password"),
+    path(
+        "accounts/login/",
+        auth_views.LoginView.as_view(template_name="registration/login.html"),
+        name="login",
+    ),
+    path(
+        "accounts/logout/",
+        auth_views.LogoutView.as_view(),
+        name="logout",
+    ),
     path("dashboard/", views.dashboard, name="dashboard"),
     path("projects/", views.projects_page, name="projects"),
     path("projects/<uuid:pk>/", views.project_detail, name="project-detail"),
