@@ -259,3 +259,68 @@ class UserManagementRbacTests(AuthApiBase):
         self.assertEqual(resp.data["username"], "explicit")
         created = User.objects.get(username="explicit")
         self.assertTrue(created.check_password("explicit-pass-123"))
+
+
+class AppUserSessionBridgingTests(WithUsersTableMixin, TestCase):
+    """
+    AppUserSessionMiddleware must present the app's ``users.User`` as
+    ``request.user`` -- never Django's built-in auth.User -- so that role-
+    based dashboard views (``request.user.is_owner`` /
+    ``request.user.is_accountant``) work even when the visitor signed in
+    through the Django admin and has no app session key.
+
+    Regression: a Django auth.User attached by AuthenticationMiddleware lacks
+    ``is_accountant`` and would crash ``apps.core.views.dashboard`` with an
+    AttributeError.
+    """
+
+    def _app_user(self, username="owner", role=Role.OWNER):
+        return User.objects.create(
+            username=username, email=f"{username}@example.com",
+            password_hash="x", first_name="O", last_name="W", role=role,
+        )
+
+    def test_django_auth_user_is_bridged_to_app_user(self):
+        from django.contrib.auth.models import User as DjangoUser
+        from django.test import RequestFactory
+
+        from .middleware import AppUserSessionMiddleware
+
+        self._app_user("mwb_owner", Role.OWNER)
+        django_user = DjangoUser.objects.create_user(username="mwb_owner", password="pass12345")
+
+        factory = RequestFactory()
+        request = factory.get("/dashboard/")
+        request.user = django_user
+
+        captured = {}
+
+        def get_response(req):
+            captured["user"] = req.user
+            return "ok"
+
+        middleware = AppUserSessionMiddleware(get_response)
+        middleware(request)
+        self.assertEqual(captured["user"].username, "mwb_owner")
+        self.assertTrue(captured["user"].is_owner)
+
+    def test_django_auth_user_without_matching_app_user_is_left_alone(self):
+        from django.contrib.auth.models import User as DjangoUser
+        from django.test import RequestFactory
+
+        from .middleware import AppUserSessionMiddleware
+
+        django_user = DjangoUser.objects.create_user(username="no_match", password="pass12345")
+        factory = RequestFactory()
+        request = factory.get("/dashboard/")
+        request.user = django_user
+
+        captured = {}
+
+        def get_response(req):
+            captured["user"] = req.user
+            return "ok"
+
+        AppUserSessionMiddleware(get_response)(request)
+        # no app users.User matches, so the Django user is left authenticating
+        self.assertEqual(captured["user"], django_user)
