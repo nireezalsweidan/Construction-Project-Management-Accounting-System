@@ -237,6 +237,14 @@
     bindFilters();
     try {
       await refresh();
+      // Deep link from the global search overlay (?open=<supplier-id>) --
+      // open that supplier's detail dialog, then drop the param so a
+      // manual refresh of the page doesn't keep reopening it.
+      const openId = new URLSearchParams(location.search).get("open");
+      if (openId) {
+        openDetail(openId);
+        history.replaceState(null, "", location.pathname);
+      }
     } catch (e) {
       $("[data-supplier-rows]").innerHTML = `<tr><td><strong>Could not load suppliers</strong><span>${esc(e.message)}</span></td><td>—</td><td>—</td><td>—</td><td><span class="status"><i></i>—</span></td></tr>`;
     }

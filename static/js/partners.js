@@ -93,7 +93,7 @@
     }
 
     tbody.innerHTML = list.map(r => `
-      <tr data-partner-row>
+      <tr data-partner-row${r.type === "client" ? ` class="row-click" data-client-id="${r.id}"` : ""}>
         <td><strong>${esc(r.name)}</strong><span>${esc(r.company || r.label)}</span></td>
         <td><span class="partner-type">${r.label}</span></td>
         <td>${esc(r.contact || "—")}</td>
@@ -104,6 +104,12 @@
     // Fetch open balances for the visible rows only (avoids N+1 over the whole dataset).
     const visible = [...list].slice(0, 60);
     visible.forEach(r => loadBalance(r.type, r.id));
+
+    // Clients are the only type with a detail view so far (see openClientDetail) --
+    // Suppliers/Contractors already have their own dedicated pages.
+    $$("[data-client-id]", tbody).forEach(row => {
+      row.addEventListener("click", () => openClientDetail(row.dataset.clientId));
+    });
   }
 
   async function loadBalance(type, id) {
@@ -138,6 +144,77 @@
     }
   }
 
+  /* ---- Client detail dialog ---- */
+  const clientDialog = $("[data-client-dialog]");
+  let detailClientId = null;
+
+  async function openClientDetail(id) {
+    detailClientId = id;
+    try {
+      const [detail, balance] = await Promise.all([
+        api(`${API.clients}${id}/`),
+        api(`${API.clients}${id}/balance/`),
+      ]);
+      $("[data-client-detail-name]").textContent = detail.name || "—";
+      $("[data-client-detail-company]").textContent = detail.company_name || "";
+      $("[data-client-detail-phone]").textContent = detail.phone || "—";
+      $("[data-client-detail-email]").textContent = detail.email || "—";
+      $("[data-client-detail-tax]").textContent = detail.tax_id || "—";
+      $("[data-client-detail-address]").textContent = detail.address || "—";
+      $("[data-client-detail-notes]").textContent = detail.notes || "—";
+      $("[data-client-detail-outstanding]").textContent = fmtMoney(balance.outstanding_balance);
+      clientDialog.showModal();
+      loadClientTab("projects");
+    } catch (e) {
+      alert("Could not load client: " + e.message);
+    }
+  }
+
+  const clientTabMeta = {
+    projects: {
+      label: "Projects",
+      cols: ["Code", "Name", "Status", "Contract value", "Start date"],
+      get: p => [{ v: esc(p.code) }, { v: esc(p.name) }, { v: esc(p.status) }, { v: fmtMoney(p.contract_value) }, { v: esc(p.start_date || "—") }],
+    },
+    invoices: {
+      label: "Invoices",
+      cols: ["Invoice #", "Date", "Due", "Total", "Status"],
+      get: i => [{ v: esc(i.invoice_number) }, { v: esc(i.invoice_date) }, { v: esc(i.due_date || "—") }, { v: fmtMoney(i.total_amount) }, { v: esc(i.status) }],
+    },
+    payments: {
+      label: "Payments",
+      cols: ["Payment #", "Date", "Method", "Amount", "Reference"],
+      get: p => [{ v: esc(p.payment_number) }, { v: esc(p.payment_date) }, { v: esc(p.payment_method) }, { v: fmtMoney(p.amount) }, { v: esc(p.reference || "—") }],
+    },
+  };
+
+  async function loadClientTab(tab) {
+    const panel = $("[data-client-tab-panel]");
+    const meta = clientTabMeta[tab];
+    panel.innerHTML = `<table><thead><tr>${meta.cols.map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody><tr><td colspan="${meta.cols.length}"><strong>Loading ${meta.label.toLowerCase()}…</strong></td></tr></tbody></table>`;
+    try {
+      const rows = await api(`${API.clients}${detailClientId}/${tab}/`);
+      if (!rows.length) {
+        panel.innerHTML = `<table><thead><tr>${meta.cols.map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody><tr><td colspan="${meta.cols.length}"><strong>No ${meta.label.toLowerCase()} recorded for this client.</strong></td></tr></tbody></table>`;
+        return;
+      }
+      panel.innerHTML = `<table><thead><tr>${meta.cols.map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${meta.get(r).map(c => `<td>${c.v}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+    } catch (e) {
+      panel.innerHTML = `<table><thead><tr>${meta.cols.map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody><tr><td colspan="${meta.cols.length}"><strong>Error: ${esc(e.message)}</strong></td></tr></tbody></table>`;
+    }
+  }
+
+  function bindClientDialog() {
+    $("[data-client-close]").addEventListener("click", () => clientDialog.close());
+    clientDialog.addEventListener("click", e => { if (e.target === clientDialog) clientDialog.close(); });
+    $$("[data-client-tab]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        $$("[data-client-tab]").forEach(b => b.classList.toggle("active", b === btn));
+        loadClientTab(btn.dataset.clientTab);
+      });
+    });
+  }
+
   function bindFilters() {
     $$("[data-type-filter]").forEach(btn => {
       btn.addEventListener("click", () => {
@@ -153,6 +230,7 @@
 
   document.addEventListener("DOMContentLoaded", async () => {
     bindFilters();
+    bindClientDialog();
     try {
       const [clients, suppliers, contractors] = await Promise.all([
         fetchAll(API.clients),
@@ -164,6 +242,15 @@
       state.contractors = contractors;
       await renderMetrics();
       renderRows();
+
+      // Deep link from the global search overlay (?open_client=<id>) --
+      // open that client's detail dialog, then drop the param so a
+      // manual refresh doesn't keep reopening it.
+      const openClientId = new URLSearchParams(location.search).get("open_client");
+      if (openClientId) {
+        openClientDetail(openClientId);
+        history.replaceState(null, "", location.pathname);
+      }
     } catch (e) {
       $("[data-partner-rows]").innerHTML = `<tr><td><strong>Could not load partners</strong><span>${esc(e.message)}</span></td><td>—</td><td>—</td><td>—</td><td><span class="status"><i></i>—</span></td></tr>`;
     }
