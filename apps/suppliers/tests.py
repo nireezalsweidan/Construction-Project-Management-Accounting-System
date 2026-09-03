@@ -317,7 +317,7 @@ class SupplierSummaryTests(SupplierAPITestBase):
         self.assertEqual(data["outstanding_balance"], "1100.00")
 
 
-class SupplierPageRenderTests(TestCase):
+class SupplierPageRenderTests(WithUsersTableMixin, TestCase):
     """The dashboard Suppliers page is server-rendered HTML + client-side JS
     that speaks to the /api/suppliers API. These tests confirm the page
     renders and the view is auth-protected; the JS itself is exercised in
@@ -328,8 +328,18 @@ class SupplierPageRenderTests(TestCase):
         self.assertEqual(response.status_code, 302)  # redirect to login
 
     def test_page_renders_for_authenticated_user(self):
-        user = DjangoUser.objects.create_user(username="owner", password="pass12345")
-        self.client.force_login(user)
+        # /suppliers/ is @owner_required, which reads request.user.is_owner --
+        # only a real users.User (via the app's own login view) has that;
+        # force_login()/self.client.login() attach a plain
+        # django.contrib.auth.User instead, which AppUserSessionMiddleware
+        # only bridges when request.user is still anonymous.
+        owner = User.objects.create(
+            username="owner_pagetest", email="owner_pagetest@example.com", password_hash="x",
+            first_name="O", last_name="W", role="OWNER",
+        )
+        owner.set_password("pass12345")
+        owner.save(update_fields=["password_hash"])
+        self.client.post("/accounts/login/", {"username": "owner_pagetest", "password": "pass12345"})
         response = self.client.get("/suppliers/")
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
