@@ -4,7 +4,8 @@ Tests for the ``users`` app -- Authentication & Authorization (RBAC).
 Covers:
 - Service/model: password hashing (set_password/check_password), role flags,
   and the stateless reset-token generator.
-- Auth API: login, logout, profile (get/patch), change-password.
+- Auth API: login (JWT), logout, profile (get/patch),
+  change-password, token refresh.
 - Password reset API: request (emails a reset link) and complete (reset
   with uid + token).
 - RBAC: non-Owner users cannot reach Owner-only user management.
@@ -63,28 +64,30 @@ class AuthApiBase(WithUsersTableMixin, TestCase):
         self.acc.save()
 
     def login(self, username, password):
-        return self.client.post("/api/auth/login/",
+        """Login and set the Bearer token header on the client."""
+        resp = self.client.post("/api/auth/login/",
                                 {"username": username, "password": password},
                                 format="json")
+        if resp.status_code == status.HTTP_200_OK:
+            token = resp.data["access"]
+            self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+        return resp
 
 
 class LoginLogoutTests(AuthApiBase):
-    def test_login_by_username_sets_session(self):
+    def test_login_returns_jwt_tokens(self):
         resp = self.login("owner", "owner-pass-123")
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        self.assertEqual(resp.data["user"]["username"], "owner")
-        # Session now holds the logged-in user.
-        me = self.client.get("/api/auth/me/")
-        self.assertEqual(me.status_code, status.HTTP_200_OK)
-        self.assertEqual(me.data["username"], "owner")
+        self.assertIn("access", resp.data)
+        self.assertIn("refresh", resp.data)
+        self.assertIsInstance(resp.data["access"], str)
+        self.assertIsInstance(resp.data["refresh"], str)
 
     def test_login_is_case_insensitive_on_username(self):
         resp = self.login("OWNER", "owner-pass-123")
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
 
     def test_login_by_email_is_not_supported(self):
-        # Login is username-only (auto-created emails are @cedar.com and not
-        # real addresses), so supplying an email must not authenticate.
         resp = self.login("owner@example.com", "owner-pass-123")
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -98,16 +101,33 @@ class LoginLogoutTests(AuthApiBase):
         resp = self.login("owner", "owner-pass-123")
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_logout_clears_session(self):
+    def test_me_works_with_bearer_token(self):
         self.login("owner", "owner-pass-123")
-        resp = self.client.post("/api/auth/logout/")
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
         me = self.client.get("/api/auth/me/")
-        self.assertEqual(me.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(me.status_code, status.HTTP_200_OK)
+        self.assertEqual(me.data["username"], "owner")
 
+    def test_me_fails_without_token(self):
+        self.client.credentials()  # clear any credentials
+        resp = self.client.get("/api/auth/me/")
+        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_logout_succeeds(self):
+        self.login("owner", "owner-pass-123")
+        logout_resp = self.client.post("/api/auth/logout/")
+        self.assertEqual(logout_resp.status_code, status.HTTP_200_OK)
+
+    def test_token_refresh_returns_new_access(self):
+        resp = self.login("owner", "owner-pass-123")
+        refresh = resp.data["refresh"]
+        refresh_resp = self.client.post("/api/auth/token/refresh/",
+                                        {"refresh": refresh}, format="json")
+        self.assertEqual(refresh_resp.status_code, status.HTTP_200_OK)
+        self.assertIn("access", refresh_resp.data)
 
 class MeProfileTests(AuthApiBase):
     def test_unauthenticated_me_fails(self):
+        self.client.credentials()
         resp = self.client.get("/api/auth/me/")
         self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -182,6 +202,7 @@ class PasswordResetTests(AuthApiBase):
 
 class UserManagementRbacTests(AuthApiBase):
     def test_unauthenticated_cannot_list_users(self):
+        self.client.credentials()
         resp = self.client.get("/api/auth/users/")
         self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -220,31 +241,39 @@ class UserManagementRbacTests(AuthApiBase):
         self.acc.refresh_from_db()
         self.assertTrue(self.acc.is_active)
 
-    def test_create_auto_generates_username_email_and_password(self):
+    def test_create_auto_generates_username_and_password(self):
+        self.login("owner", "owner-pass-123")
+        resp = self.client.post("/api/auth/users/",
+                                {"first_name": "First", "last_name": "User",
+                                 "role": Role.ACCOUNTANT,
+                                 "email": "first.user@gmail.com"},
+                                format="json")
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(resp.data["username"], "first-user")
+        self.assertEqual(resp.data["email"], "first.user@gmail.com")
+        self.assertNotIn("password", resp.data)
+        created = User.objects.get(username="first-user")
+        self.assertTrue(created.password_hash)
+        self.assertFalse(created.check_password("first-user"))
+
+    def test_create_requires_email(self):
         self.login("owner", "owner-pass-123")
         resp = self.client.post("/api/auth/users/",
                                 {"first_name": "First", "last_name": "User",
                                  "role": Role.ACCOUNTANT},
                                 format="json")
-        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
-        # username -> firstname-lastname; email -> firstname.lastname@cedar.com
-        self.assertEqual(resp.data["username"], "first-user")
-        self.assertEqual(resp.data["email"], "first.user@cedar.com")
-        self.assertNotIn("password", resp.data)
-        created = User.objects.get(username="first-user")
-        # A password was generated and hashed (never plaintext).
-        self.assertTrue(created.password_hash)
-        self.assertFalse(created.check_password("first-user"))
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_create_emails_credentials(self):
+    def test_create_emails_credentials_to_supplied_email(self):
         self.login("owner", "owner-pass-123")
         resp = self.client.post("/api/auth/users/",
                                 {"first_name": "Mail", "last_name": "Recipient",
-                                 "role": Role.OWNER},
+                                 "role": Role.OWNER,
+                                 "email": "mail.recipient@gmail.com"},
                                 format="json")
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
         self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, ["mail.recipient@cedar.com"])
+        self.assertEqual(mail.outbox[0].to, ["mail.recipient@gmail.com"])
         self.assertIn("Username:", mail.outbox[0].body)
         self.assertIn("Password:", mail.outbox[0].body)
 

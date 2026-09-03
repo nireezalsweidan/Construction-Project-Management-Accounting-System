@@ -1,0 +1,81 @@
+{% extends "dashboard/base_dashboard.html" %}
+{% load static %}
+{% block title %}My profile | Cedar Construction{% endblock %}
+{% block page_css %}<link rel="stylesheet" href="{% static 'css/profile.css' %}">{% endblock %}
+{% block dashboard_content %}
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">ACCOUNT</p>
+    <h1>My profile</h1>
+    <p>View and edit your account details and change your password.</p>
+  </div>
+</section>
+
+{% if saved %}<div class="profile-banner">{{ saved }}</div>{% endif %}
+{% if error %}<div class="profile-banner error">{{ error }}</div>{% endif %}
+
+<section class="panel profile-panel">
+  <div class="profile-head">
+    <div class="profile-avatar">{{ user.get_full_name|default:user.username|slice:":2"|upper }}</div>
+    <div>
+      <h2>{{ user.get_full_name|default:user.username }}</h2>
+      <p><span class="profile-badge {% if user.is_owner %}owner{% else %}accountant{% endif %}">{{ user.get_role_display }}</span> <small>@{{ user.username }}</small></p>
+    </div>
+  </div>
+
+  <form method="post" action="{% url 'profile' %}" class="profile-form">
+    {% csrf_token %}
+    <input type="hidden" name="form_action" value="profile">
+    <div class="profile-form-grid">
+      <label>First name *<input type="text" name="first_name" required value="{{ user.first_name }}"></label>
+      <label>Last name *<input type="text" name="last_name" required value="{{ user.last_name }}"></label>
+      <label>Email *<input type="email" name="email" required value="{{ user.email }}"></label>
+      <label>Phone<input type="tel" name="phone" value="{{ user.phone|default:'' }}"></label>
+      <label>Role<span class="profile-readonly">{{ user.get_role_display }}</span></label>
+      <label>Username<span class="profile-readonly">@{{ user.username }}</span></label>
+    </div>
+    <div class="profile-form-actions">
+      <button type="submit" class="primary-button">Save changes</button>
+    </div>
+  </form>
+
+  <div class="profile-divider"></div>
+
+  <div class="profile-subhead"><h3>Change password</h3><p>Set a new password by entering it twice below.</p></div>
+  <form method="post" action="{% url 'profile' %}" class="profile-form">
+    {% csrf_token %}
+    <input type="hidden" name="form_action" value="password">
+    <div class="profile-form-grid">
+      <label>New password *
+        <span class="password-field">
+          <input type="password" name="new_password" required minlength="8" autocomplete="new-password">
+          <button type="button" class="password-toggle" aria-label="Show password" data-password-toggle>Show</button>
+        </span>
+      </label>
+      <label>Confirm new password *
+        <span class="password-field">
+          <input type="password" name="confirm_password" required minlength="8" autocomplete="new-password">
+          <button type="button" class="password-toggle" aria-label="Show password" data-password-toggle>Show</button>
+        </span>
+      </label>
+    </div>
+    <div class="profile-form-actions">
+      <button type="submit" class="primary-button">Change password</button>
+    </div>
+  </form>
+</section>
+{% endblock %}
+
+{% block page_js %}<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("[data-password-toggle]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var input = btn.parentElement.querySelector("input");
+        var show = input.type === "password";
+        input.type = show ? "text" : "password";
+        btn.textContent = show ? "Hide" : "Show";
+        btn.setAttribute("aria-label", show ? "Hide password" : "Show password");
+      });
+    });
+  });
+</script>{% endblock %}

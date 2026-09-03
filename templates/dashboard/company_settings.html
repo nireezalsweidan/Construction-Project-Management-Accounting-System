@@ -1,7 +1,7 @@
 {% extends "dashboard/base_dashboard.html" %}
 {% load static %}
 {% block title %}Company settings | Cedar Control{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'css/company_settings.css' %}">{% endblock %}
+{% block page_css %}<link rel="stylesheet" href="{% static 'css/company_settings.css' %}">{% endblock %}
 {% block dashboard_content %}
 <section class="page-heading">
   <div>
@@ -9,7 +9,7 @@
     <h1>Company settings</h1>
     <p>Configure company identity, access, accounting rules, taxes, and notifications.</p>
   </div>
-  <button class="button" type="submit" form="company-settings-form" data-save-top>Save changes</button>
+  <button class="primary-button" type="submit" form="company-settings-form" data-save-top>Save changes</button>
 </section>
 
 {% if saved %}<div class="settings-banner">✓ Company profile saved.</div>{% endif %}
@@ -30,14 +30,16 @@
       <div><h2>Company profile</h2><p>Used on invoices, receipts, reports, and official documents</p></div>
     </div>
 
-    <form id="company-settings-form" method="post" enctype="multipart/form-data" action="{% url 'company-settings' %}">
+    <form id="company-settings-form" method="post" enctype="multipart/form-data" action="{% url 'settings' %}">
       {% csrf_token %}
       <div class="settings-form-grid">
         <div class="settings-logo-col">
-          <div class="settings-logo">{{ profile.initials|default:"CC" }}</div>
-          <input type="file" id="settings-logo-input" name="logo" accept=".png,.svg" hidden>
+          <div class="settings-logo" id="settings-logo-preview">
+            {% if profile.logo %}<img class="brand-logo" src="{{ profile.logo }}" alt="Company logo">{% else %}{{ profile.initials|default:"CC" }}{% endif %}
+          </div>
+          <input type="file" id="settings-logo-input" name="logo" accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml" hidden>
           <button class="settings-logo-replace" type="button" data-logo-replace>Replace logo</button>
-          <small>PNG or SVG</small>
+          <small>PNG, JPG, or SVG</small>
         </div>
 
         <div class="settings-form">
@@ -65,14 +67,85 @@
 
       <div class="settings-form-actions">
         <button type="button" data-settings-cancel>Cancel</button>
-        <button type="submit" class="button">Save company profile</button>
+        <button type="submit" class="primary-button">Save company profile</button>
       </div>
     </form>
   </div>
 
   <div class="settings-pane" data-settings-pane="users">
-    <div class="settings-pane-head"><div><h2>Users &amp; roles</h2><p>Internal system accounts and their access levels</p></div></div>
-    <div class="settings-placeholder">User management is ready to connect to the users &amp; permissions API. Accounts are internal employees with Owner / Accountant roles — suppliers and clients are data records, not logins.</div>
+    <input type="hidden" id="current-user-id" value="{{ current_user_id }}">
+    <div class="settings-pane-head">
+      <div><h2>Users &amp; roles</h2><p>Internal system accounts and their access levels</p></div>
+      <button type="button" class="users-add-btn" data-users-open-add>+ Add user</button>
+    </div>
+
+    <div class="users-toolbar">
+      <input type="text" class="users-search" data-users-search placeholder="Search by name, email, username or role…">
+      <span class="users-count" data-users-count></span>
+    </div>
+
+    <div class="users-table-wrap">
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Last login</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody data-users-body></tbody>
+      </table>
+      <div class="users-empty" data-users-empty>No users match your search.</div>
+      <div class="users-loading" data-users-loading>Loading users…</div>
+    </div>
+
+    <div class="users-banner" data-users-banner hidden></div>
+
+    <div class="users-modal" data-users-modal hidden>
+      <div class="users-modal-card">
+        <div class="users-modal-head">
+          <h3 data-users-modal-title>Add user</h3>
+          <button type="button" class="users-modal-close" data-users-modal-close>×</button>
+        </div>
+        <form data-users-form>
+          <input type="hidden" name="id" data-users-field="id">
+          <div class="users-form-grid">
+            <label>First name *
+              <input type="text" name="first_name" data-users-field="first_name" required>
+            </label>
+            <label>Last name *
+              <input type="text" name="last_name" data-users-field="last_name" required>
+            </label>
+            <label>Email *
+              <input type="email" name="email" data-users-field="email" required>
+            </label>
+            <label>Phone
+              <input type="tel" name="phone" data-users-field="phone">
+            </label>
+            <label>Role *
+              <select name="role" data-users-field="role">
+                <option value="OWNER">Owner</option>
+                <option value="ACCOUNTANT">Accountant</option>
+              </select>
+            </label>
+            <label>Status
+              <select name="is_active" data-users-field="is_active">
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+            </label>
+          </div>
+          <p class="users-create-hint" data-users-create-hint>Username and password are generated automatically and emailed to the address above.</p>
+          <div class="users-form-actions">
+            <button type="button" class="users-modal-cancel" data-users-modal-close>Cancel</button>
+            <button type="submit" class="primary-button" data-users-save>Save user</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 
   <div class="settings-pane" data-settings-pane="financial">

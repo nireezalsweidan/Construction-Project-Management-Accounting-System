@@ -2,7 +2,8 @@
 Views for the ``suppliers`` app -- Supplier Management API.
 
 ``SupplierViewSet`` gives authenticated users (Owner/Accountant, per the
-existing DRF SessionAuthentication + IsAuthenticated setup) a CRUD surface
+existing DRF JWT-bearer authentication via ``JwtUserAuthentication`` +
+IsAuthenticated setup) a CRUD surface
 for the Supplier master record plus read-only detail actions onto the
 supplier's financial activity: purchase orders, invoices, outgoing
 payments, and the outstanding payable balance.

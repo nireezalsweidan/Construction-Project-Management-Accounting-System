@@ -23,11 +23,11 @@ urlpatterns = [
     path("accounting/", views.accounting_page, name="accounting"),
     path("expenses/", views.expenses_page, name="expenses"),
     path("reports/", views.reports_page, name="reports"),
-    path("settings/", views.settings_page, name="settings"),
+    path("settings/", views.company_settings, name="settings"),
+    path("profile/", views.profile, name="profile"),
     path("dashboard/<slug:module>/", views.module_page, name="module-page"),
     path("suppliers/", views.suppliers, name="suppliers"),
     path("contractors/", views.contractors, name="contractors"),
     path("employees/", views.employees, name="employees"),
     path("receipts/", views.receipts_page, name="receipts"),
-    path("settings/company/", views.company_settings, name="company-settings"),
 ]

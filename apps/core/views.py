@@ -5,6 +5,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from company.models import DEFAULT_CURRENCY_UUID, CompanyProfile
+from company.storage import SupabaseStorageError, upload_logo
 
 from users.authentication import SESSION_USER_ID_KEY
 from users.models import User
@@ -237,11 +238,6 @@ def reports_page(request):
 
 
 @login_required
-def settings_page(request):
-    return _dashboard_page(request, "settings", "settings")
-
-
-@login_required
 def module_page(request, module):
     """Render a shared placeholder until each module owns its page."""
     return render(
@@ -299,6 +295,53 @@ def _company_profile_form_value(request, key, required=False):
 
 
 @login_required
+def profile(request):
+    """
+    My profile page: view and edit profile details (name/email/phone; role
+    is read-only) and change the user's password. POST handles either the
+    profile form (fields below with a ``profile_action`` marker) or the
+    password form (``change-password``). Accessible to any authenticated
+    user (Owner or Accountant); each user edits only their own account.
+    """
+    user = request.user
+    error = None
+    success = None
+
+    if request.method == "POST":
+        submitted_action = request.POST.get("form_action")
+        if submitted_action == "password":
+            new_password = request.POST.get("new_password") or ""
+            confirm = request.POST.get("confirm_password") or ""
+            if len(new_password) < 8:
+                error = "New password must be at least 8 characters long."
+            elif new_password != confirm:
+                error = "The new passwords you entered do not match."
+            else:
+                user.set_password(new_password)
+                user.save(update_fields=["password_hash", "updated_at"])
+                success = "Password changed successfully."
+        else:
+            first_name = (request.POST.get("first_name") or "").strip()
+            last_name = (request.POST.get("last_name") or "").strip()
+            email = (request.POST.get("email") or "").strip()
+            if not first_name or not last_name or not email:
+                error = "First name, last name and email are required."
+            else:
+                user.first_name = first_name
+                user.last_name = last_name
+                user.email = email
+                user.phone = (request.POST.get("phone") or "").strip() or None
+                user.save(update_fields=["first_name", "last_name", "email", "phone", "updated_at"])
+                success = "Profile updated successfully."
+
+    return render(
+        request,
+        "dashboard/profile.html",
+        {"active_page": "profile", "user": user, "error": error, "saved": success},
+    )
+
+
+@login_required
 def company_settings(request):
     """
     Administration -> Company settings page.
@@ -329,18 +372,21 @@ def company_settings(request):
             }
             logo_file = request.FILES.get("logo")
             if logo_file:
-                data["logo"] = logo_file.name
-
-            if profile is None:
-                profile = CompanyProfile.objects.create(currency=DEFAULT_CURRENCY_UUID, **data)
-            else:
-                for field, value in data.items():
-                    setattr(profile, field, value)
-                profile.save(update_fields=list(data.keys()) + ["updated_at"])
-            return redirect(f"{reverse('company-settings')}?saved=1")
+                try:
+                    data["logo"] = upload_logo(logo_file)
+                except SupabaseStorageError as exc:
+                    error = f"Could not upload logo: {exc}"
+            if error is None:
+                if profile is None:
+                    profile = CompanyProfile.objects.create(currency=DEFAULT_CURRENCY_UUID, **data)
+                else:
+                    for field, value in data.items():
+                        setattr(profile, field, value)
+                    profile.save(update_fields=list(data.keys()) + ["updated_at"])
+                return redirect(f"{reverse('settings')}?saved=1")
 
     return render(
         request,
         "dashboard/company_settings.html",
-        {"active_page": "settings", "profile": profile, "saved": request.GET.get("saved") == "1", "error": error},
+        {"active_page": "settings", "profile": profile, "current_user_id": str(request.user.id), "saved": request.GET.get("saved") == "1", "error": error},
     )
