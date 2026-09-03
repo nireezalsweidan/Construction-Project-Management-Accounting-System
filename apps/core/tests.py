@@ -93,7 +93,7 @@ class ReceiptsPageRenderTests(TestCase):
         self.assertTemplateUsed(response, "dashboard/receipts.html")
 
 
-class PartnersPageRenderTests(TestCase):
+class PartnersPageRenderTests(WithUsersTableMixin, TestCase):
     """The Clients & Partners dashboard page is server-rendered HTML whose
     table and metrics are filled at runtime by partners.js from the
     /api/clients/, /api/suppliers/ and /api/contractors/ endpoints."""
@@ -104,8 +104,17 @@ class PartnersPageRenderTests(TestCase):
         self.assertIn("/accounts/login/", response.url)
 
     def test_page_renders_for_authenticated_user(self):
-        DjangoUser.objects.create_user(username="apitester_partners", password="pass12345")
-        self.client.login(username="apitester_partners", password="pass12345")
+        # /partners/ is @owner_required, which reads request.user.is_owner --
+        # only a real users.User (via the app's own login view) has that;
+        # a plain django.contrib.auth.User (self.client.login()) doesn't get
+        # bridged unless it's already anonymous, per AppUserSessionMiddleware.
+        owner = AppUser.objects.create(
+            username="apitester_partners", email="partners@example.com", password_hash="x",
+            first_name="P", last_name="T", role="OWNER",
+        )
+        owner.set_password("pass12345")
+        owner.save(update_fields=["password_hash"])
+        self.client.post("/accounts/login/", {"username": "apitester_partners", "password": "pass12345"})
         response = self.client.get("/partners/")
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
@@ -116,7 +125,7 @@ class PartnersPageRenderTests(TestCase):
         self.assertIn("partner-search-input", content)
 
 
-class WorkforcePageRenderTests(TestCase):
+class WorkforcePageRenderTests(WithUsersTableMixin, TestCase):
     """The Workforce dashboard page is server-rendered HTML whose table and
     metrics are filled at runtime by workforce.js from the /api/employees/
     endpoint (and each employee's project assignments)."""
@@ -127,8 +136,14 @@ class WorkforcePageRenderTests(TestCase):
         self.assertIn("/accounts/login/", response.url)
 
     def test_page_renders_for_authenticated_user(self):
-        DjangoUser.objects.create_user(username="apitester_workforce", password="pass12345")
-        self.client.login(username="apitester_workforce", password="pass12345")
+        # See PartnersPageRenderTests -- /workforce/ is @owner_required too.
+        owner = AppUser.objects.create(
+            username="apitester_workforce", email="workforce@example.com", password_hash="x",
+            first_name="W", last_name="F", role="OWNER",
+        )
+        owner.set_password("pass12345")
+        owner.save(update_fields=["password_hash"])
+        self.client.post("/accounts/login/", {"username": "apitester_workforce", "password": "pass12345"})
         response = self.client.get("/workforce/")
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
@@ -164,6 +179,17 @@ class AppUserContextProcessorTests(WithUsersTableMixin, TestCase):
         )
         request = self.factory.get("/")
         request.user = django_user
+        self.assertEqual(app_user(request), {"app_user_id": str(app_user_row.id)})
+
+    def test_request_user_already_an_app_user_skips_the_lookup(self):
+        # The common case since users.middleware.AppUserSessionMiddleware:
+        # request.user is already the real users.User -- no DB lookup needed.
+        app_user_row = AppUser.objects.create(
+            username="already.bridged", email="already@example.com", password_hash="x",
+            first_name="A", last_name="B", role="OWNER",
+        )
+        request = self.factory.get("/")
+        request.user = app_user_row
         self.assertEqual(app_user(request), {"app_user_id": str(app_user_row.id)})
 
 
