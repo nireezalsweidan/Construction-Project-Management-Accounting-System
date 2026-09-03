@@ -16,7 +16,7 @@ that session key and assigns it to ``request.user``. That single change makes
 template variable all behave correctly for app users, so server-rendered
 pages and the DRF API authenticate the same people.
 """
-from .authentication import SESSION_USER_ID_KEY
+from .authentication import SESSION_USER_ID_KEY, UserSessionAuthentication
 from .models import User
 
 
@@ -28,7 +28,17 @@ class AppUserSessionMiddleware:
 
     def __call__(self, request):
         user = getattr(request, 'user', None)
-        if user is None or getattr(user, 'is_anonymous', False):
+        if user is not None and not getattr(user, 'is_anonymous', True) and not isinstance(user, User):
+            # HTML dashboard requests do not pass through DRF authentication.
+            # Apply the same Django-user -> schema-user bridge here that the
+            # API uses, otherwise role-aware views receive auth.User and fail
+            # when reading is_owner/is_accountant.
+            resolved = User.objects.filter(username=user.get_username(), is_active=True).first()
+            if resolved is None:
+                resolved = UserSessionAuthentication._finance_identity_for_web_user(user)
+            if isinstance(resolved, User):
+                request.user = resolved
+        elif user is None or getattr(user, 'is_anonymous', False):
             resolved = self._resolve_from_session(request)
             if resolved is not None:
                 request.user = resolved

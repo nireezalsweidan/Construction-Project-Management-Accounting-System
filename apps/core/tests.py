@@ -272,3 +272,18 @@ class RoleRoutingTests(WithUsersTableMixin, TestCase):
         self._login("accountant", "accountant-pass-123")
         response = self.client.get("/invoices/")
         self.assertEqual(response.status_code, 200)
+
+    def test_django_superuser_is_bridged_before_dashboard_role_routing(self):
+        DjangoUser.objects.create_superuser(
+            username="web-owner",
+            email="web-owner@example.com",
+            password="owner-pass-123",
+        )
+        self.client.login(username="web-owner", password="owner-pass-123")
+
+        response = self.client.get("/dashboard/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "dashboard/overview.html")
+        bridged = AppUser.objects.get(username="web-owner")
+        self.assertTrue(bridged.is_owner)
