@@ -52,7 +52,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const navIcons = [
     "layout-dashboard", "folder-kanban", "clipboard-check", "briefcase-business",
-    "package-check", "boxes", "users",
+    "package-check", "boxes", "warehouse", "users",
     "file-text", "wallet-cards", "receipt", "circle-dollar-sign", "trending-up", "settings",
   ];
   document.querySelectorAll(".nav-item > b").forEach((node, index) => icon(node, navIcons[index]));
