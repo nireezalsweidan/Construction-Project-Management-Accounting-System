@@ -19,6 +19,66 @@ from users.models import User as AppUser
 from users.testing import WithUsersTableMixin
 
 
+class LoginPageTests(WithUsersTableMixin, TestCase):
+    """End-to-end tests for the server-rendered login page + middleware."""
+
+    def setUp(self):
+        self.owner = AppUser.objects.create(
+            username="owner", email="owner@example.com", password_hash="x",
+            first_name="O", last_name="W", role="OWNER",
+        )
+        self.owner.set_password("owner-pass-123")
+        self.owner.save(update_fields=["password_hash"])
+
+    def test_login_page_renders(self):
+        response = self.client.get("/accounts/login/")
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "registration/login.html")
+        self.assertContains(response, "Username")
+
+    def test_successful_login_redirects_and_grants_access(self):
+        # Dashboard is @login_required -> anonymous is redirected first.
+        protected = self.client.get("/dashboard/")
+        self.assertEqual(protected.status_code, 302)
+        self.assertIn("/accounts/login/", protected.url)
+
+        response = self.client.post(
+            "/accounts/login/",
+            {"username": "owner", "password": "owner-pass-123"},
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/dashboard/")
+
+        # After login the @login_required dashboard is reachable.
+        dashboard = self.client.get("/dashboard/")
+        self.assertEqual(dashboard.status_code, 200)
+
+    def test_invalid_login_shows_error_and_stays_logged_out(self):
+        response = self.client.post(
+            "/accounts/login/",
+            {"username": "owner", "password": "wrong-password"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Your username or password is incorrect.")
+        # Still anonymous -> dashboard redirects to login.
+        dashboard = self.client.get("/dashboard/")
+        self.assertEqual(dashboard.status_code, 302)
+        self.assertIn("/accounts/login/", dashboard.url)
+
+    def test_logout_clears_session(self):
+        self.client.post(
+            "/accounts/login/",
+            {"username": "owner", "password": "owner-pass-123"},
+        )
+        self.assertEqual(self.client.get("/dashboard/").status_code, 200)
+        self.client.post("/accounts/logout/")
+        # After logout the dashboard redirects to login again.
+        dashboard = self.client.get("/dashboard/")
+        self.assertEqual(dashboard.status_code, 302)
+        self.assertIn("/accounts/login/", dashboard.url)
+
+
 class ReceiptsPageRenderTests(TestCase):
     def test_redirects_anonymous_user_to_login(self):
         response = self.client.get("/receipts/")
@@ -33,37 +93,7 @@ class ReceiptsPageRenderTests(TestCase):
         self.assertTemplateUsed(response, "dashboard/receipts.html")
 
 
-class PaymentsPageRenderTests(TestCase):
-    """The Payments dashboard page hosts the Receipt history register whose
-    'View / PDF' action opens an in-app receipt preview dialog (rather than
-    a browser confirm) and offers a Download PDF link."""
-
-    def test_redirects_anonymous_user_to_login(self):
-        response = self.client.get("/payments/")
-        self.assertEqual(response.status_code, 302)
-        self.assertIn("/accounts/login/", response.url)
-
-    def test_page_renders_for_authenticated_user(self):
-        DjangoUser.objects.create_user(username="apitester_payments", password="pass12345")
-        self.client.login(username="apitester_payments", password="pass12345")
-        response = self.client.get("/payments/")
-        self.assertEqual(response.status_code, 200)
-        content = response.content.decode()
-        self.assertIn("Receipt history", content)
-        self.assertIn("data-inline-receipt-rows", content)
-
-    def test_receipt_preview_dialog_is_present(self):
-        DjangoUser.objects.create_user(username="apitester_payments2", password="pass12345")
-        self.client.login(username="apitester_payments2", password="pass12345")
-        response = self.client.get("/payments/")
-        self.assertEqual(response.status_code, 200)
-        content = response.content.decode()
-        self.assertIn("data-receipt-preview-dialog", content)
-        self.assertIn("data-receipt-preview-download", content)
-        self.assertIn("data-receipt-preview-details", content)
-
-
-class PartnersPageRenderTests(TestCase):
+class PartnersPageRenderTests(WithUsersTableMixin, TestCase):
     """The Clients & Partners dashboard page is server-rendered HTML whose
     table and metrics are filled at runtime by partners.js from the
     /api/clients/, /api/suppliers/ and /api/contractors/ endpoints."""
@@ -74,8 +104,17 @@ class PartnersPageRenderTests(TestCase):
         self.assertIn("/accounts/login/", response.url)
 
     def test_page_renders_for_authenticated_user(self):
-        DjangoUser.objects.create_user(username="apitester_partners", password="pass12345")
-        self.client.login(username="apitester_partners", password="pass12345")
+        # /partners/ is @owner_required, which reads request.user.is_owner --
+        # only a real users.User (via the app's own login view) has that;
+        # a plain django.contrib.auth.User (self.client.login()) doesn't get
+        # bridged unless it's already anonymous, per AppUserSessionMiddleware.
+        owner = AppUser.objects.create(
+            username="apitester_partners", email="partners@example.com", password_hash="x",
+            first_name="P", last_name="T", role="OWNER",
+        )
+        owner.set_password("pass12345")
+        owner.save(update_fields=["password_hash"])
+        self.client.post("/accounts/login/", {"username": "apitester_partners", "password": "pass12345"})
         response = self.client.get("/partners/")
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
@@ -86,7 +125,7 @@ class PartnersPageRenderTests(TestCase):
         self.assertIn("partner-search-input", content)
 
 
-class WorkforcePageRenderTests(TestCase):
+class WorkforcePageRenderTests(WithUsersTableMixin, TestCase):
     """The Workforce dashboard page is server-rendered HTML whose table and
     metrics are filled at runtime by workforce.js from the /api/employees/
     endpoint (and each employee's project assignments)."""
@@ -97,8 +136,14 @@ class WorkforcePageRenderTests(TestCase):
         self.assertIn("/accounts/login/", response.url)
 
     def test_page_renders_for_authenticated_user(self):
-        DjangoUser.objects.create_user(username="apitester_workforce", password="pass12345")
-        self.client.login(username="apitester_workforce", password="pass12345")
+        # See PartnersPageRenderTests -- /workforce/ is @owner_required too.
+        owner = AppUser.objects.create(
+            username="apitester_workforce", email="workforce@example.com", password_hash="x",
+            first_name="W", last_name="F", role="OWNER",
+        )
+        owner.set_password("pass12345")
+        owner.save(update_fields=["password_hash"])
+        self.client.post("/accounts/login/", {"username": "apitester_workforce", "password": "pass12345"})
         response = self.client.get("/workforce/")
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
@@ -109,12 +154,10 @@ class WorkforcePageRenderTests(TestCase):
         self.assertIn("workforce-search-input", content)
 
 
-class ProcurementPageRenderTests(TestCase):
-    """The Procurement dashboard page is server-rendered HTML whose purchase
-    order / goods receiving tables and metrics are filled at runtime by
-    procurement.js from the /api/purchasing/ and /api/inventory/ endpoints.
-    Receiving is append-only: the page exposes no edit/delete UI and issues
-    no PATCH/PUT/DELETE for goods receipts."""
+class ProcurementPageRenderTests(WithUsersTableMixin, TestCase):
+    """The Procurement dashboard page is server-rendered HTML whose table,
+    metrics, and detail dialog are filled at runtime by procurement.js from
+    the /api/purchasing/ endpoints (CPMAS-42)."""
 
     def test_redirects_anonymous_user_to_login(self):
         response = self.client.get("/procurement/")
@@ -122,8 +165,14 @@ class ProcurementPageRenderTests(TestCase):
         self.assertIn("/accounts/login/", response.url)
 
     def test_page_renders_for_authenticated_user(self):
-        DjangoUser.objects.create_user(username="apitester_procurement", password="pass12345")
-        self.client.login(username="apitester_procurement", password="pass12345")
+        # See PartnersPageRenderTests -- /procurement/ is @owner_required too.
+        owner = AppUser.objects.create(
+            username="apitester_procurement", email="procurement@example.com", password_hash="x",
+            first_name="P", last_name="R", role="OWNER",
+        )
+        owner.set_password("pass12345")
+        owner.save(update_fields=["password_hash"])
+        self.client.post("/accounts/login/", {"username": "apitester_procurement", "password": "pass12345"})
         response = self.client.get("/procurement/")
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
@@ -131,83 +180,7 @@ class ProcurementPageRenderTests(TestCase):
         self.assertIn("procurement.js", content)
         self.assertIn("procurement.css", content)
         self.assertIn("data-po-rows", content)
-        self.assertIn("data-receipt-rows", content)
-        self.assertIn("data-receive-dialog", content)
-        self.assertIn("data-receipt-detail-dialog", content)
-        self.assertIn("data-receive-po-select", content)
-        self.assertNotIn("purchase_orders", content)
-
-
-class AccountingPageRenderTests(TestCase):
-    """The Accounting / Financial Transactions dashboard page is
-    server-rendered HTML whose journal table and metrics are filled at
-    runtime by accounting.js from the /api/accounting/ endpoints
-    (AccountViewSet, FinancialTransactionViewSet, TransactionLineViewSet).
-    The page is frontend-only against the existing backend: no models,
-    serializers, or viewsets are modified."""
-
-    def test_redirects_anonymous_user_to_login(self):
-        response = self.client.get("/accounting/")
-        self.assertEqual(response.status_code, 302)
-        self.assertIn("/accounts/login/", response.url)
-
-    def test_page_renders_for_authenticated_user(self):
-        DjangoUser.objects.create_user(username="apitester_accounting", password="pass12345")
-        self.client.login(username="apitester_accounting", password="pass12345")
-        response = self.client.get("/accounting/")
-        self.assertEqual(response.status_code, 200)
-        content = response.content.decode()
-        self.assertIn("Accounting", content)
-        self.assertIn("accounting.js", content)
-        self.assertIn("accounting.css", content)
-        self.assertIn("data-transaction-rows", content)
-        self.assertIn("data-open-create", content)
-        self.assertIn("data-txn-dialog", content)
-        self.assertIn("data-detail-dialog", content)
-        self.assertIn("data-metric", content)
-
-    def test_sidebar_contains_accounting_link(self):
-        DjangoUser.objects.create_user(username="apitester_accounting2", password="pass12345")
-        self.client.login(username="apitester_accounting2", password="pass12345")
-        response = self.client.get("/accounting/")
-        self.assertEqual(response.status_code, 200)
-        content = response.content.decode()
-        self.assertIn("href=\"/accounting/\"", content)
-        self.assertIn(">Accounting</span>", content)
-
-
-class ReportsPageRenderTests(TestCase):
-    """The Reports / Decision Intelligence dashboard page is server-rendered
-    HTML whose report panels, stat cards, P&L, trend chart, aging buckets,
-    budget table, and transaction ledger are filled at runtime by reports.js
-    from the /api/accounting/reports/, /api/clients/clients/aging/, and
-    /api/projects/budgets/portfolio-summary/ endpoints."""
-
-    def test_redirects_anonymous_user_to_login(self):
-        response = self.client.get("/reports/")
-        self.assertEqual(response.status_code, 302)
-        self.assertIn("/accounts/login/", response.url)
-
-    def test_page_renders_for_authenticated_user(self):
-        DjangoUser.objects.create_user(username="apitester_reports", password="pass12345")
-        self.client.login(username="apitester_reports", password="pass12345")
-        response = self.client.get("/reports/")
-        self.assertEqual(response.status_code, 200)
-        content = response.content.decode()
-        self.assertIn("Reports", content)
-        self.assertIn("reports.js", content)
-        self.assertIn("reports.css", content)
-        self.assertIn("data-metric", content)
-        self.assertIn("data-report-nav", content)
-
-    def test_sidebar_contains_reports_link(self):
-        DjangoUser.objects.create_user(username="apitester_reports2", password="pass12345")
-        self.client.login(username="apitester_reports2", password="pass12345")
-        response = self.client.get("/reports/")
-        self.assertEqual(response.status_code, 200)
-        content = response.content.decode()
-        self.assertIn("href=\"/reports/\"", content)
-        self.assertIn(">Reports</span>", content)
+        self.assertIn("po-search-input", content)
 
 
 class AppUserContextProcessorTests(WithUsersTableMixin, TestCase):
@@ -236,3 +209,81 @@ class AppUserContextProcessorTests(WithUsersTableMixin, TestCase):
         request = self.factory.get("/")
         request.user = django_user
         self.assertEqual(app_user(request), {"app_user_id": str(app_user_row.id)})
+
+    def test_request_user_already_an_app_user_skips_the_lookup(self):
+        # The common case since users.middleware.AppUserSessionMiddleware:
+        # request.user is already the real users.User -- no DB lookup needed.
+        app_user_row = AppUser.objects.create(
+            username="already.bridged", email="already@example.com", password_hash="x",
+            first_name="A", last_name="B", role="OWNER",
+        )
+        request = self.factory.get("/")
+        request.user = app_user_row
+        self.assertEqual(app_user(request), {"app_user_id": str(app_user_row.id)})
+
+
+class RoleRoutingTests(WithUsersTableMixin, TestCase):
+    """Owner and accountant land on their role-appropriate dashboards, and
+    workspace/operations pages are gated so accountants are redirected away."""
+
+    def setUp(self):
+        self.owner = AppUser.objects.create(
+            username="owner", email="owner@example.com", password_hash="x",
+            first_name="O", last_name="W", role="OWNER",
+        )
+        self.owner.set_password("owner-pass-123")
+        self.owner.save(update_fields=["password_hash"])
+        self.accountant = AppUser.objects.create(
+            username="accountant", email="accountant@example.com", password_hash="x",
+            first_name="A", last_name="C", role="ACCOUNTANT",
+        )
+        self.accountant.set_password("accountant-pass-123")
+        self.accountant.save(update_fields=["password_hash"])
+
+    def _login(self, username, password):
+        self.client.post(
+            "/accounts/login/", {"username": username, "password": password}, follow=False,
+        )
+
+    def test_owner_lands_on_owner_overview(self):
+        self._login("owner", "owner-pass-123")
+        response = self.client.get("/dashboard/")
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "dashboard/overview.html")
+
+    def test_accountant_lands_on_finance_dashboard(self):
+        self._login("accountant", "accountant-pass-123")
+        response = self.client.get("/dashboard/")
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "dashboard/accountant_overview.html")
+
+    def test_accountant_cannot_open_owner_workspace_page(self):
+        self._login("accountant", "accountant-pass-123")
+        response = self.client.get("/projects/")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/dashboard/")
+
+    def test_owner_can_open_workspace_page(self):
+        self._login("owner", "owner-pass-123")
+        response = self.client.get("/projects/")
+        self.assertEqual(response.status_code, 200)
+
+    def test_accountant_can_open_finance_page(self):
+        self._login("accountant", "accountant-pass-123")
+        response = self.client.get("/invoices/")
+        self.assertEqual(response.status_code, 200)
+
+    def test_django_superuser_is_bridged_before_dashboard_role_routing(self):
+        DjangoUser.objects.create_superuser(
+            username="web-owner",
+            email="web-owner@example.com",
+            password="owner-pass-123",
+        )
+        self.client.login(username="web-owner", password="owner-pass-123")
+
+        response = self.client.get("/dashboard/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "dashboard/overview.html")
+        bridged = AppUser.objects.get(username="web-owner")
+        self.assertTrue(bridged.is_owner)

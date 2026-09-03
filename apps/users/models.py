@@ -109,3 +109,7 @@ class User(models.Model):
     @property
     def is_authenticated(self) -> bool:
         return True
+
+    def get_username(self) -> str:
+        """Duck-typed Django auth interface used by templates/context processors."""
+        return self.username
