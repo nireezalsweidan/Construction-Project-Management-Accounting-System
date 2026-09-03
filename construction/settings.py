@@ -101,6 +101,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'users.middleware.JwtCookieRefreshMiddleware',
     'users.middleware.AppUserSessionMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -281,6 +282,7 @@ PASSWORD_RESET_TIMEOUT = int(os.getenv('PASSWORD_RESET_TIMEOUT', '259200'))
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'users.authentication.JwtUserAuthentication',
+        'users.authentication.JwtCookieAuthentication',
         'users.authentication.UserSessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -308,3 +310,9 @@ SIMPLE_JWT = {
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
 }
+
+# JWT placed in HttpOnly cookies (see users.authentication). Secure defaults
+# to False so local HTTP development works; set JWT_COOKIE_SECURE=True and
+# appropriate SameSite for production (HTTPS).
+JWT_COOKIE_SECURE = os.getenv('JWT_COOKIE_SECURE', '').lower() in ('1', 'true', 'yes', 'on')
+JWT_COOKIE_SAMESITE = os.getenv('JWT_COOKIE_SAMESITE', 'Lax')

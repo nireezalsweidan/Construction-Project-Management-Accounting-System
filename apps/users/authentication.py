@@ -25,6 +25,98 @@ from .models import Role, User
 # pretend to be, a Django auth.User session.
 SESSION_USER_ID_KEY = '_users_user_id'
 
+# Name of the HttpOnly cookies that carry the JWT pair for browser sessions.
+# Reading the token from a cookie gives the stateless benefits of JWT on the
+# backend while standard browser navigations and API calls work out of the
+# box (the browser attaches the cookie automatically, no JS refactor needed).
+ACCESS_COOKIE = 'access_token'
+REFRESH_COOKIE = 'refresh_token'
+
+
+def _set_jwt_cookies(response, access_token, refresh_token=None, max_age=None):
+    """Attach the JWT tokens to an HTTP response as HttpOnly cookies.
+
+    ``path='/'`` makes them valid for the whole site. ``max_age`` defaults to
+    the SimpleJWT lifetimes when not provided. secure/SameSite are left to the
+    caller's deployment policy via settings (kept permissive here so local
+    HTTP development works; production should set Secure + SameSite=Lax).
+    """
+    secure = getattr(settings, 'JWT_COOKIE_SECURE', False)
+    samesite = getattr(settings, 'JWT_COOKIE_SAMESITE', 'Lax')
+    if access_token:
+        response.set_cookie(
+            ACCESS_COOKIE, access_token, max_age=max_age, path='/',
+            httponly=True, secure=secure, samesite=samesite,
+        )
+    if refresh_token:
+        response.set_cookie(
+            REFRESH_COOKIE, refresh_token, max_age=max_age, path='/',
+            httponly=True, secure=secure, samesite=samesite,
+        )
+    return response
+
+
+def _clear_jwt_cookies(response):
+    """Delete the JWT cookies from a response (used on logout)."""
+    response.delete_cookie(ACCESS_COOKIE, path='/')
+    response.delete_cookie(REFRESH_COOKIE, path='/')
+    return response
+
+
+def _resolve_user_from_jwt_token(raw_token):
+    """Validate a JWT access token and return the matching users.User.
+
+    Used by JwtCookieAuthentication and the page-protection middleware to
+    resolve the authenticated user from an access-token cookie/string without
+    re-implementing signature + expiry checks.
+    """
+    if not raw_token:
+        return None
+    try:
+        validated = _SimpleJwtAuth().get_validated_token(raw_token)
+    except Exception:
+        return None
+    user_id = validated.get('user_id')
+    if user_id is None:
+        return None
+    try:
+        user = User.objects.get(pk=user_id)
+    except (User.DoesNotExist, ValueError, TypeError):
+        return None
+    if not user.is_active:
+        return None
+    return user
+
+
+def refresh_access_from_refresh_token(raw_refresh, user=None):
+    """Return a fresh access-token string from a valid refresh token.
+
+    Used for silent browser refresh: when the access cookie has expired but a
+    valid refresh cookie remains, mint a new access token and (optionally) a
+    new refresh token. On the auth ``/token/refresh/`` endpoint too, we could
+    reuse this, but here it backs the middleware. Returns ``None`` if the
+    refresh token is invalid/expired or its user is inactive.
+    """
+    if not raw_refresh:
+        return None
+    from rest_framework_simplejwt.tokens import RefreshToken
+    try:
+        refresh = RefreshToken(raw_refresh)
+    except Exception:
+        return None
+    if user is None:
+        target = refresh.get('user_id')
+        try:
+            user = User.objects.get(pk=target)
+        except (User.DoesNotExist, ValueError, TypeError):
+            return None
+    if user is None or not user.is_active:
+        return None
+    return {
+        'access': str(refresh.access_token),
+        'user': user,
+    }
+
 
 def _csrf_required(request) -> bool:
     """
@@ -145,3 +237,25 @@ class JwtUserAuthentication(_SimpleJwtAuth):
             return User.objects.get(pk=user_id)
         except User.DoesNotExist:
             return None
+
+
+class JwtCookieAuthentication(_SimpleJwtAuth):
+    """
+    DRF authentication that reads the JWT access token from an HttpOnly
+    cookie instead of the Authorization header.
+
+    The browser receives the pair as HttpOnly cookies at login, so it sends
+    them automatically on every request. This class lets the DRF API trust
+    that cookie just like it would a ``Bearer`` header -- no client-side JS
+    has to read or attach tokens. Resolves ``users.User`` (UUID PK), same as
+    ``JwtUserAuthentication``.
+    """
+
+    def authenticate(self, request):
+        raw_token = request.COOKIES.get(ACCESS_COOKIE)
+        if not raw_token:
+            return None
+        user = _resolve_user_from_jwt_token(raw_token)
+        if user is None:
+            return None
+        return user, None

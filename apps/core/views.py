@@ -7,9 +7,13 @@ from django.views.decorators.http import require_POST
 from company.models import DEFAULT_CURRENCY_UUID, CompanyProfile
 from company.storage import SupabaseStorageError, upload_logo
 
-from users.authentication import SESSION_USER_ID_KEY
+from users.authentication import SESSION_USER_ID_KEY, _set_jwt_cookies, _clear_jwt_cookies
 from users.models import User
-from users.serializers import RequestPasswordResetSerializer, ResetPasswordSerializer
+from users.serializers import (
+    JwtLoginSerializer,
+    RequestPasswordResetSerializer,
+    ResetPasswordSerializer,
+)
 from users.services import get_user_from_uid, send_password_reset_email
 from users.tokens import default_token_generator
 
@@ -31,9 +35,10 @@ def login(request):
     This is the server-rendered counterpart of the /api/auth/login/ endpoint:
     it validates a username + password against the app's own ``users.User``
     (the same model the DRF API uses) and, on success, records the login in
-    the Django session. ``users.middleware.AppUserSessionMiddleware`` then
-    resolves ``request.user`` from that session so ``@login_required`` and the
-    dashboard treat the user as authenticated.
+    the Django session AND sets the JWT pair as HttpOnly cookies. The JWT
+    cookies give API calls stateless auth automatically (the browser sends
+    them on every request); the session + AppUserSessionMiddleware keep
+    ``@login_required`` and the dashboard working on standard navigations.
     """
     error = None
     redirect_to = request.POST.get("next") or request.GET.get("next") or reverse("dashboard")
@@ -47,7 +52,14 @@ def login(request):
             request.user = user
             user.last_login = timezone.now()
             user.save(update_fields=["last_login"])
-            return redirect(redirect_to)
+            response = redirect(redirect_to)
+            # Set the JWT access (+ refresh) as HttpOnly cookies so the browser
+            # authenticates the API layer from the cookie, no JS token handling.
+            tokens = JwtLoginSerializer(data={"username": username, "password": password})
+            if tokens.is_valid():
+                payload = tokens.get_tokens()
+                _set_jwt_cookies(response, payload["access"], payload["refresh"])
+            return response
         error = "Your username or password is incorrect."
     return render(request, "registration/login.html", {"error": error, "next": redirect_to})
 
@@ -55,7 +67,9 @@ def login(request):
 @require_POST
 def logout(request):
     request.session.flush()
-    return redirect(reverse("landing"))
+    response = redirect(reverse("landing"))
+    _clear_jwt_cookies(response)
+    return response
 
 
 def forgot_password(request):

@@ -18,8 +18,52 @@ attached a built-in auth.User. That single change makes ``@login_required``,
 correctly for app users, so server-rendered pages and the DRF API
 authenticate the same people.
 """
-from .authentication import SESSION_USER_ID_KEY
+from .authentication import (
+    ACCESS_COOKIE,
+    REFRESH_COOKIE,
+    SESSION_USER_ID_KEY,
+    _resolve_user_from_jwt_token,
+    _set_jwt_cookies,
+    refresh_access_from_refresh_token,
+)
 from .models import User
+
+
+class JwtCookieRefreshMiddleware:
+    """Rotate an expired access-token cookie using the refresh-token cookie.
+
+    ``simplejwt`` access tokens are short-lived (30 min). When the access
+    cookie has expired but a valid ``refresh_token`` cookie is still present,
+    this middleware mints a new access token and attaches a refreshed
+    ``access_token`` cookie to the response -- transparently on every request,
+    with no client-side JS. This is the silent-refresh equivalent for cookie
+    auth. It also sets ``request.user`` from the refresh token so the
+    downstream ``AppUserSessionMiddleware``/views stay authenticated.
+
+    Order matters: it must run before ``AppUserSessionMiddleware`` so that
+    middleware can pick up a user resolved here.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        raw_access = request.COOKIES.get(ACCESS_COOKIE)
+        # Good access cookie -> nothing to do (AppUserSessionMiddleware resolves).
+        if raw_access and _resolve_user_from_jwt_token(raw_access) is not None:
+            return self.get_response(request)
+
+        raw_refresh = request.COOKIES.get(REFRESH_COOKIE)
+        if not raw_refresh:
+            return self.get_response(request)
+
+        rotated = refresh_access_from_refresh_token(raw_refresh)
+        if rotated is None:
+            return self.get_response(request)
+        request.user = rotated['user']
+        response = self.get_response(request)
+        # Attach a fresh access cookie so the browser keeps a live token.
+        return _set_jwt_cookies(response, rotated['access'])
 
 
 class AppUserSessionMiddleware:
@@ -29,23 +73,40 @@ class AppUserSessionMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        # If JwtCookieRefreshMiddleware already resolved request.user to our
+        # users.User, keep it and do nothing further.
+        current = getattr(request, 'user', None)
+        if isinstance(current, User):
+            return self.get_response(request)
+
         session = getattr(request, 'session', None)
         if session is not None and session.get(SESSION_USER_ID_KEY):
             resolved = self._resolve_from_session(request)
             if resolved is not None:
                 request.user = resolved
                 return self.get_response(request)
+
+        jwt_user = self._resolve_from_jwt_cookie(request)
+        if jwt_user is not None:
+            request.user = jwt_user
+            return self.get_response(request)
+
         # No app-session login, but Django's AuthenticationMiddleware may have
         # attached a built-in auth.User (e.g. someone signed in through the
         # Django admin at /admin/ and then navigates to /dashboard/). Bridge it
         # to the app's users.User by matching username so role-based pages such
         # as the dashboard (request.user.is_owner / is_accountant) work.
-        current = getattr(request, 'user', None)
         if current is not None and not getattr(current, 'is_anonymous', True):
             app_user = self._resolve_by_username(current)
             if app_user is not None:
                 request.user = app_user
         return self.get_response(request)
+
+    def _resolve_from_jwt_cookie(self, request):
+        raw_token = request.COOKIES.get(ACCESS_COOKIE)
+        if not raw_token:
+            return None
+        return _resolve_user_from_jwt_token(raw_token)
 
     def _resolve_from_session(self, request):
         session = getattr(request, 'session', None)

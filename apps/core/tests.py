@@ -15,6 +15,7 @@ from django.contrib.auth.models import User as DjangoUser
 from django.test import RequestFactory, TestCase
 
 from construction.context_processors import app_user
+from users.authentication import ACCESS_COOKIE, REFRESH_COOKIE
 from users.models import User as AppUser
 from users.testing import WithUsersTableMixin
 
@@ -77,6 +78,83 @@ class LoginPageTests(WithUsersTableMixin, TestCase):
         dashboard = self.client.get("/dashboard/")
         self.assertEqual(dashboard.status_code, 302)
         self.assertIn("/accounts/login/", dashboard.url)
+
+    def test_login_sets_jwt_httponly_cookies(self):
+        response = self.client.post(
+            "/accounts/login/",
+            {"username": "owner", "password": "owner-pass-123"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(ACCESS_COOKIE, response.cookies)
+        self.assertIn(REFRESH_COOKIE, response.cookies)
+        # The JWT cookies must be HttpOnly (no JavaScript can read them).
+        self.assertTrue(response.cookies[ACCESS_COOKIE]["httponly"])
+        self.assertTrue(response.cookies[REFRESH_COOKIE]["httponly"])
+        self.assertNotEqual(response.cookies[ACCESS_COOKIE].value, "")
+
+    def test_dashboard_renders_from_jwt_cookie_after_session_cleared(self):
+        # Log in normally (sets both session + JWT cookies).
+        login = self.client.post(
+            "/accounts/login/",
+            {"username": "owner", "password": "owner-pass-123"},
+        )
+        self.assertEqual(login.status_code, 302)
+        access_cookie = self.client.cookies[ACCESS_COOKIE].value
+        self.assertNotEqual(access_cookie, "")
+
+        # Drop ONLY the session so page protection must fall back to the JWT
+        # cookie. Clearing the session cookie emulates an expired/missing
+        # server session while the browser still holds the access token.
+        self.client.cookies.pop("sessionid", None)
+        self.client.cookies[ACCESS_COOKIE] = access_cookie
+
+        dashboard = self.client.get("/dashboard/")
+        self.assertEqual(dashboard.status_code, 200)
+
+    def test_logout_clears_jwt_cookies(self):
+        self.client.post(
+            "/accounts/login/",
+            {"username": "owner", "password": "owner-pass-123"},
+        )
+        self.assertIn(ACCESS_COOKIE, self.client.cookies)
+        response = self.client.post("/accounts/logout/")
+        self.assertIn(ACCESS_COOKIE, response.cookies)
+        self.assertEqual(response.cookies[ACCESS_COOKIE].value, "")
+        self.assertEqual(response.cookies[REFRESH_COOKIE].value, "")
+
+    def test_me_api_authenticates_from_jwt_cookie(self):
+        # Login, then drop the session cookie so the API must authenticate
+        # purely from the JWT cookie (not the session).
+        self.client.post(
+            "/accounts/login/",
+            {"username": "owner", "password": "owner-pass-123"},
+        )
+        self.client.cookies.pop("sessionid", None)
+        response = self.client.get("/api/auth/me/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json().get("username"), "owner")
+
+    def test_silent_refresh_rotates_expired_access_cookie(self):
+        # Login: browser gets session + JWT pair as cookies.
+        self.client.post(
+            "/accounts/login/",
+            {"username": "owner", "password": "owner-pass-123"},
+        )
+        # Drop the session cookie and issue an expired/garbage access token
+        # while keeping the valid refresh token -- simulating an expired access.
+        self.client.cookies.pop("sessionid", None)
+        self.assertNotEqual(self.client.cookies[REFRESH_COOKIE].value, "")
+        self.client.cookies[ACCESS_COOKIE] = "garbage.invalid.token"
+        old_access = self.client.cookies[ACCESS_COOKIE].value
+
+        response = self.client.get("/dashboard/")
+
+        # Page still renders, and a fresh access cookie was rotated in.
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(ACCESS_COOKIE, response.cookies)
+        new_access = response.cookies[ACCESS_COOKIE].value
+        self.assertNotEqual(new_access, "")
+        self.assertNotEqual(new_access, old_access)
 
 
 class ReceiptsPageRenderTests(TestCase):
