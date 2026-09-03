@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.db.models import Sum
 from rest_framework import serializers
 
 from clients.models import Client
@@ -197,10 +198,62 @@ class BudgetItemSerializer(serializers.ModelSerializer):
         source="phase", queryset=Phase.objects.all(), allow_null=True, required=False
     )
 
+    # Overrides the model field's auto-generated ChoiceField. The column is
+    # plain VARCHAR(50) at the DB level (see BudgetItem's docstring) — the
+    # model's `choices` are just the five quick-pick suggestions the UI
+    # offers, not a real constraint, so a caller can name a category those
+    # five don't cover (e.g. "Permits") and it's accepted as-is.
+    category = serializers.CharField(max_length=50)
+
     class Meta:
         model = BudgetItem
         fields = ["id", "budget_id", "phase_id", "category", "description", "budgeted_amount"]
         read_only_fields = ["id"]
+
+    def validate(self, attrs):
+        budget = attrs.get("budget", getattr(self.instance, "budget", None))
+        amount = attrs.get(
+            "budgeted_amount", getattr(self.instance, "budgeted_amount", None)
+        )
+
+        if budget is None or amount is None:
+            return attrs
+
+        # Only new items are blocked by a locked budget — editing an
+        # existing line on one is a separate concern this UI doesn't
+        # expose yet.
+        if self.instance is None and budget.status not in (
+            Budget.STATUS_DRAFT,
+            Budget.STATUS_REVISED,
+        ):
+            raise serializers.ValidationError(
+                {
+                    "budget_id": (
+                        f"Cannot add items to a budget in '{budget.status}' status — "
+                        "only DRAFT or REVISED budgets accept new items."
+                    )
+                }
+            )
+
+        # BR: item amounts can't push the budget past what was approved
+        # for it in total.
+        existing = BudgetItem.objects.filter(budget=budget)
+        if self.instance is not None:
+            existing = existing.exclude(pk=self.instance.pk)
+        allocated = existing.aggregate(total=Sum("budgeted_amount"))["total"] or Decimal("0.00")
+
+        if allocated + amount > budget.total_budget:
+            remaining = budget.total_budget - allocated
+            raise serializers.ValidationError(
+                {
+                    "budgeted_amount": (
+                        f"This would exceed the budget's total of {budget.total_budget}. "
+                        f"Remaining unallocated: {remaining}."
+                    )
+                }
+            )
+
+        return attrs
 
 
 class BudgetSerializer(serializers.ModelSerializer):

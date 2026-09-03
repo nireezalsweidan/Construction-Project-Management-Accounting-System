@@ -61,21 +61,20 @@
     </section>
   </section>
 
-  <section class="panel tab-panel" data-project-panel="phases" hidden>
+  <section class="panel table-panel tab-panel" data-project-panel="phases" hidden>
     <div class="panel-head"><div><h2>Project phases</h2><p>Schedule, ownership, and completion tracking</p></div><button class="primary-button" data-action="add-phase"><i data-lucide="plus"></i>Add phase</button></div>
-    <div class="phase-list" data-project-phases></div>
+    <div class="responsive-table" data-project-phases></div>
   </section>
 
   <section data-project-panel="budget" hidden>
     <div class="budget-hero"><div><strong data-budget-hero-total>—</strong><span>Approved budget</span></div><div><strong data-budget-hero-actual>—</strong><span>Actual cost</span></div><div><strong data-budget-hero-remaining>—</strong><span>Remaining</span></div><div><strong data-budget-hero-variance>—</strong><span>Against plan</span></div></div>
-    <section class="panel table-panel tab-panel"><div class="panel-head"><div><h2>Budget by cost category</h2><p>Approved allocation compared with actual cost</p></div><button class="primary-button" data-action="add-budget-item"><i data-lucide="plus"></i>Add budget item</button></div>
-      <div class="budget-controls">
-        <button class="primary-button" data-action="new-budget"><i data-lucide="plus"></i>New budget</button>
-        <button class="primary-button" data-action="approve-current-budget" style="display:none;" data-approve-btn><i data-lucide="check"></i>Approve budget</button>
-      </div>
-      <div class="responsive-table" data-project-budget><table><thead><tr><th>Category</th><th>Approved</th><th>Actual</th><th>Remaining</th></tr></thead><tbody>
-        </tbody></table></div>
-    </section>
+
+    <div class="panel-head budget-panel-head">
+      <div><h2>Project budgets</h2><p>Every budget version for this project, with its own allocated items</p></div>
+      <button class="primary-button" data-action="new-budget"><i data-lucide="plus"></i>New budget</button>
+    </div>
+
+    <div class="budget-list" data-project-budgets></div>
   </section>
 
   <section class="panel table-panel tab-panel" data-project-panel="procurement" hidden><div class="panel-head"><div><h2>Project procurement</h2><p>Purchase orders and delivery status</p></div><button class="primary-button" data-action="add-record"><i data-lucide="plus"></i>New change order</button></div>

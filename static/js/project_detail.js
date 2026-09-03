@@ -9,9 +9,31 @@
 
   // Utility functions
   const esc = v => String(v ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]);
+  const formValue = v => esc(v === null || v === undefined ? "" : v);
   const label = v => String(v || "—").replaceAll("_", " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  const statusClass = v => String(v || "").toLowerCase().replaceAll("_", "-");
   const money = v => new Intl.NumberFormat(undefined, {style:"currency", currency:"USD", maximumFractionDigits:0}).format(Number(v || 0));
   const csrf = () => decodeURIComponent(document.cookie.split("; ").find(c => c.startsWith("csrftoken="))?.split("=")[1] || "");
+
+  // Dynamically-injected [data-lucide] icons (table action buttons, budget
+  // card actions, ...) don't exist as SVGs until lucide.createIcons() runs
+  // against the current DOM -- the static icons in the page shell get that
+  // for free from base_dashboard.html's own load, but anything we render
+  // ourselves needs a fresh call or the icon slot just stays empty.
+  const refreshIcons = () => { if (window.lucide?.createIcons) window.lucide.createIcons(); };
+
+  // Budget.ALLOWED_TRANSITIONS mirrored from the backend model so the UI
+  // can show the right action buttons without an extra round trip. The
+  // server re-validates every transition regardless (see
+  // ProjectSerializer/BudgetSerializer.validate_status), so this is only
+  // ever a UI convenience, never the source of truth.
+  const BUDGET_TRANSITIONS = {
+    DRAFT: ["APPROVED"],
+    APPROVED: ["REVISED", "CLOSED"],
+    REVISED: ["APPROVED", "CLOSED"],
+    CLOSED: [],
+  };
+  const BUDGET_ITEM_CATEGORIES = ["MATERIALS", "LABOR", "CONTRACTORS", "EQUIPMENT", "OTHER"];
 
   let project, phases = [], budgets = [], changeOrders = [];
 
@@ -35,6 +57,64 @@
 
   function table(target, headers, rows) {
     $(target).innerHTML = `<table><thead><tr>${headers.map(x => `<th>${x}</th>`).join("")}</tr></thead><tbody>${rows.length ? rows.join("") : `<tr><td colspan="${headers.length}"><strong>No records found.</strong></td></tr>`}</tbody></table>`;
+  }
+
+  function renderBudgets() {
+    const container = $("[data-project-budgets]");
+    if (!container) return;
+
+    if (!budgets.length) {
+      container.innerHTML = `<p class="budget-empty">No budgets yet for this project. Create one to start allocating cost categories.</p>`;
+      return;
+    }
+
+    const phaseName = id => phases.find(p => p.id === id)?.name;
+
+    container.innerHTML = budgets.map(budget => {
+      const items = budget.items || [];
+      const allocated = items.reduce((n, item) => n + Number(item.budgeted_amount || 0), 0);
+      const unallocated = Number(budget.total_budget || 0) - allocated;
+      const editable = budget.status === "DRAFT" || budget.status === "REVISED";
+
+      const actions = (BUDGET_TRANSITIONS[budget.status] || []).map(next => {
+        const verb = next === "APPROVED" ? "Approve" : next === "REVISED" ? "Mark revised" : "Close";
+        const icon = next === "APPROVED" ? "check" : next === "REVISED" ? "history" : "lock";
+        return `<button class="quiet-button" type="button" data-action-transition-budget data-target-status="${next}">
+          <i data-lucide="${icon}"></i>${verb}
+        </button>`;
+      }).join("");
+
+      const itemRows = items.map(item => `<tr>
+        <td>${esc(label(item.category))}</td>
+        <td>${esc(phaseName(item.phase_id) || "—")}</td>
+        <td>${esc(item.description || "—")}</td>
+        <td>${money(item.budgeted_amount)}</td>
+      </tr>`).join("");
+
+      return `<article class="budget-card" data-budget-id="${budget.id}">
+        <header class="budget-card-head">
+          <div class="budget-card-title">
+            <h3>${esc(budget.name)}</h3>
+            <span class="status ${statusClass(budget.status)}"><i></i>${esc(label(budget.status))}</span>
+          </div>
+          <div class="budget-card-figures">
+            <div><strong>${money(budget.total_budget)}</strong><span>Total</span></div>
+            <div><strong>${money(allocated)}</strong><span>Allocated</span></div>
+            <div><strong>${money(unallocated)}</strong><span>Unallocated</span></div>
+          </div>
+          <div class="budget-card-actions">
+            ${editable ? `<button class="quiet-button" type="button" data-action-add-budget-item><i data-lucide="plus"></i>Add item</button>` : ""}
+            ${actions}
+          </div>
+        </header>
+        <div class="responsive-table">
+          <table>
+            <thead><tr><th>Category</th><th>Phase</th><th>Description</th><th>Amount</th></tr></thead>
+            <tbody>${itemRows || `<tr><td colspan="4"><strong>No items allocated yet.</strong></td></tr>`}</tbody>
+          </table>
+        </div>
+      </article>`;
+    }).join("");
   }
 
   async function load() {
@@ -81,13 +161,23 @@
 
     table("[data-project-phases]",
       ["Phase","Status","Progress","Start","End","Actions"],
-      phases.map(x=>`<tr><td><strong>${esc(x.name)}</strong></td><td><span class="status ${esc(String(x.status).toLowerCase())}">${esc(label(x.status))}</span></td><td><div class="progress-cell"><div><div style="width:${x.progress_percentage}%"></div></div><b>${x.progress_percentage}%</b></div></td><td>${esc(x.start_date || "—")}</td><td>${esc(x.end_date || "—")}</td><td><button class="quiet-button" data-action-edit-phase title="Edit"><i data-lucide="edit"></i></button><button class="quiet-button" data-action-update-progress title="Progress"><i data-lucide="percent"></i></button></td></tr>`)
+      phases.map(x => {
+        const pct = Math.max(0, Math.min(100, Number(x.progress_percentage) || 0));
+        return `<tr>
+          <td><strong>${esc(x.name)}</strong></td>
+          <td><span class="status ${statusClass(x.status)}"><i></i>${esc(label(x.status))}</span></td>
+          <td><div class="progress-cell"><div><div style="width:${pct}%"></div></div><b>${pct}%</b></div></td>
+          <td>${esc(x.start_date || "—")}</td>
+          <td>${esc(x.end_date || "—")}</td>
+          <td class="row-actions">
+            <button class="quiet-button" type="button" data-action-edit-phase title="Edit phase" aria-label="Edit phase"><i data-lucide="pencil"></i></button>
+            <button class="quiet-button" type="button" data-action-update-progress title="Update progress" aria-label="Update progress"><i data-lucide="percent"></i></button>
+          </td>
+        </tr>`;
+      })
     );
 
-    table("[data-project-budget]",
-      ["Category","Budgeted","Actual","Remaining"],
-      (summary?.categories||[]).map(x=>`<tr><td>${esc(x.category_display)}</td><td>${money(x.budgeted)}</td><td>${money(x.actual)}</td><td>${money(x.remaining)}</td></tr>`)
-    );
+    renderBudgets();
 
     table("[data-project-change-orders]",
       ["Number","Description","Amount","Date","Status","Actions"],
@@ -107,6 +197,8 @@
       ["File","Type","Uploaded"],
       result(docs).map(x=>`<tr><td><a href="${esc(x.file_path)}" target="_blank" rel="noopener">${esc(x.file_name)}</a></td><td>${esc(x.document_type||x.file_type)}</td><td>${esc(x.uploaded_at)}</td></tr>`)
     );
+
+    refreshIcons();
   }
 
   const fields = ({title, action, html, submit="Save"}) => {
@@ -118,7 +210,10 @@
     dialog.showModal();
   };
 
-  const input = (name,text,type="text",value="",required=false) => `<label>${text} <input name="${name}" type="${type}" value="${esc(value)}" ${required?"required":""}></label>`;
+  const input = (name, text, type = "text", value = "", required = false, extra = {}) => {
+    const attrs = Object.entries(extra).map(([k, v]) => `${k}="${esc(v)}"`).join(" ");
+    return `<label>${text} <input name="${name}" type="${type}" value="${formValue(value)}" ${required ? "required" : ""} ${attrs}></label>`;
+  };
 
   function open(action, context) {
     if (action === "edit-project") {
@@ -138,12 +233,11 @@
         title:"Add phase",
         action,
         submit:"Add phase",
-        html: input("name","Phase name","text","",true)
-          + input("sequence_number","Sequence","number",String(phases.length+1),true)
+        html: input("name","Phase name","text","",true,{placeholder:"e.g. Foundation"})
+          + input("sequence_number","Order","number",String(phases.length+1),true,{min:"1",step:"1"})
           + input("start_date","Start date","date")
           + input("end_date","End date","date")
-          + input("progress_percentage","Progress (%)","number","0",true)
-          + `<label>Description <textarea name="description"></textarea></label>`
+          + `<label class="span-2">Description <textarea name="description" placeholder="Optional notes about this phase"></textarea></label>`
       });
     } else if (action === "edit-phase") {
       const phase = context;
@@ -151,24 +245,24 @@
       fields({
         title: `Edit phase: ${phase.name}`,
         action: "edit-phase",
-        submit: "Update phase",
+        submit: "Save changes",
         html: input("name","Phase name","text",phase.name,true)
-          + input("sequence_number","Sequence","number",String(phase.sequence_number),true)
+          + input("sequence_number","Order","number",String(phase.sequence_number),true,{min:"1",step:"1"})
           + input("start_date","Start date","date",phase.start_date)
           + input("end_date","End date","date",phase.end_date)
-          + input("progress_percentage","Progress (%)","number",String(phase.progress_percentage),true)
-          + `<label>Description <textarea name="description">${esc(phase.description||"")}</textarea></label>`
+          + `<label>Status <select name="status">${["NOT_STARTED","IN_PROGRESS","ON_HOLD","COMPLETED"].map(s=>`<option value="${s}" ${phase.status===s?"selected":""}>${label(s)}</option>`).join("")}</select></label>`
+          + input("progress_percentage","Progress (%)","number",String(phase.progress_percentage),true,{min:"0",max:"100",step:"1"})
+          + `<label class="span-2">Description <textarea name="description" placeholder="Optional notes about this phase">${esc(phase.description||"")}</textarea></label>`
       });
       form.dataset.phaseId = phase.id;
     } else if (action === "update-phase-progress") {
       const phase = context;
       if (!phase) return;
       fields({
-        title: `Update phase progress: ${phase.name}`,
+        title: `Update progress: ${phase.name}`,
         action: "update-phase-progress",
         submit: "Update",
-        html: input("progress_percentage","Progress (%)","number",phase.progress_percentage,true)
-          + input("status","Status","text",phase.status)
+        html: input("progress_percentage","Progress (%)","number",phase.progress_percentage,true,{min:"0",max:"100",step:"1"})
       });
       form.dataset.phaseId = phase.id;
     } else if (action === "new-budget") {
@@ -176,30 +270,57 @@
         title:"New budget",
         action,
         submit:"Create budget",
-        html: input("name","Budget name","text","",true)
-          + input("total_budget","Total budget","number","",true)
+        html: input("name","Budget name","text","",true,{placeholder:"e.g. Materials"})
+          + input("total_budget","Total budget","number","",true,{min:"0",step:"0.01",placeholder:"0.00"})
       });
     } else if (action === "add-budget-item") {
-      if (!budgets.length) return open("new-budget");
-      fields({
-        title:"Add budget item",
-        action,
-        submit:"Add budget item",
-        html: `<label>Budget <select name="budget_id">${budgets.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("")}</select></label>`
-          + `<label>Category <select name="category"><option value="MATERIALS">Materials</option><option value="LABOR">Labor</option><option value="CONTRACTORS">Contractors</option><option value="EQUIPMENT">Equipment</option><option value="OTHER">Other</option></select></label>`
-          + input("description","Description","text","")
-          + input("budgeted_amount","Amount","number","",true)
-      });
-    } else if (action === "approve-budget") {
       const budget = context;
       if (!budget) return;
+
+      const items = budget.items || [];
+      const allocated = items.reduce((n, item) => n + Number(item.budgeted_amount || 0), 0);
+      const remaining = Number(budget.total_budget || 0) - allocated;
+
+      const categoryOptions = BUDGET_ITEM_CATEGORIES
+        .map(c => `<option value="${c}">${label(c)}</option>`).join("")
+        + `<option value="__custom__">Other (specify)…</option>`;
+
+      const phaseOptions = `<option value="">No specific phase</option>`
+        + phases.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
+
       fields({
-        title: `Approve budget: ${budget.name}`,
-        action: "approve-budget",
-        submit: "Approve",
-        html: `<p><strong>${esc(budget.name)}</strong></p><p>Total budget: ${money(budget.total_budget)}</p><p>Status will change from ${label(budget.status)} to APPROVED.</p>`
+        title: `Add item to ${budget.name}`,
+        action,
+        submit: "Add item",
+        html: `<p class="dialog-hint span-2">Remaining to allocate: <strong>${money(remaining)}</strong> of ${money(budget.total_budget)}</p>`
+          + `<label>Category <select name="category" data-category-select>${categoryOptions}</select></label>`
+          + `<label data-custom-category hidden>Custom category <input name="category_custom" placeholder="e.g. Permits"></label>`
+          + `<label>Phase <select name="phase_id">${phaseOptions}</select></label>`
+          + input("budgeted_amount","Amount","number","",true,{min:"0",step:"0.01",placeholder:"0.00"})
+          + `<label class="span-2">Description <input name="description" placeholder="e.g. Cement for foundation"></label>`
       });
       form.dataset.budgetId = budget.id;
+
+      const categorySelect = dialog.querySelector("[data-category-select]");
+      const customField = dialog.querySelector("[data-custom-category]");
+      categorySelect?.addEventListener("change", () => {
+        const isCustom = categorySelect.value === "__custom__";
+        customField.hidden = !isCustom;
+        customField.querySelector("input").required = isCustom;
+      });
+    } else if (action === "transition-budget") {
+      const { budget, targetStatus } = context;
+      if (!budget || !targetStatus) return;
+      const verb = targetStatus === "APPROVED" ? "Approve" : targetStatus === "REVISED" ? "Mark as revised" : "Close";
+      fields({
+        title: `${verb} budget: ${budget.name}`,
+        action: "transition-budget",
+        submit: verb,
+        html: `<p class="span-2">This will ${verb.toLowerCase()} <strong>${esc(budget.name)}</strong> — status changes from ${label(budget.status)} to ${label(targetStatus)}.`
+          + (targetStatus === "CLOSED" ? " No further items can be added once closed." : "") + `</p>`
+      });
+      form.dataset.budgetId = budget.id;
+      form.dataset.targetStatus = targetStatus;
     } else if (action === "add-change-order") {
       fields({
         title:"Create change order",
@@ -263,11 +384,23 @@
       });
     });
 
-    const approveBtn = root.querySelector("[data-approve-btn]");
-    if (approveBtn) {
-      approveBtn.addEventListener("click", () => {
-        const draftBudget = budgets.find(b => b.status === "DRAFT");
-        if (draftBudget) open("approve-budget", draftBudget);
+    // Handle budget card clicks: add item / approve / mark revised / close.
+    // Delegated (rather than bound per-card) since renderBudgets() replaces
+    // this container's contents on every load().
+    const budgetsPanel = root.querySelector("[data-project-budgets]");
+    if (budgetsPanel) {
+      budgetsPanel.addEventListener("click", (e) => {
+        const card = e.target.closest("[data-budget-id]");
+        if (!card) return;
+        const budget = budgets.find(b => b.id === card.dataset.budgetId);
+        if (!budget) return;
+
+        if (e.target.closest("[data-action-add-budget-item]")) {
+          open("add-budget-item", budget);
+        } else if (e.target.closest("[data-action-transition-budget]")) {
+          const targetStatus = e.target.closest("[data-action-transition-budget]").dataset.targetStatus;
+          open("transition-budget", { budget, targetStatus });
+        }
       });
     }
 
@@ -336,10 +469,18 @@
         data.project_id = id;
       } else if (action === "add-budget-item") {
         path = "budget-items/";
-      } else if (action === "approve-budget") {
+        data.budget_id = form.dataset.budgetId;
+        // A custom category name replaces the "__custom__" sentinel value;
+        // normalized the same way as the fixed choices (upper snake case)
+        // so it reads consistently anywhere category is displayed.
+        if (data.category === "__custom__") {
+          data.category = (data.category_custom || "").trim().toUpperCase().replace(/\s+/g, "_");
+        }
+        delete data.category_custom;
+      } else if (action === "transition-budget") {
         path = `budgets/${form.dataset.budgetId}/`;
         method = "PATCH";
-        data.status = "APPROVED";
+        data.status = form.dataset.targetStatus;
       } else if (action === "add-change-order") {
         path = "change-orders/";
         data.project_id = id;
