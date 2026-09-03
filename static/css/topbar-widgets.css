@@ -67,6 +67,7 @@
 .search-result {
   display: block; padding: 9px 16px; text-decoration: none; color: inherit; font-size: 9px;
 }
+a.search-result { cursor: pointer; }
 .search-result:hover { background: #e3ece8; }
 .search-result b { display: block; font-size: 10px; }
 .search-result span { display: block; margin-top: 2px; font-size: 8px; color: #647b75; }

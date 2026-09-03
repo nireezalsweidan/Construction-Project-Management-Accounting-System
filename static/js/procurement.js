@@ -1,472 +1,376 @@
-/* Procurement page -- Purchase Orders + Goods Receiving (CPMAS-31).
-   Consumes the authenticated DRF endpoints under /api/purchasing/ and
-   /api/inventory/ using the dashboard session (SessionAuthentication +
-   CSRF), same fetch/CSRF pattern as payments.js.
-
-   Receiving is append-only: the page only lists and reads goods receipts
-   and creates new ones -- there is no edit/delete UI and no PATCH/PUT/DELETE
-   calls for receipts. The purchasing backend remains the final authority on
-   validation (over-receiving, PO status, atomic stock updates). */
+/* Purchase Order Management page (CPMAS-42).
+   Consumes the DRF endpoints served under /api/purchasing/ (PurchaseOrder,
+   PurchaseOrderItem, GoodsReceipt) plus /api/suppliers/, /api/inventory/
+   materials/ and /api/inventory/warehouses/ for the create/receive forms'
+   dropdowns. Follows the same fetch-all-then-filter-client-side pattern as
+   suppliers.js. */
 (() => {
   "use strict";
 
-  const E = {
-    pos: "/api/purchasing/purchase-orders/",
-    goodsReceipts: "/api/purchasing/goods-receipts/",
-    warehouses: "/api/inventory/warehouses/",
-  };
+  const PO_API = "/api/purchasing/purchase-orders/";
+  const ITEM_API = "/api/purchasing/purchase-order-items/";
+  const RECEIPT_API = "/api/purchasing/goods-receipts/";
+  const SUPPLIER_API = "/api/suppliers/suppliers/";
+  const MATERIAL_API = "/api/inventory/materials/";
+  const WAREHOUSE_API = "/api/inventory/warehouses/";
+  const CURRENCY = "USD";
 
-  const $ = (s, r = document) => r.querySelector(s);
-  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-  const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const money = (v) => Number(v || 0).toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
-  const fmtQty = (v) => Number(v || 0).toLocaleString("en-US", { maximumFractionDigits: 3 });
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+  const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-  const state = {
-    pos: [],             // full PO list (load-all)
-    receipts: [],        // current page of goods receipts
-    receiptPage: 1,
-    receiptNext: null,
-    receiptPrev: null,
-    receiptTotal: 0,
-    poSearch: "",
-    poStatus: "",
-    receiptSearch: "",
-    receiptPoFilter: "",
-    receivablePos: [],   // APPROVED + PARTIALLY_RECEIVED
-    warehouses: [],
-    currentPo: null,     // PO detail loaded into the receive dialog
-  };
+  const state = { pos: [], suppliers: [], materials: [], warehouses: [], statusFilter: "all", search: "", dateFrom: "", dateTo: "" };
 
-  function cookie(name) {
+  const appUserId = () => document.querySelector(".topbar")?.dataset.appUserId || "";
+
+  function getCookie(name) {
     const m = document.cookie.match(new RegExp("(^|;\\s*)" + name + "=([^;]*)"));
     return m ? decodeURIComponent(m[2]) : "";
   }
 
   async function api(url, options = {}) {
-    const headers = { Accept: "application/json", ...(options.headers || {}) };
-    if (options.body) headers["Content-Type"] = "application/json";
-    if (options.method && !["GET", "HEAD"].includes(options.method)) headers["X-CSRFToken"] = cookie("csrftoken");
-    const response = await fetch(url, { credentials: "same-origin", ...options, headers });
-    if (!response.ok) {
-      let message = response.statusText || `Request failed (${response.status})`;
-      try {
-        const body = await response.json();
-        if (body && typeof body === "object") {
-          message = Object.entries(body)
-            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(" ") : v}`)
-            .join("\n");
-        } else if (body) {
-          message = String(body);
-        }
-      } catch (_) { /* non-JSON / network body */ }
-      throw new Error(message || `Request failed (${response.status})`);
+    const opts = { credentials: "same-origin", headers: { "Content-Type": "application/json", ...(options.headers || {}) }, ...options };
+    if (options.method && !["GET", "HEAD"].includes(options.method)) {
+      opts.headers["X-CSRFToken"] = getCookie("csrftoken");
     }
-    return response.status === 204 ? null : response.json();
+    const res = await fetch(url, opts);
+    if (!res.ok) {
+      let detail = res.statusText;
+      try { detail = JSON.stringify(await res.json()); } catch (e) { /* ignore */ }
+      throw new Error(`${res.status}: ${detail}`);
+    }
+    if (res.status === 204) return null;
+    return res.json();
   }
 
-  // Load a full list across all pages.
-  async function all(url) {
+  async function fetchAll(url) {
     const rows = [];
     while (url) {
       const data = await api(url);
-      if (Array.isArray(data)) return data;
       rows.push(...(data.results || []));
       url = data.next;
     }
     return rows;
   }
 
-  // Load a single page of a paginated endpoint (returns the paginated wrapper).
-  async function page(url) {
-    return api(url);
-  }
-
-  /* ---- helpers ---- */
-  const RECEIVABLE = ["APPROVED", "PARTIALLY_RECEIVED"];
-  const CLOSED = ["CANCELLED", "RECEIVED"];
-
-  function poReceived(po) {
-    const items = po.items || [];
-    const ordered = items.reduce((s, i) => s + Number(i.quantity || 0), 0);
-    const received = items.reduce((s, i) => s + Number(i.quantity_received || 0), 0);
-    return { received, ordered };
-  }
-
-  function poIsFullyReceived(po) {
-    const { received, ordered } = poReceived(po);
-    return ordered > 0 && received >= ordered;
-  }
-
-  const statusPill = (s) => {
-    const map = {
-      DRAFT: "", SUBMITTED: "", APPROVED: " active",
-      PARTIALLY_RECEIVED: " active", RECEIVED: " active", CANCELLED: " warning",
-    };
-    return `<span class="status${map[s] || ""}"><i></i>${esc(s || "—")}</span>`;
+  const fmtMoney = v => {
+    const n = Number(v);
+    return Number.isFinite(n)
+      ? n.toLocaleString("en-US", { style: "currency", currency: CURRENCY, minimumFractionDigits: 0, maximumFractionDigits: 0 })
+      : v == null || v === "" ? "$0" : `${CURRENCY} ${v}`;
   };
 
-  /* ---- rendering: Purchase Orders ---- */
-  function renderPos() {
-    const body = $("[data-po-rows]");
-    let list = state.pos;
-    if (state.poStatus) list = list.filter((p) => p.status === state.poStatus);
-    const q = state.poSearch.trim().toLowerCase();
-    if (q) list = list.filter((p) => [p.po_number, p.supplier_name].some((v) => (v || "").toLowerCase().includes(q)));
+  const STATUS_LABELS = {
+    DRAFT: "Draft", SUBMITTED: "Submitted", APPROVED: "Approved",
+    PARTIALLY_RECEIVED: "Partially received", RECEIVED: "Received", CANCELLED: "Cancelled",
+  };
+  const OPEN_STATUSES = ["SUBMITTED", "APPROVED", "PARTIALLY_RECEIVED"];
 
-    if (!list.length) {
-      body.innerHTML = `<tr class="empty-row"><td colspan="8"><b>No purchase orders found</b><span>Try adjusting the search or status filter.</span></td></tr>`;
-      return;
-    }
-    body.innerHTML = list.map((p) => {
-      const { received, ordered } = poReceived(p);
-      const pct = ordered > 0 ? Math.round((received / ordered) * 100) : 0;
-      const receivable = RECEIVABLE.includes(p.status);
-      const action = receivable
-        ? `<button type="button" class="quiet-button" data-receive="${p.id}">Receive goods</button>`
-        : "";
-      return `<tr>
-        <td><strong>${esc(p.po_number)}</strong></td>
-        <td>${esc(p.supplier_name || "—")}</td>
-        <td>${esc(p.order_date || "—")}</td>
-        <td>${esc(p.expected_delivery_date || "—")}</td>
-        <td>${money(p.total_amount)}</td>
-        <td>${pct}% <span class="received-note">${fmtQty(received)} / ${fmtQty(ordered)}</span></td>
-        <td>${statusPill(p.status)}</td>
-        <td><div class="payment-actions">${action}</div></td>
-      </tr>`;
-    }).join("");
+  const statusPill = s => {
+    const cls = s === "CANCELLED" ? "warning" : (s === "PARTIALLY_RECEIVED" ? "partially-received" : (s === "SUBMITTED" ? "in-progress" : ""));
+    return `<span class="status ${cls}"><i></i>${STATUS_LABELS[s] || s}</span>`;
+  };
 
-    $$("[data-receive]", body).forEach((b) => (b.onclick = () => openReceiveDialog(b.dataset.receive)));
-  }
-
-  /* ---- rendering: Goods Receiving ---- */
-  function renderReceipts() {
-    const body = $("[data-receipt-rows]");
-    if (!state.receipts.length) {
-      body.innerHTML = `<tr class="empty-row"><td colspan="7"><b>No goods receipts found</b><span>Try adjusting the search or purchase order filter.</span></td></tr>`;
-    } else {
-      body.innerHTML = state.receipts.map((r) => `
-        <tr>
-          <td><strong>${esc(r.receipt_number)}</strong></td>
-          <td>${esc(r.purchase_order_number || "—")}</td>
-          <td>${esc(r.warehouse_name || "—")}</td>
-          <td>${esc(r.received_date || "—")}</td>
-          <td>${(r.items_detail || []).length}</td>
-          <td>${esc(r.notes || "—")}</td>
-          <td><div class="payment-actions"><button type="button" class="procurement-row-view" data-receipt-detail="${r.id}">View details</button></div></td>
-        </tr>`).join("");
-      $$("[data-receipt-detail]", body).forEach((b) => (b.onclick = () => openReceiptDetail(b.dataset.receiptDetail)));
-    }
-    // Pagination state
-    $("[data-page-next]").disabled = !state.receiptNext;
-    $("[data-page-prev]").disabled = !state.receiptPrev;
-    $("[data-page-info]").textContent = `Page ${state.receiptPage}`;
-  }
-
-  /* ---- metrics ---- */
-  function renderStats() {
-    const openPos = state.pos.filter((p) => !CLOSED.includes(p.status)).length;
-    const receivable = state.pos.filter((p) => RECEIVABLE.includes(p.status)).length;
-    const awaiting = state.pos.filter((p) => p.status === "APPROVED" && !poIsFullyReceived(p)).length;
-    $("[data-metric=open_pos]").textContent = openPos;
-    $("[data-metric=receivable]").textContent = receivable;
-    $("[data-metric=goods_received]").textContent = state.receiptTotal;
-    $("[data-metric=awaiting_delivery]").textContent = awaiting;
-  }
-
-  /* ---- data loads ---- */
-  function poSearchParams() {
-    const p = new URLSearchParams();
-    if (state.poSearch) p.set("search", state.poSearch);
-    if (state.poStatus) p.set("status", state.poStatus);
-    return p;
-  }
-
-  async function loadPos() {
-    state.pos = await all(`${E.pos}?${poSearchParams().toString()}`);
-    renderPos();
-  }
-
-  function receiptListUrl() {
-    const p = new URLSearchParams({ page: String(state.receiptPage) });
-    if (state.receiptSearch) p.set("search", state.receiptSearch);
-    if (state.receiptPoFilter) p.set("purchase_order", state.receiptPoFilter);
-    return `${E.goodsReceipts}?${p.toString()}`;
-  }
-
-  async function loadReceipts() {
-    const data = await page(receiptListUrl());
-    state.receipts = data.results || [];
-    state.receiptNext = data.next;
-    state.receiptPrev = data.previous;
-    state.receiptTotal = data.count || 0;
-    renderReceipts();
-  }
-
-  /* ---- Refresh everything (after load or after a successful receive) ---- */
-  async function refreshAll() {
-    try {
-      await Promise.all([loadPos(), loadReceipts()]);
-      renderStats();
-    } catch (e) {
-      $("[data-po-rows]").innerHTML = `<tr class="empty-row"><td colspan="8"><b>Could not load purchase orders</b><span>${esc(e.message)}</span></td></tr>`;
-      $("[data-receipt-rows]").innerHTML = `<tr class="empty-row"><td colspan="7"><b>Could not load goods receipts</b><span>${esc(e.message)}</span></td></tr>`;
-    }
-  }
-
-  /* ---- Receive Goods dialog ---- */
-  const currentUser = () => document.querySelector(".topbar")?.dataset.appUserId || "";
-
-  async function loadWarehouses() {
-    if (state.warehouses.length) return;
-    try {
-      state.warehouses = await all(E.warehouses);
-    } catch (e) {
-      state.warehouses = [];
-    }
-  }
-
-  function populateWarehouses() {
-    const select = $("[data-warehouse-select]");
-    const allWarehouses = [...state.warehouses].sort((a, b) => (Number(b.is_active) - Number(a.is_active)));
-    select.innerHTML = '<option value="">Select warehouse…</option>' +
-      allWarehouses.map((w) => `<option value="${w.id}">${esc(w.name)}${w.location ? ` — ${esc(w.location)}` : ""}${w.is_active ? "" : " (inactive)"}</option>`).join("");
-  }
-
-  async function loadReceivablePos() {
-    const [a, p] = await Promise.all([
-      all(`${E.pos}?status=APPROVED`),
-      all(`${E.pos}?status=PARTIALLY_RECEIVED`),
+  /* ---- Reference data for dropdowns ---- */
+  async function loadReferenceData() {
+    const [suppliers, materials, warehouses] = await Promise.all([
+      fetchAll(SUPPLIER_API), fetchAll(MATERIAL_API), fetchAll(WAREHOUSE_API),
     ]);
-    const seen = new Set();
-    const merged = [];
-    [...a, ...p].forEach((po) => {
-      if (!seen.has(po.id)) { seen.add(po.id); merged.push(po); }
-    });
-    state.receivablePos = merged.sort((x, y) => x.po_number.localeCompare(y.po_number));
+    state.suppliers = suppliers;
+    state.materials = materials;
+    state.warehouses = warehouses;
   }
 
-  function populateReceivablePos() {
-    const select = $("[data-receive-po-select]");
-    select.innerHTML = '<option value="">Select purchase order…</option>' +
-      state.receivablePos.map((po) => `<option value="${po.id}">${esc(po.po_number)} — ${esc(po.supplier_name || "")}</option>`).join("");
+  function fillSelect(select, items, labelFn, placeholder) {
+    select.innerHTML = `<option value="">${placeholder}</option>` + items.map(i => `<option value="${i.id}">${esc(labelFn(i))}</option>`).join("");
   }
 
-  function populatePoFilter() {
-    const select = $("[data-receipt-po-filter]");
-    const opts = state.pos.slice().sort((a, b) => a.po_number.localeCompare(b.po_number));
-    const current = select.value;
-    select.innerHTML = '<option value="">Purchase order: All</option>' +
-      opts.map((po) => `<option value="${po.id}">${esc(po.po_number)}</option>`).join("");
-    select.value = current || "";
+  /* ---- List + metrics ---- */
+  function withinNextWeek(dateStr) {
+    if (!dateStr) return false;
+    const target = new Date(dateStr + "T00:00:00");
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const in7 = new Date(today); in7.setDate(in7.getDate() + 7);
+    return target >= today && target <= in7;
   }
 
-  async function openReceiveDialog(preSelectedPoId) {
-    const dialog = $("[data-receive-dialog]");
-    const form = $("[data-receive-form]");
-    form.reset();
-    $("[data-receive-error]").hidden = true;
-    form.elements.received_date.value = new Date().toISOString().slice(0, 10);
-
-    // Pre-load warehouses and receivable POs.
-    try {
-      await Promise.all([loadWarehouses(), loadReceivablePos()]);
-      populateWarehouses();
-      populateReceivablePos();
-      form.elements.purchase_order.value = preSelectedPoId || "";
-      if (preSelectedPoId) {
-        $("[data-receive-items]").innerHTML = `<tr class="empty-row"><td colspan="5">Loading items…</td></tr>`;
-        await onPoSelected(preSelectedPoId);
-      } else {
-        $("[data-receive-items]").innerHTML = `<tr class="empty-row"><td colspan="5">Select a purchase order to load its items.</td></tr>`;
-      }
-    } catch (e) {
-      showReceiveError(e);
-    }
-    dialog.showModal();
+  function renderMetrics() {
+    const pos = state.pos;
+    const open = pos.filter(p => OPEN_STATUSES.includes(p.status)).length;
+    const awaiting = pos.filter(p => p.status === "SUBMITTED").length;
+    const committed = pos.filter(p => !["DRAFT", "CANCELLED"].includes(p.status))
+      .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
+    const due = pos.filter(p => !["RECEIVED", "CANCELLED"].includes(p.status) && withinNextWeek(p.expected_delivery_date)).length;
+    $("[data-metric=open]").textContent = open;
+    $("[data-metric=awaiting]").textContent = awaiting;
+    $("[data-metric=committed]").textContent = fmtMoney(committed);
+    $("[data-metric=due]").textContent = due;
   }
 
-  async function onPoSelected(poId) {
-    const body = $("[data-receive-items]");
-    if (!poId) {
-      state.currentPo = null;
-      body.innerHTML = `<tr class="empty-row"><td colspan="5">Select a purchase order to load its items.</td></tr>`;
+  function filteredPos() {
+    let list = state.pos;
+    if (state.statusFilter !== "all") list = list.filter(p => p.status === state.statusFilter);
+    if (state.dateFrom) list = list.filter(p => p.order_date >= state.dateFrom);
+    if (state.dateTo) list = list.filter(p => p.order_date <= state.dateTo);
+    const q = state.search.trim().toLowerCase();
+    if (q) list = list.filter(p => [p.po_number, p.supplier_name].some(v => (v || "").toLowerCase().includes(q)));
+    return list;
+  }
+
+  function renderRows() {
+    const tbody = $("[data-po-rows]");
+    const list = filteredPos();
+    if (!list.length) {
+      tbody.innerHTML = `<tr><td><strong>No purchase orders found</strong><span>Try adjusting the search, status, or date filters.</span></td><td>—</td><td>—</td><td>—</td><td>—</td><td><span class="status"><i></i>—</span></td></tr>`;
       return;
     }
-    body.innerHTML = `<tr class="empty-row"><td colspan="5"><b>Loading items…</b><span>Fetching PO lines.</span></td></tr>`;
+    tbody.innerHTML = list.map(p => `
+      <tr class="row-click" data-po-id="${p.id}">
+        <td><strong>${esc(p.po_number)}</strong><span>View details</span></td>
+        <td>${esc(p.supplier_name || "—")}</td>
+        <td>${esc(p.order_date)}</td>
+        <td>${esc(p.expected_delivery_date || "—")}</td>
+        <td>${fmtMoney(p.total_amount)}</td>
+        <td>${statusPill(p.status)}</td>
+      </tr>`).join("");
+    $$("[data-po-id]", tbody).forEach(row => row.addEventListener("click", () => openDetail(row.dataset.poId)));
+  }
+
+  async function refreshPos() {
+    state.pos = await fetchAll(PO_API);
+    renderMetrics();
+    renderRows();
+  }
+
+  /* ---- Detail dialog ---- */
+  const dialog = $("[data-po-dialog]");
+  let detailPo = null;
+
+  const ACTIONS = {
+    DRAFT: [{ action: "submit", label: "Submit for approval" }, { action: "cancel", label: "Cancel" }],
+    SUBMITTED: [{ action: "approve", label: "Approve" }, { action: "cancel", label: "Cancel" }],
+    APPROVED: [{ action: "cancel", label: "Cancel" }],
+  };
+
+  function renderActionBar(po) {
+    const bar = $("[data-po-actionbar]");
+    const actions = ACTIONS[po.status] || [];
+    bar.innerHTML = actions.map(a =>
+      `<button type="button" class="${a.action === 'cancel' ? 'quiet-button' : 'primary-button'}" data-po-transition="${a.action}">${a.label}</button>`
+    ).join("") || "<p>No status actions available.</p>";
+    $$("[data-po-transition]", bar).forEach(btn => {
+      btn.addEventListener("click", () => runTransition(btn.dataset.poTransition));
+    });
+  }
+
+  async function runTransition(action) {
+    if (action === "cancel" && !confirm("Cancel this purchase order?")) return;
     try {
-      state.currentPo = await api(`${E.pos}${poId}/`);
-      const items = state.currentPo.items || [];
-      if (!items.length) {
-        body.innerHTML = `<tr class="empty-row"><td colspan="5"><b>No line items on this purchase order.</b></td></tr>`;
+      const updated = await api(`${PO_API}${detailPo.id}/${action}/`, { method: "POST" });
+      detailPo = updated;
+      await refreshPos();
+      renderDetailHeader(updated);
+      renderActionBar(updated);
+      renderReceiveSection(updated);
+      renderAddItemVisibility(updated);
+    } catch (e) {
+      alert("Could not update status: " + e.message);
+    }
+  }
+
+  function renderDetailHeader(po) {
+    $("[data-detail-number]").textContent = po.po_number;
+    $("[data-detail-supplier]").textContent = po.supplier_name || "";
+    const status = $("[data-detail-status]");
+    status.className = "status";
+    status.innerHTML = `<i></i>${STATUS_LABELS[po.status] || po.status}`;
+    $("[data-detail-subtotal]").textContent = fmtMoney(po.subtotal);
+    $("[data-detail-tax]").textContent = fmtMoney(po.tax_amount);
+    $("[data-detail-total]").textContent = fmtMoney(po.total_amount);
+    $("[data-detail-delivery]").textContent = po.expected_delivery_date || "—";
+    $("[data-detail-order-date]").textContent = po.order_date;
+  }
+
+  function renderItems(po) {
+    const tbody = $("[data-po-items]");
+    if (!po.items || !po.items.length) {
+      tbody.innerHTML = `<tr><td colspan="7"><strong>No line items yet.</strong></td></tr>`;
+      return;
+    }
+    tbody.innerHTML = po.items.map(i => `
+      <tr>
+        <td><strong>${esc(i.material_name)}</strong><span>${esc(i.material_sku || "")}</span></td>
+        <td>${i.quantity}</td>
+        <td>${fmtMoney(i.unit_price)}</td>
+        <td>${fmtMoney(i.tax_amount)}</td>
+        <td>${fmtMoney(i.total_amount)}</td>
+        <td>${i.quantity_received}</td>
+        <td>${i.quantity_remaining}</td>
+      </tr>`).join("");
+  }
+
+  function renderAddItemVisibility(po) {
+    const isDraft = po.status === "DRAFT";
+    $("[data-po-add-item]").hidden = !isDraft;
+    if (!isDraft) $("[data-po-item-form]").hidden = true;
+  }
+
+  function renderReceiveSection(po) {
+    const section = $("[data-po-receive-section]");
+    const remaining = (po.items || []).filter(i => Number(i.quantity_remaining) > 0);
+    const receivable = ["APPROVED", "PARTIALLY_RECEIVED"].includes(po.status) && remaining.length > 0;
+    section.hidden = !receivable;
+    if (!receivable) return;
+    fillSelect($("select[name=warehouse]", section), state.warehouses, w => w.name, "Select warehouse…");
+    $("[data-receive-lines]", section).innerHTML = remaining.map(i => `
+      <label>${esc(i.material_name)} (remaining: ${i.quantity_remaining})
+        <input type="number" data-receive-item="${i.id}" min="0" max="${i.quantity_remaining}" step="0.001" placeholder="0">
+      </label>`).join("");
+  }
+
+  async function openDetail(id) {
+    try {
+      const po = await api(`${PO_API}${id}/`);
+      detailPo = po;
+      renderDetailHeader(po);
+      renderActionBar(po);
+      renderItems(po);
+      renderAddItemVisibility(po);
+      renderReceiveSection(po);
+      dialog.showModal();
+    } catch (e) {
+      alert("Could not load purchase order: " + e.message);
+    }
+  }
+
+  function bindDialog() {
+    $("[data-po-close]").addEventListener("click", () => dialog.close());
+    dialog.addEventListener("click", e => { if (e.target === dialog) dialog.close(); });
+  }
+
+  /* ---- Add line item (DRAFT only) ---- */
+  function bindAddItem() {
+    const form = $("[data-po-item-form]");
+    $("[data-po-add-item]").addEventListener("click", () => {
+      fillSelect($("select[name=material]", form), state.materials, m => `${m.name} (${m.sku})`, "Select material…");
+      form.hidden = false;
+    });
+    $("[data-po-item-cancel]").addEventListener("click", () => { form.hidden = true; form.reset(); });
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const payload = Object.fromEntries(new FormData(form).entries());
+      payload.purchase_order = detailPo.id;
+      try {
+        await api(ITEM_API, { method: "POST", body: JSON.stringify(payload) });
+        form.reset();
+        form.hidden = true;
+        const po = await api(`${PO_API}${detailPo.id}/`);
+        detailPo = po;
+        renderDetailHeader(po);
+        renderItems(po);
+        renderReceiveSection(po);
+        await refreshPos();
+      } catch (err) {
+        alert("Could not add line item: " + err.message);
+      }
+    });
+  }
+
+  /* ---- Receive goods ---- */
+  function bindReceive() {
+    const form = $("[data-po-receive-form]");
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const warehouse = form.warehouse.value;
+      const items = $$("[data-receive-item]", form)
+        .map(input => ({ purchase_order_item: input.dataset.receiveItem, quantity_received: input.value }))
+        .filter(i => Number(i.quantity_received) > 0);
+      if (!warehouse || !items.length) {
+        alert("Select a warehouse and enter at least one received quantity.");
         return;
       }
-      body.innerHTML = items.map((it) => {
-        const remaining = Number(it.quantity_remaining || 0);
-        const disabled = remaining <= 0;
-        return `<tr>
-          <td><strong>${esc(it.material_name || "—")}</strong><span>${esc(it.material_sku || "")}</span></td>
-          <td>${fmtQty(it.quantity)}</td>
-          <td>${fmtQty(it.quantity_received)}</td>
-          <td>${fmtQty(it.quantity_remaining)}</td>
-          <td><input type="number" class="qty-input" name="qty_${it.id}" data-item="${it.id}" min="0" max="${remaining}" step="0.001" value="0" ${disabled ? "disabled" : ""}></td>
-        </tr>`;
-      }).join("");
-
-      // Live clamp: keep 0 <= qty <= remaining (defense-in-depth; backend remains authoritative).
-      $$("[data-item]", body).forEach((input) => {
-        input.addEventListener("input", () => {
-          const max = Number(input.max);
-          const val = Number(input.value);
-          if (Number.isFinite(val) && val > max) input.value = max;
-          else if (Number.isFinite(val) && val < 0) input.value = 0;
-        });
-      });
-    } catch (e) {
-      body.innerHTML = `<tr class="empty-row"><td colspan="5"><b>Could not load items</b><span>${esc(e.message)}</span></td></tr>`;
-    }
+      const uid = appUserId();
+      if (!uid) {
+        alert("No linked account for recording receipts -- please log in again.");
+        return;
+      }
+      const receiptNumber = `GR-${Date.now()}`;
+      const payload = {
+        purchase_order: detailPo.id,
+        receipt_number: receiptNumber,
+        received_date: new Date().toISOString().slice(0, 10),
+        warehouse,
+        recorded_by: uid,
+        items,
+      };
+      try {
+        await api(RECEIPT_API, { method: "POST", body: JSON.stringify(payload) });
+        const po = await api(`${PO_API}${detailPo.id}/`);
+        detailPo = po;
+        renderDetailHeader(po);
+        renderActionBar(po);
+        renderItems(po);
+        renderAddItemVisibility(po);
+        renderReceiveSection(po);
+        await refreshPos();
+        form.reset();
+      } catch (err) {
+        alert("Could not record receipt: " + err.message);
+      }
+    });
   }
 
-  function showReceiveError(e) {
-    const n = $("[data-receive-error]");
-    n.textContent = e.message || "Something went wrong.";
-    n.hidden = false;
+  /* ---- Create purchase order ---- */
+  function bindCreate() {
+    const overlay = $("[data-po-create]");
+    const form = $("[data-po-create-form]");
+    $("[data-po-new]").addEventListener("click", () => {
+      fillSelect($("select[name=supplier]", form), state.suppliers, s => s.name, "Select supplier…");
+      overlay.hidden = false;
+    });
+    $("[data-po-create-close]").addEventListener("click", () => { overlay.hidden = true; });
+    $("[data-po-create-cancel]").addEventListener("click", () => { overlay.hidden = true; });
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const uid = appUserId();
+      if (!uid) {
+        alert("No linked account for creating purchase orders -- please log in again.");
+        return;
+      }
+      const payload = Object.fromEntries(new FormData(form).entries());
+      if (!payload.expected_delivery_date) delete payload.expected_delivery_date;
+      payload.created_by = uid;
+      try {
+        const po = await api(PO_API, { method: "POST", body: JSON.stringify(payload) });
+        overlay.hidden = true;
+        form.reset();
+        await refreshPos();
+        openDetail(po.id);
+      } catch (err) {
+        alert("Could not create purchase order: " + err.message);
+      }
+    });
   }
 
-  async function submitReceive(event) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const errorEl = $("[data-receive-error]");
-    errorEl.hidden = true;
-
-    const userId = currentUser();
-    if (!userId) {
-      showReceiveError(new Error("No linked user account for recording this receipt."));
-      return;
-    }
-
-    const values = Object.fromEntries(new FormData(form).entries());
-    if (!values.notes) delete values.notes;
-
-    // Build only the item rows with a received quantity > 0.
-    const items = state.currentPo && state.currentPo.items ? state.currentPo.items
-      .map((it) => {
-        const qty = form.elements[`qty_${it.id}`];
-        if (!qty || qty.disabled) return null;
-        const q = Number(qty.value || 0);
-        if (!(q > 0)) return null;
-        return { purchase_order_item: it.id, quantity_received: String(q) };
-      })
-      .filter(Boolean) : [];
-
-    if (!items.length) {
-      showReceiveError(new Error("Enter a quantity greater than zero on at least one item."));
-      return;
-    }
-
-    const payload = {
-      purchase_order: values.purchase_order,
-      receipt_number: values.receipt_number,
-      received_date: values.received_date,
-      warehouse: values.warehouse,
-      recorded_by: userId,
-      items,
-    };
-
-    try {
-      await api(E.goodsReceipts, { method: "POST", body: JSON.stringify(payload) });
-      form.closest("[data-receive-dialog]").close();
-      $("[data-receive-items]").innerHTML = `<tr class="empty-row"><td colspan="5">Select a purchase order to load its items.</td></tr>`;
-      state.currentPo = null;
-      await refreshAll(); // re-fetch so PO status / received quantities reflect the backend transaction
-    } catch (e) {
-      // Keep the dialog open with entered values intact; surface the DRF error.
-      showReceiveError(e);
-    }
-  }
-
-  /* ---- Receipt detail (read-only) ---- */
-  async function openReceiptDetail(id) {
-    const dialog = $("[data-receipt-detail-dialog]");
-    $("[data-receipt-detail-fields]").innerHTML = "<p>Loading receipt…</p>";
-    $("[data-receipt-detail-items]").innerHTML = "";
-    dialog.showModal();
-    try {
-      const r = await api(`${E.goodsReceipts}${id}/`);
-      $("[data-receipt-detail-title]").textContent = r.receipt_number || "Receipt detail";
-      const fields = [
-        ["Receipt number", r.receipt_number],
-        ["Purchase order", r.purchase_order_number],
-        ["Warehouse", r.warehouse_name],
-        ["Received date", r.received_date],
-        ["Notes", r.notes || "—"],
-      ];
-      $("[data-receipt-detail-fields]").innerHTML = fields
-        .map(([label, value]) => `<div><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join("");
-      const items = r.items_detail || [];
-      $("[data-receipt-detail-items]").innerHTML = items.length
-        ? items.map((it) => `<tr><td>${esc(it.material_name || "—")}</td><td>${fmtQty(it.quantity_received)}</td><td>${esc(it.notes || "—")}</td></tr>`).join("")
-        : `<tr class="empty-row"><td colspan="3"><b>No items on this receipt.</b></td></tr>`;
-    } catch (e) {
-      $("[data-receipt-detail-fields]").innerHTML = `<p class="form-error">${esc(e.message)}</p>`;
-    }
-  }
-
-  /* ---- events ---- */
-  function bind() {
-    $$("[data-open-receive]").forEach((b) => (b.onclick = () => openReceiveDialog()));
-    $("[data-receive-po-select]").addEventListener("change", (e) => onPoSelected(e.target.value));
-    $("[data-receive-form]").addEventListener("submit", submitReceive);
-
-    $$("[data-receive-close]").forEach((b) => (b.onclick = () => $("[data-receive-dialog]").close()));
-    $("[data-receipt-detail-close]").onclick = () => $("[data-receipt-detail-dialog]").close();
-    $$(".procurement-dialog").forEach((d) => d.addEventListener("click", (e) => { if (e.target === d) d.close(); }));
-
-    let poTimer;
-    $("#po-search-input").addEventListener("input", (e) => {
-      state.poSearch = e.target.value.trim();
-      clearTimeout(poTimer);
-      poTimer = setTimeout(async () => { try { await loadPos(); } catch (err) { /* handled in render */ } }, 300);
-    });
-    $("[data-po-status]").addEventListener("change", async (e) => {
-      state.poStatus = e.target.value;
-      try { await loadPos(); } catch (err) { /* handled */ }
-    });
-
-    let rcTimer;
-    $("#receipt-search-input").addEventListener("input", (e) => {
-      state.receiptSearch = e.target.value.trim();
-      state.receiptPage = 1;
-      clearTimeout(rcTimer);
-      rcTimer = setTimeout(async () => { try { await refreshAll(); } catch (err) { /* handled */ } }, 300);
-    });
-    $("[data-receipt-po-filter]").addEventListener("change", async (e) => {
-      state.receiptPoFilter = e.target.value;
-      state.receiptPage = 1;
-      try { await refreshAll(); } catch (err) { /* handled */ }
-    });
-    $("[data-page-prev]").addEventListener("click", async () => {
-      if (!state.receiptPrev) return;
-      state.receiptPage -= 1;
-      try { await refreshAll(); } catch (err) { /* handled */ }
-    });
-    $("[data-page-next]").addEventListener("click", async () => {
-      if (!state.receiptNext) return;
-      state.receiptPage += 1;
-      try { await refreshAll(); } catch (err) { /* handled */ }
-    });
+  /* ---- Filters & search ---- */
+  function bindFilters() {
+    $("#po-status-filter").addEventListener("change", e => { state.statusFilter = e.target.value; renderRows(); });
+    $("#po-search-input").addEventListener("input", e => { state.search = e.target.value; renderRows(); });
+    $("#po-date-from").addEventListener("change", e => { state.dateFrom = e.target.value; renderRows(); });
+    $("#po-date-to").addEventListener("change", e => { state.dateTo = e.target.value; renderRows(); });
   }
 
   document.addEventListener("DOMContentLoaded", async () => {
-    bind();
+    bindDialog();
+    bindAddItem();
+    bindReceive();
+    bindCreate();
+    bindFilters();
     try {
-      // Load POs first so the receipt PO filter and metrics can use them.
-      await loadPos();
-      populatePoFilter();
-      await refreshAll();
+      await loadReferenceData();
+      await refreshPos();
     } catch (e) {
-      $("[data-po-rows]").innerHTML = `<tr class="empty-row"><td colspan="8"><b>Could not load purchase orders</b><span>${esc(e.message)}</span></td></tr>`;
+      $("[data-po-rows]").innerHTML = `<tr><td><strong>Could not load purchase orders</strong><span>${esc(e.message)}</span></td><td>—</td><td>—</td><td>—</td><td>—</td><td><span class="status"><i></i>—</span></td></tr>`;
     }
   });
 })();
