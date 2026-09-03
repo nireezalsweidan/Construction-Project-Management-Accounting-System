@@ -146,13 +146,10 @@
 
     const SOURCES = [
       { label: "Projects", url: "/api/projects/projects/", render: (r) => ({ title: r.name, sub: r.code, href: `/projects/${r.id}/` }) },
-      { label: "Clients", url: "/api/clients/clients/", render: (r) => ({ title: r.name, sub: r.company_name || r.email || "", href: `/partners/?open_client=${r.id}` }) },
-      { label: "Suppliers", url: "/api/suppliers/suppliers/", render: (r) => ({ title: r.name, sub: r.company_name || r.email || "", href: `/suppliers/?open=${r.id}` }) },
-      // Invoices/Materials pages aren't wired to a per-item detail view yet
-      // (owned by other in-progress tickets) -- link to the list page itself
-      // rather than a specific item, so results are still clickable.
-      { label: "Client invoices", url: "/api/invoicing/client-invoices/", render: (r) => ({ title: r.invoice_number, sub: `${r.client_name || ""} · ${r.status}`, href: "/invoices/" }) },
-      { label: "Supplier invoices", url: "/api/invoicing/supplier-invoices/", render: (r) => ({ title: r.invoice_number, sub: `${r.supplier_name || ""} · ${r.status}`, href: "/invoices/" }) },
+      { label: "Clients", url: "/api/clients/clients/", render: (r) => ({ title: r.name, sub: r.company_name || r.email || "" }) },
+      { label: "Suppliers", url: "/api/suppliers/suppliers/", render: (r) => ({ title: r.name, sub: r.company_name || r.email || "" }) },
+      { label: "Client invoices", url: "/api/invoicing/client-invoices/", render: (r) => ({ title: r.invoice_number, sub: `${r.client_name || ""} · ${r.status}` }) },
+      { label: "Supplier invoices", url: "/api/invoicing/supplier-invoices/", render: (r) => ({ title: r.invoice_number, sub: `${r.supplier_name || ""} · ${r.status}` }) },
       { label: "Materials", url: "/api/inventory/materials/", render: (r) => ({ title: r.name, sub: r.sku }) },
     ];
 

@@ -100,7 +100,6 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'users.middleware.AppUserSessionMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -242,9 +241,8 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@localhost')
 
 # Base URL of the frontend password-reset page; the reset link appends
-# ?uid=...&token=... to it. Served by the Django reset-password view at
-# /accounts/reset-password/ (see apps/core).
-PASSWORD_RESET_BASE_URL = os.getenv('PASSWORD_RESET_BASE_URL', 'http://localhost:8000/accounts/reset-password')
+# ?uid=...&token=... to it. Set to your SPA/static site's reset route.
+PASSWORD_RESET_BASE_URL = os.getenv('PASSWORD_RESET_BASE_URL', 'http://localhost:3000/reset-password')
 
 # How long a password-reset token stays valid (Django's default: 3 days).
 PASSWORD_RESET_TIMEOUT = int(os.getenv('PASSWORD_RESET_TIMEOUT', '259200'))
