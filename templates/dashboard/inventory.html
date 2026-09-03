@@ -148,23 +148,16 @@
         </select>
 
 
-        <button
-            class="quiet-button inventory-filter-button"
-            type="button"
-            data-inventory-date
+        <!-- Keep this selector because inventory.js uses it -->
+        <select
+            class="quiet-button"
+            data-inventory-category
+            aria-label="Filter by category"
         >
-            <span class="inventory-calendar-icon" aria-hidden="true">▣</span>
-            <span>Date range</span>
-        </button>
-
-
-        <button
-            class="quiet-button inventory-filter-button"
-            type="button"
-            data-inventory-more-filters
-        >
-            More filters
-        </button>
+            <option value="">
+                Category: All
+            </option>
+        </select>
 
     </div>
 
@@ -207,7 +200,9 @@
     <div class="inventory-pagination">
 
         <span data-inventory-count>
-            Showing 0 of 0 records
+            Showing <strong data-inventory-visible-count>0</strong>
+            of <strong data-inventory-total-count>0</strong>
+            records
         </span>
 
         <div class="inventory-pagination-controls">
@@ -253,6 +248,64 @@
         <span data-inventory-movement-count>
             0 movements
         </span>
+
+    </div>
+
+
+    <div class="filterbar movements-filterbar">
+
+        <div class="local-search">
+            ⌕
+            <input
+                data-movement-search
+                type="search"
+                placeholder="Search movements…"
+                aria-label="Search stock movements"
+            >
+        </div>
+
+
+        <!-- Keep this selector because inventory.js uses it -->
+        <select
+            class="quiet-button"
+            data-movement-type
+            aria-label="Filter by movement direction"
+        >
+            <option value="">
+                Movement: All
+            </option>
+
+            <option value="IN">
+                In
+            </option>
+
+            <option value="OUT">
+                Out
+            </option>
+        </select>
+
+
+        <div class="inline-date-range">
+
+            <label>
+                From
+                <input
+                    type="date"
+                    data-movement-date-from
+                    aria-label="Movements from date"
+                >
+            </label>
+
+            <label>
+                To
+                <input
+                    type="date"
+                    data-movement-date-to
+                    aria-label="Movements to date"
+                >
+            </label>
+
+        </div>
 
     </div>
 
