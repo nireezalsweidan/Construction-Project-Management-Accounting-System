@@ -4,13 +4,14 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from rest_framework_simplejwt.tokens import RefreshToken
+
 from company.models import DEFAULT_CURRENCY_UUID, CompanyProfile
 from company.storage import SupabaseStorageError, upload_logo
 
 from users.authentication import SESSION_USER_ID_KEY, _set_jwt_cookies, _clear_jwt_cookies
 from users.models import User
 from users.serializers import (
-    JwtLoginSerializer,
     RequestPasswordResetSerializer,
     ResetPasswordSerializer,
 )
@@ -55,10 +56,15 @@ def login(request):
             response = redirect(redirect_to)
             # Set the JWT access (+ refresh) as HttpOnly cookies so the browser
             # authenticates the API layer from the cookie, no JS token handling.
-            tokens = JwtLoginSerializer(data={"username": username, "password": password})
-            if tokens.is_valid():
-                payload = tokens.get_tokens()
-                _set_jwt_cookies(response, payload["access"], payload["refresh"])
+            # Tokens are minted straight from the already-verified user -- avoiding
+            # a second (expensive, Argon2) password hash that the serializer
+            # round-trip would perform.
+            refresh = RefreshToken.for_user(user)
+            _set_jwt_cookies(
+                response,
+                str(refresh.access_token),
+                str(refresh),
+            )
             return response
         error = "Your username or password is incorrect."
     return render(request, "registration/login.html", {"error": error, "next": redirect_to})
