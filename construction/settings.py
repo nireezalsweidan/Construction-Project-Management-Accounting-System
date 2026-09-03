@@ -92,6 +92,7 @@ INSTALLED_APPS = [
     'accounting',
     'payments',
     'notifications',
+    'documents',
 ]
 
 MIDDLEWARE = [
@@ -213,6 +214,12 @@ USE_TZ = False
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
+
+# User-uploaded files (documents app, CPMAS-25). Local disk storage --
+# there's no S3/Supabase Storage integration in this project yet, and
+# adding one isn't in scope for this ticket; MEDIA_ROOT is git-ignored.
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'

@@ -154,6 +154,30 @@ class WorkforcePageRenderTests(WithUsersTableMixin, TestCase):
         self.assertIn("workforce-search-input", content)
 
 
+class DocumentsPageRenderTests(TestCase):
+    """The Documents page is server-rendered HTML whose table, metrics, and
+    upload form are filled at runtime by documents.js from the
+    /api/documents/ endpoints (CPMAS-25). Not owner_required -- accountants
+    need it too -- so plain login is enough here, matching Receipts."""
+
+    def test_redirects_anonymous_user_to_login(self):
+        response = self.client.get("/documents/")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
+
+    def test_page_renders_for_authenticated_user(self):
+        DjangoUser.objects.create_user(username="apitester_documents", password="pass12345")
+        self.client.login(username="apitester_documents", password="pass12345")
+        response = self.client.get("/documents/")
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "dashboard/documents.html")
+        content = response.content.decode()
+        self.assertIn("documents.js", content)
+        self.assertIn("documents.css", content)
+        self.assertIn("data-doc-rows", content)
+        self.assertIn("doc-search-input", content)
+
+
 class ProcurementPageRenderTests(WithUsersTableMixin, TestCase):
     """The Procurement dashboard page is server-rendered HTML whose table,
     metrics, and detail dialog are filled at runtime by procurement.js from
