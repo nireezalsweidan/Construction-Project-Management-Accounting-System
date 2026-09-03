@@ -192,7 +192,7 @@ def partners_page(request):
 
 @owner_required
 def procurement_page(request):
-    return _dashboard_page(request, "procurement", "procurement", purchase_orders=[])
+    return _dashboard_page(request, "procurement", "procurement")
 
 
 @owner_required

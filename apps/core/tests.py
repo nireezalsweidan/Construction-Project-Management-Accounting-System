@@ -154,6 +154,35 @@ class WorkforcePageRenderTests(WithUsersTableMixin, TestCase):
         self.assertIn("workforce-search-input", content)
 
 
+class ProcurementPageRenderTests(WithUsersTableMixin, TestCase):
+    """The Procurement dashboard page is server-rendered HTML whose table,
+    metrics, and detail dialog are filled at runtime by procurement.js from
+    the /api/purchasing/ endpoints (CPMAS-42)."""
+
+    def test_redirects_anonymous_user_to_login(self):
+        response = self.client.get("/procurement/")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
+
+    def test_page_renders_for_authenticated_user(self):
+        # See PartnersPageRenderTests -- /procurement/ is @owner_required too.
+        owner = AppUser.objects.create(
+            username="apitester_procurement", email="procurement@example.com", password_hash="x",
+            first_name="P", last_name="R", role="OWNER",
+        )
+        owner.set_password("pass12345")
+        owner.save(update_fields=["password_hash"])
+        self.client.post("/accounts/login/", {"username": "apitester_procurement", "password": "pass12345"})
+        response = self.client.get("/procurement/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("Procurement", content)
+        self.assertIn("procurement.js", content)
+        self.assertIn("procurement.css", content)
+        self.assertIn("data-po-rows", content)
+        self.assertIn("po-search-input", content)
+
+
 class AppUserContextProcessorTests(WithUsersTableMixin, TestCase):
     def setUp(self):
         self.factory = RequestFactory()
