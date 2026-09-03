@@ -144,6 +144,10 @@
     const results = $("[data-search-results]");
     if (!trigger || !overlay || !input) return;
 
+    trigger.tabIndex = 0;
+    trigger.setAttribute("role", "button");
+    trigger.setAttribute("aria-label", "Open global search");
+
     const SOURCES = [
       { label: "Projects", url: "/api/projects/projects/", render: (r) => ({ title: r.name, sub: r.code, href: `/projects/${r.id}/` }) },
       { label: "Clients", url: "/api/clients/clients/", render: (r) => ({ title: r.name, sub: r.company_name || r.email || "", href: `/partners/?open_client=${r.id}` }) },
@@ -167,6 +171,9 @@
     function close() { overlay.hidden = true; }
 
     trigger.addEventListener("click", open);
+    trigger.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); }
+    });
     closeBtn?.addEventListener("click", close);
     overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
     document.addEventListener("keydown", (e) => {
