@@ -22,20 +22,35 @@
   // ourselves needs a fresh call or the icon slot just stays empty.
   const refreshIcons = () => { if (window.lucide?.createIcons) window.lucide.createIcons(); };
 
-  // Budget.ALLOWED_TRANSITIONS mirrored from the backend model so the UI
-  // can show the right action buttons without an extra round trip. The
-  // server re-validates every transition regardless (see
-  // ProjectSerializer/BudgetSerializer.validate_status), so this is only
-  // ever a UI convenience, never the source of truth.
-  const BUDGET_TRANSITIONS = {
-    DRAFT: ["APPROVED"],
-    APPROVED: ["REVISED", "CLOSED"],
-    REVISED: ["APPROVED", "CLOSED"],
+  // Per-status action buttons for a budget card. Mirrors
+  // Budget.ALLOWED_TRANSITIONS on the backend for the status-changing
+  // actions, plus "edit" (not a transition itself -- editing an APPROVED
+  // budget's name/total is what implicitly moves it to REVISED, handled
+  // in the submit handler). The server re-validates every status change
+  // regardless, so this config is only ever a UI convenience.
+  const BUDGET_ACTIONS = {
+    DRAFT: [
+      { type: "transition", target: "APPROVED", label: "Approve", icon: "check" },
+    ],
+    APPROVED: [
+      { type: "edit", label: "Edit", icon: "pencil" },
+      { type: "transition", target: "CLOSED", label: "Close", icon: "lock" },
+    ],
+    REVISED: [
+      { type: "edit", label: "Edit", icon: "pencil" },
+      { type: "transition", target: "APPROVED", label: "Approve", icon: "check" },
+      { type: "transition", target: "CLOSED", label: "Close", icon: "lock" },
+    ],
     CLOSED: [],
   };
   const BUDGET_ITEM_CATEGORIES = ["MATERIALS", "LABOR", "CONTRACTORS", "EQUIPMENT", "OTHER"];
 
   let project, phases = [], budgets = [], changeOrders = [];
+  // Per-budget Budget-vs-Actual breakdown (get_budget_summary), keyed by
+  // budget id -- fetched once per load() alongside everything else and
+  // reused both for each card's category table and for the aggregated
+  // hero figures below.
+  let budgetSummaries = new Map();
 
   async function request(path, options = {}, optional = false) {
     const r = await fetch(`/api/projects/${path}`, {
@@ -76,11 +91,14 @@
       const unallocated = Number(budget.total_budget || 0) - allocated;
       const editable = budget.status === "DRAFT" || budget.status === "REVISED";
 
-      const actions = (BUDGET_TRANSITIONS[budget.status] || []).map(next => {
-        const verb = next === "APPROVED" ? "Approve" : next === "REVISED" ? "Mark revised" : "Close";
-        const icon = next === "APPROVED" ? "check" : next === "REVISED" ? "history" : "lock";
-        return `<button class="quiet-button" type="button" data-action-transition-budget data-target-status="${next}">
-          <i data-lucide="${icon}"></i>${verb}
+      const actions = (BUDGET_ACTIONS[budget.status] || []).map(a => {
+        if (a.type === "edit") {
+          return `<button class="quiet-button" type="button" data-action-edit-budget>
+            <i data-lucide="${a.icon}"></i>${a.label}
+          </button>`;
+        }
+        return `<button class="quiet-button" type="button" data-action-transition-budget data-target-status="${a.target}">
+          <i data-lucide="${a.icon}"></i>${a.label}
         </button>`;
       }).join("");
 
@@ -98,15 +116,16 @@
             <span class="status ${statusClass(budget.status)}"><i></i>${esc(label(budget.status))}</span>
           </div>
           <div class="budget-card-figures">
-            <div><strong>${money(budget.total_budget)}</strong><span>Total</span></div>
-            <div><strong>${money(allocated)}</strong><span>Allocated</span></div>
-            <div><strong>${money(unallocated)}</strong><span>Unallocated</span></div>
+            <div class="figure figure-total"><strong>${money(budget.total_budget)}</strong><span>Total</span></div>
+            <div class="figure figure-allocated"><strong>${money(allocated)}</strong><span>Allocated</span></div>
+            <div class="figure figure-unallocated"><strong>${money(unallocated)}</strong><span>Unallocated</span></div>
           </div>
           <div class="budget-card-actions">
             ${editable ? `<button class="quiet-button" type="button" data-action-add-budget-item><i data-lucide="plus"></i>Add item</button>` : ""}
             ${actions}
           </div>
         </header>
+
         <div class="responsive-table">
           <table>
             <thead><tr><th>Category</th><th>Phase</th><th>Description</th><th>Amount</th></tr></thead>
@@ -118,10 +137,9 @@
   }
 
   async function load() {
-    const [p, phaseData, summary, ordersData, docs, budgetData] = await Promise.all([
+    const [p, phaseData, ordersData, docs, budgetData] = await Promise.all([
       request(`projects/${id}/`),
       request(`projects/${id}/phases/`),
-      request(`projects/${id}/budget-summary/`, {}, true),
       request(`change-orders/?project=${id}`),
       request(`projects/${id}/documents/`),
       request(`budgets/?project=${id}`)
@@ -131,6 +149,14 @@
     phases = result(phaseData);
     budgets = result(budgetData);
     changeOrders = result(ordersData);
+
+    // One Budget-vs-Actual summary per budget, fetched together. Used for
+    // each card's category table and for the aggregated hero figures
+    // below -- both need the same per-category budgeted/actual numbers.
+    const summaries = await Promise.all(
+      budgets.map(b => request(`projects/${id}/budget-summary/?budget=${b.id}`, {}, true))
+    );
+    budgetSummaries = new Map(budgets.map((b, i) => [b.id, summaries[i]]));
 
     $("[data-project-code]").textContent = p.code;
     $("[data-project-name]").textContent = p.name;
@@ -146,18 +172,24 @@
     $("[data-project-progress]").textContent = `${Math.round(progress)}%`;
     $("[data-project-progress-bar]").style.width = `${progress}%`;
 
-    $("[data-budget-total]").textContent = summary ? money(summary.totals.budgeted) : "—";
-    $("[data-actual-total]").textContent = summary ? money(summary.totals.actual) : "—";
-    $("[data-remaining-total]").textContent = summary ? money(summary.totals.remaining) : "—";
+    // Approved budget = sum of every budget's total that's actually been
+    // approved (DRAFT budgets don't count yet -- they're still proposals).
+    // Actual/Remaining follow the same non-draft set, so all three stay
+    // consistent with each other.
+    const countedBudgets = budgets.filter(b => b.status !== "DRAFT");
+    const approvedTotal = countedBudgets.reduce((n, b) => n + Number(b.total_budget || 0), 0);
+    const actualTotal = countedBudgets.reduce((n, b) => n + Number(budgetSummaries.get(b.id)?.totals?.actual || 0), 0);
+    const remainingTotal = approvedTotal - actualTotal;
+    const variance = approvedTotal > 0 ? ((approvedTotal - actualTotal) / approvedTotal * 100).toFixed(1) : 0;
 
-    // Update budget hero section
-    if (summary) {
-      $("[data-budget-hero-total]").textContent = money(summary.totals.budgeted);
-      $("[data-budget-hero-actual]").textContent = money(summary.totals.actual);
-      $("[data-budget-hero-remaining]").textContent = money(summary.totals.remaining);
-      const variance = summary.totals.budgeted > 0 ? ((summary.totals.budgeted - summary.totals.actual) / summary.totals.budgeted * 100).toFixed(1) : 0;
-      $("[data-budget-hero-variance]").textContent = `${variance > 0 ? "+" : ""}${variance}%`;
-    }
+    $("[data-budget-total]").textContent = money(approvedTotal);
+    $("[data-actual-total]").textContent = money(actualTotal);
+    $("[data-remaining-total]").textContent = money(remainingTotal);
+
+    $("[data-budget-hero-total]").textContent = money(approvedTotal);
+    $("[data-budget-hero-actual]").textContent = money(actualTotal);
+    $("[data-budget-hero-remaining]").textContent = money(remainingTotal);
+    $("[data-budget-hero-variance]").textContent = `${variance > 0 ? "+" : ""}${variance}%`;
 
     table("[data-project-phases]",
       ["Phase","Status","Progress","Start","End","Actions"],
@@ -273,6 +305,21 @@
         html: input("name","Budget name","text","",true,{placeholder:"e.g. Materials"})
           + input("total_budget","Total budget","number","",true,{min:"0",step:"0.01",placeholder:"0.00"})
       });
+    } else if (action === "edit-budget") {
+      const budget = context;
+      if (!budget) return;
+      fields({
+        title: `Edit budget: ${budget.name}`,
+        action: "edit-budget",
+        submit: "Save changes",
+        html: input("name","Budget name","text",budget.name,true)
+          + input("total_budget","Total budget","number",budget.total_budget,true,{min:"0",step:"0.01"})
+          + (budget.status === "APPROVED"
+              ? `<p class="dialog-hint span-2">This budget is currently Approved — saving changes will mark it as Revised.</p>`
+              : "")
+      });
+      form.dataset.budgetId = budget.id;
+      form.dataset.wasApproved = budget.status === "APPROVED" ? "true" : "";
     } else if (action === "add-budget-item") {
       const budget = context;
       if (!budget) return;
@@ -397,6 +444,8 @@
 
         if (e.target.closest("[data-action-add-budget-item]")) {
           open("add-budget-item", budget);
+        } else if (e.target.closest("[data-action-edit-budget]")) {
+          open("edit-budget", budget);
         } else if (e.target.closest("[data-action-transition-budget]")) {
           const targetStatus = e.target.closest("[data-action-transition-budget]").dataset.targetStatus;
           open("transition-budget", { budget, targetStatus });
@@ -467,6 +516,12 @@
       } else if (action === "new-budget") {
         path = "budgets/";
         data.project_id = id;
+      } else if (action === "edit-budget") {
+        path = `budgets/${form.dataset.budgetId}/`;
+        method = "PATCH";
+        // Editing an Approved budget is what marks it Revised -- editing
+        // a Draft or already-Revised one just updates the fields.
+        if (form.dataset.wasApproved === "true") data.status = "REVISED";
       } else if (action === "add-budget-item") {
         path = "budget-items/";
         data.budget_id = form.dataset.budgetId;

@@ -297,6 +297,24 @@ class BudgetSerializer(serializers.ModelSerializer):
             )
         return value
 
+    def validate(self, attrs):
+        # Editing a budget's own total down shouldn't be able to leave it
+        # smaller than what's already been allocated to it via items --
+        # that would silently put existing items over the new total.
+        total_budget = attrs.get("total_budget")
+        if self.instance is not None and total_budget is not None:
+            allocated = self.instance.items.aggregate(total=Sum("budgeted_amount"))["total"] or Decimal("0.00")
+            if total_budget < allocated:
+                raise serializers.ValidationError(
+                    {
+                        "total_budget": (
+                            f"Cannot set the total below {allocated}, which is already "
+                            "allocated to this budget's items."
+                        )
+                    }
+                )
+        return attrs
+
 
 class ChangeOrderSerializer(serializers.ModelSerializer):
     """

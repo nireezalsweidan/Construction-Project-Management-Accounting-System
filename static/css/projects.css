@@ -1,5 +1,5 @@
 /* Centered project action dialogs */
-[data-project-dialog],[data-detail-dialog]{width:min(640px,calc(100vw - 32px));max-height:calc(100vh - 48px);margin:auto;padding:0;border:0;border-radius:16px;background:var(--panel);color:var(--ink);box-shadow:0 28px 75px #0d1f1ab8;overflow:auto}
+[data-project-dialog],[data-detail-dialog]{width:min(640px,calc(100vw - 32px));max-height:calc(100vh - 48px);margin:auto;padding:0;border:0;border-radius:16px;background:#ffffff;color:#1c2b27;box-shadow:0 28px 75px #0d1f1ab8;overflow:auto}
 [data-project-dialog]::backdrop,[data-detail-dialog]::backdrop{background:#13231cc4;backdrop-filter:blur(3px)}
 [data-project-dialog] form,[data-detail-dialog] form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:26px}
 [data-project-dialog] h2,[data-detail-dialog] h2{grid-column:1/-1;margin:-26px -26px 4px;padding:22px 26px;color:#f7fbf8;background:linear-gradient(135deg,#18352b,#27624e);font:700 22px Georgia,"Times New Roman",serif}
@@ -89,10 +89,14 @@
 .budget-card-title{display:flex;align-items:center;gap:12px}
 .budget-card-title h3{margin:0;color:#102d2d;font:700 18px Georgia,"Times New Roman",serif}
 
-.budget-card-figures{display:flex;gap:22px}
-.budget-card-figures div{display:flex;flex-direction:column;gap:2px}
-.budget-card-figures strong{color:#102d2d;font-size:16px}
-.budget-card-figures span{color:#68756d;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.budget-card-figures{display:flex;gap:12px}
+.budget-card-figures .figure{display:flex;flex-direction:column;gap:4px;min-width:96px;padding:10px 16px;border-radius:12px;border:1px solid #d7e4df;background:#f2f7f5}
+.budget-card-figures .figure span{color:#5c6864;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+.budget-card-figures .figure strong{color:#102d2d;font-size:18px;font-weight:800;letter-spacing:-.01em}
+.budget-card-figures .figure-allocated{border-color:#e5c48f;background:#fdf5e7}
+.budget-card-figures .figure-allocated strong{color:#8a5a13}
+.budget-card-figures .figure-unallocated{border-color:#9ecdc2;background:#e9f6f2}
+.budget-card-figures .figure-unallocated strong{color:#0f7a6c}
 
 .budget-card-actions{display:flex;flex-wrap:wrap;gap:8px}
 .budget-card-actions .quiet-button{display:inline-flex;align-items:center;gap:6px;border-color:#9ab7b2;background:#f7faf8;color:#174b4a;font-size:12px;font-weight:750}
