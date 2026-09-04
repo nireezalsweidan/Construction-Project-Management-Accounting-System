@@ -43,6 +43,70 @@
     ],
     CLOSED: [],
   };
+  // ------------------------------------------------------------
+  // Project status transitions
+  //
+  // This mirrors Project.ALLOWED_TRANSITIONS on the backend.
+  // The backend remains the final authority; this only controls
+  // which actions are presented to the user.
+  // ------------------------------------------------------------
+
+  const PROJECT_STATUS_ACTIONS = {
+    PLANNING: [
+      {
+        target: "ACTIVE",
+        label: "Start project",
+        icon: "play",
+        primary: true,
+      },
+      {
+        target: "CANCELLED",
+        label: "Cancel project",
+        icon: "x",
+        primary: false,
+      },
+    ],
+
+    ACTIVE: [
+      {
+        target: "ON_HOLD",
+        label: "Put on hold",
+        icon: "pause",
+        primary: false,
+      },
+      {
+        target: "COMPLETED",
+        label: "Complete project",
+        icon: "check-circle",
+        primary: true,
+      },
+      {
+        target: "CANCELLED",
+        label: "Cancel project",
+        icon: "x",
+        primary: false,
+      },
+    ],
+
+    ON_HOLD: [
+      {
+        target: "ACTIVE",
+        label: "Resume project",
+        icon: "play",
+        primary: true,
+      },
+      {
+        target: "CANCELLED",
+        label: "Cancel project",
+        icon: "x",
+        primary: false,
+      },
+    ],
+
+    COMPLETED: [],
+
+    CANCELLED: [],
+  };
   const BUDGET_ITEM_CATEGORIES = ["MATERIALS", "LABOR", "CONTRACTORS", "EQUIPMENT", "OTHER"];
 
   let project, phases = [], budgets = [], changeOrders = [];
@@ -66,6 +130,26 @@
     if (optional && r.status === 404) return null;
     if (!r.ok) throw new Error(data.detail || Object.values(data).flat().join(" ") || `Request failed (${r.status})`);
     return data;
+  }
+  function renderProjectStatusActions() {
+    const container = $("[data-project-status-actions]");
+    if (!container || !project) return;
+
+    const actions = PROJECT_STATUS_ACTIONS[project.status] || [];
+
+    container.innerHTML = actions.map(action => `
+      <button
+        type="button"
+        class="${action.primary ? "primary-button" : "quiet-button"}"
+        data-action-project-status
+        data-target-status="${action.target}"
+      >
+        <i data-lucide="${action.icon}"></i>
+        ${action.label}
+      </button>
+    `).join("");
+
+    refreshIcons();
   }
 
   const result = data => Array.isArray(data) ? data : data.results || [];
@@ -166,6 +250,7 @@
     const status = $("[data-project-status]");
     status.className = `status ${p.status.toLowerCase().replaceAll("_","-")}`;
     status.innerHTML = `<i></i>${esc(label(p.status))}`;
+    renderProjectStatusActions();
     $("[data-contract-value]").textContent = money(p.contract_value);
 
     const progress = phases.length ? phases.reduce((n,x)=>n+Number(x.progress_percentage||0),0)/phases.length : 0;
@@ -305,6 +390,66 @@
         html: input("name","Budget name","text","",true,{placeholder:"e.g. Materials"})
           + input("total_budget","Total budget","number","",true,{min:"0",step:"0.01",placeholder:"0.00"})
       });
+    } else if (action === "transition-project") {
+      const targetStatus = context?.targetStatus;
+
+      if (!project || !targetStatus) return;
+
+      const verbMap = {
+        ACTIVE: "Start project",
+        ON_HOLD: "Put project on hold",
+        COMPLETED: "Complete project",
+        CANCELLED: "Cancel project",
+      };
+
+      const verb = verbMap[targetStatus] || "Change status";
+
+      fields({
+        title: `${verb}: ${project.name}`,
+        action: "transition-project",
+        submit: verb,
+        html: `
+          <p class="dialog-hint span-2">
+            This will change the project status from
+            <strong>${esc(label(project.status))}</strong>
+            to
+            <strong>${esc(label(targetStatus))}</strong>.
+          </p>
+
+          ${
+            targetStatus === "ACTIVE"
+              ? `
+                <p class="dialog-hint span-2">
+                  The project will become active and work can begin.
+                </p>
+              `
+              : ""
+          }
+
+          ${
+            targetStatus === "COMPLETED"
+              ? `
+                <p class="dialog-hint span-2">
+                  A completed project cannot be moved to another status.
+                  Please make sure all project work is finished.
+                </p>
+              `
+              : ""
+          }
+
+          ${
+            targetStatus === "CANCELLED"
+              ? `
+                <p class="dialog-hint span-2">
+                  A cancelled project is final and cannot be reactivated.
+                </p>
+              `
+              : ""
+          }
+        `
+      });
+
+      form.dataset.targetStatus = targetStatus;
     } else if (action === "edit-budget") {
       const budget = context;
       if (!budget) return;
@@ -452,6 +597,23 @@
         }
       });
     }
+    // ------------------------------------------------------------
+    // Project status transition buttons
+    // ------------------------------------------------------------
+
+    root.addEventListener("click", event => {
+      const button = event.target.closest("[data-action-project-status]");
+
+      if (!button) return;
+
+      const targetStatus = button.dataset.targetStatus;
+
+      if (!targetStatus) return;
+
+      open("transition-project", {
+        targetStatus
+      });
+    });
 
     // Handle change order row clicks for approve/reject/cancel
     const procurementPanel = root.querySelector('[data-project-panel="procurement"]');
@@ -504,6 +666,10 @@
       if (action === "edit-project") {
         path = `projects/${id}/`;
         method = "PATCH";
+      } else if (action === "transition-project") { 
+        path = `projects/${id}/`; 
+        method = "PATCH"; 
+        data.status = form.dataset.targetStatus;
       } else if (action === "add-phase") {
         path = "phases/";
         data.project_id = id;
