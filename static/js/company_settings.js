@@ -59,7 +59,397 @@
   var usersPane = document.querySelector('[data-settings-pane="users"]');
   if (!usersPane) { return; }
   initUsersPane();
+
+  var taxesPane = document.querySelector('[data-settings-pane="taxes"]');
+  if (taxesPane) { initTaxesPane(); }
 })();
+
+function initTaxesPane() {
+  "use strict";
+  var API = "/api/taxes/tax-rates/";
+  var state = { rates: [], query: "" };
+
+  var el = function (sel, root) { return (root || document).querySelector(sel); };
+  var els = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
+
+  var banner = el("[data-taxes-banner]");
+  var body = el("[data-taxes-body]");
+  var empty = el("[data-taxes-empty]");
+  var loading = el("[data-taxes-loading]");
+  var count = el("[data-taxes-count]");
+  var search = el("[data-taxes-search]");
+  var modal = el("[data-taxes-modal]");
+  var form = el("[data-taxes-form]");
+  var modalTitle = el("[data-taxes-modal-title]");
+
+  var dateInput = el("[data-taxes-date-input]");
+  var dateValue = form.elements["effective_date"];
+  var dateToggle = el("[data-taxes-date-toggle]");
+  var calendar = el("[data-taxes-calendar]");
+
+  function getCookie(name) {
+    var m = document.cookie.match(new RegExp("(^|;\\s*)" + name + "=([^;]*)"));
+    return m ? decodeURIComponent(m[2]) : "";
+  }
+
+  async function api(url, options) {
+    options = options || {};
+    var opts = {
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+      ...options,
+    };
+    if (options.method && !["GET", "HEAD"].includes(options.method)) {
+      opts.headers["X-CSRFToken"] = getCookie("csrftoken");
+    }
+    var res = await fetch(url, opts);
+    if (!res.ok) {
+      var detail = res.statusText;
+      try { detail = JSON.stringify(await res.json()); } catch (e) { /* ignore */ }
+      throw new Error(detail || ("HTTP " + res.status));
+    }
+    if (res.status === 204) { return null; }
+    return res.json();
+  }
+
+  function showBanner(text, type) {
+    banner.textContent = text;
+    banner.className = "users-banner" + (type ? " " + type : "");
+    banner.hidden = false;
+    clearTimeout(banner._t);
+    banner._t = setTimeout(function () { banner.hidden = true; }, 5000);
+  }
+
+  function hideBanner() { banner.hidden = true; }
+
+  function statusWord(isActive) {
+    return isActive ? "active" : "inactive";
+  }
+
+  function fmtRate(rate) {
+    var n = Number(rate);
+    if (isNaN(n)) { return rate; }
+    var s = n.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+    return s + "%";
+  }
+
+  /* ---- Custom calendar (Effective date) ---- */
+  var calView = (function () {
+    var now = new Date();
+    var year = now.getFullYear();
+    var month = now.getMonth(); // 0-based
+    var selected = ""; // "YYYY-MM-DD"
+
+    var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    var DOWS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+
+    function fmt(d) {
+      var m = String(d.getMonth() + 1).padStart(2, "0");
+      var day = String(d.getDate()).padStart(2, "0");
+      return d.getFullYear() + "-" + m + "-" + day;
+    }
+    function display(d) {
+      return !!d ? d : "Select date";
+    }
+
+    function renderCal() {
+      var first = new Date(year, month, 1);
+      var startDow = first.getDay();
+      var daysInMonth = new Date(year, month + 1, 0).getDate();
+      var todayStr = fmt(new Date());
+
+      var cells = DOWS.map(function (d) { return '<span class="users-cal-dow">' + d + '</span>'; }).join("");
+
+      var dayCells = "";
+      for (var i = 0; i < startDow; i++) {
+        dayCells += '<span></span>';
+      }
+      for (var d = 1; d <= daysInMonth; d++) {
+        var ds = year + "-" + String(month + 1).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+        var cls = "users-cal-day";
+        if (ds === todayStr) { cls += " today"; }
+        if (ds === selected) { cls += " sel"; }
+        dayCells += '<button type="button" class="' + cls + '" data-date="' + ds + '">' + d + '</button>';
+      }
+
+      calendar.innerHTML =
+          '<div class="users-cal-head">'
+        +   '<button type="button" class="users-cal-nav" data-cal-prev>‹</button>'
+        +   '<span class="users-cal-title">' + MONTHS[month] + ' ' + year + '</span>'
+        +   '<button type="button" class="users-cal-nav" data-cal-next>›</button>'
+        + '</div>'
+        + '<div class="users-cal-grid">' + cells + dayCells + '</div>';
+    }
+
+    function show() {
+      if (selected) {
+        var parts = selected.split("-");
+        year = Number(parts[0]);
+        month = Number(parts[1]) - 1;
+      } else {
+        var nowD = new Date();
+        year = nowD.getFullYear();
+        month = nowD.getMonth();
+      }
+      renderCal();
+      document.body.appendChild(calendar);
+      calendar.hidden = false;
+      position();
+    }
+
+    function position() {
+      var rect = dateInput.getBoundingClientRect();
+      var calW = calendar.offsetWidth || 264;
+      var calH = calendar.offsetHeight || 250;
+      var left = Math.min(Math.max(rect.left, 8), window.innerWidth - calW - 8);
+      var below = rect.bottom + 6 + calH <= window.innerHeight - 8;
+      var top = below ? rect.bottom + 6 : Math.max(8, rect.top - calH - 6);
+      calendar.style.left = left + "px";
+      calendar.style.top = top + "px";
+      calendar.style.maxHeight = (window.innerHeight - 16) + "px";
+      calendar.style.overflowY = "auto";
+    }
+
+    function hide() { calendar.hidden = true; }
+
+    function select(ds) {
+      selected = ds;
+      dateValue.value = ds;
+      dateInput.value = display(ds);
+      hide();
+    }
+
+    function init() {
+      dateToggle.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (calendar.hidden) { show(); } else { hide(); }
+      });
+      dateInput.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (calendar.hidden) { show(); } else { hide(); }
+      });
+      document.addEventListener("click", function (ev) {
+        if (calendar.hidden) { return; }
+        if (!calendar.contains(ev.target) && !dateToggle.contains(ev.target) && !dateInput.contains(ev.target)) {
+          hide();
+        }
+      });
+      calendar.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        var prev = ev.target.closest("[data-cal-prev]");
+        if (prev) {
+          month -= 1;
+          if (month < 0) { month = 11; year -= 1; }
+          renderCal();
+          return;
+        }
+        var next = ev.target.closest("[data-cal-next]");
+        if (next) {
+          month += 1;
+          if (month > 11) { month = 0; year += 1; }
+          renderCal();
+          return;
+        }
+        var day = ev.target.closest("[data-date]");
+        if (day) { select(day.getAttribute("data-date")); }
+      });
+    }
+
+    return { init: init, show: show, hide: hide, setSelected: function (ds) { selected = ds || ""; } };
+  })();
+
+  function render() {
+    var q = state.query.toLowerCase();
+    var list = state.rates.filter(function (t) {
+      if (!q) { return true; }
+      return (t.name || "").toLowerCase().indexOf(q) !== -1
+        || (t.tax_type || "").toLowerCase().indexOf(q) !== -1;
+    });
+
+    count.textContent = list.length + " of " + state.rates.length + " tax rates";
+    empty.classList.toggle("visible", list.length === 0);
+    loading.style.display = "none";
+
+    body.innerHTML = list.map(function (t) {
+      var type = t.tax_type || "—";
+      return ''
+        + '<tr data-id="' + t.id + '">'
+        +   '<td><span class="users-name">' + t.name + '</span></td>'
+        +   '<td class="users-rate">' + fmtRate(t.rate) + '</td>'
+        +   '<td class="users-email">' + type + '</td>'
+        +   '<td class="users-lastlogin">' + (t.effective_date || "—") + '</td>'
+        +   '<td><span class="users-dot ' + statusWord(t.is_active) + '"></span><span class="users-status ' + statusWord(t.is_active) + '">' + (t.is_active ? "Active" : "Inactive") + '</span></td>'
+        +   '<td class="users-actions">'
+        +     (t.is_active
+        ? '<button type="button" class="users-link" data-taxes-act="deactivate" data-id="' + t.id + '">Deactivate</button>'
+        : '<button type="button" class="users-link" data-taxes-act="activate" data-id="' + t.id + '">Activate</button>')
+        +     '<button type="button" class="users-link" data-taxes-act="edit" data-id="' + t.id + '">Edit</button>'
+        +     '<button type="button" class="users-link danger" data-taxes-act="delete" data-id="' + t.id + '">Delete</button>'
+        +   '</td>'
+        + '</tr>';
+    }).join("");
+  }
+
+  async function loadRates() {
+    loading.style.display = "block";
+    try {
+      var data = await api(API + "?page_size=100");
+      state.rates = data.results || data;
+      render();
+    } catch (err) {
+      loading.style.display = "none";
+      body.innerHTML = "";
+      empty.classList.remove("visible");
+      showBanner("Could not load tax rates: " + err.message, "error");
+    }
+  }
+
+  function showModal() {
+    document.body.appendChild(modal);
+    modal.hidden = false;
+    calView.hide();
+  }
+
+  function openAdd() {
+    modalTitle.textContent = "Add tax rate";
+    form.reset();
+    form.elements["id"].value = "";
+    form.elements["is_active"].value = "true";
+    el('[data-taxes-save]').textContent = "Create tax rate";
+    dateInput.value = "Select date";
+    dateValue.value = "";
+    calView.setSelected("");
+    showModal();
+    form.elements["name"].focus();
+  }
+
+  function openEdit(tax) {
+    modalTitle.textContent = "Edit tax rate";
+    form.reset();
+    form.elements["id"].value = tax.id;
+    form.elements["name"].value = tax.name || "";
+    form.elements["rate"].value = Number(tax.rate);
+    form.elements["tax_type"].value = tax.tax_type || "";
+    form.elements["effective_date"].value = tax.effective_date || "";
+    form.elements["is_active"].value = tax.is_active ? "true" : "false";
+    el('[data-taxes-save]').textContent = "Save changes";
+    var ed = tax.effective_date || "";
+    dateValue.value = ed;
+    dateInput.value = ed || "Select date";
+    calView.setSelected(ed);
+    showModal();
+  }
+
+  function closeModal() { modal.hidden = true; calView.hide(); }
+
+  async function submitForm(ev) {
+    ev.preventDefault();
+    hideBanner();
+
+    var id = form.elements["id"].value;
+    var payload = {
+      name: form.elements["name"].value.trim(),
+      rate: form.elements["rate"].value,
+      tax_type: form.elements["tax_type"].value.trim(),
+      effective_date: form.elements["effective_date"].value,
+      is_active: form.elements["is_active"].value === "true",
+    };
+
+    try {
+      if (id) {
+        await api(API + id + "/", { method: "PATCH", body: JSON.stringify(payload) });
+        showBanner("Tax rate updated.", "success");
+      } else {
+        await api(API, { method: "POST", body: JSON.stringify(payload) });
+        showBanner("Tax rate created.", "success");
+      }
+      closeModal();
+      loadRates();
+    } catch (err) {
+      showBanner("Could not save tax rate: " + err.message, "error");
+    }
+  }
+
+  async function toggleStatus(id, activate) {
+    hideBanner();
+    try {
+      await api(API + id + "/" + (activate ? "activate" : "deactivate") + "/", { method: "POST" });
+      showBanner(activate ? "Tax rate activated." : "Tax rate deactivated.", "success");
+      loadRates();
+    } catch (err) {
+      showBanner("Could not change status: " + err.message, "error");
+    }
+  }
+
+  var deleteModal = el("[data-taxes-delete-modal]");
+  var deleteName = el("[data-taxes-delete-name]");
+  var deletingId = null;
+
+  function showDeleteConfirm(id) {
+    var tax = state.rates.find(function (t) { return t.id === id; });
+    deletingId = id;
+    deleteName.textContent = tax ? tax.name : "this tax rate";
+    document.body.appendChild(deleteModal);
+    deleteModal.hidden = false;
+  }
+  function hideDeleteConfirm() {
+    deleteModal.hidden = true;
+    deletingId = null;
+  }
+
+  async function removeTax(id) {
+    hideBanner();
+    try {
+      await api(API + id + "/", { method: "DELETE" });
+      showBanner("Tax rate deleted.", "success");
+      loadRates();
+    } catch (err) {
+      showBanner("Could not delete tax rate: " + err.message, "error");
+    }
+  }
+
+  body.addEventListener("click", function (ev) {
+    var btn = ev.target.closest("[data-taxes-act]");
+    if (!btn) { return; }
+    var act = btn.getAttribute("data-taxes-act");
+    var id = btn.getAttribute("data-id");
+    var tax = state.rates.find(function (t) { return t.id === id; });
+    if (act === "deactivate") { toggleStatus(id, false); }
+    else if (act === "activate") { toggleStatus(id, true); }
+    else if (act === "edit" && tax) { openEdit(tax); }
+    else if (act === "delete") { showDeleteConfirm(id); }
+  });
+
+  search.addEventListener("input", function () {
+    state.query = this.value.trim();
+    render();
+  });
+
+  el('[data-taxes-open-add]').addEventListener("click", openAdd);
+  els("[data-taxes-modal-close]").forEach(function (b) {
+    b.addEventListener("click", closeModal);
+  });
+  modal.addEventListener("click", function (ev) { if (ev.target === modal) { closeModal(); } });
+  form.addEventListener("submit", submitForm);
+
+  calView.init();
+
+  els("[data-taxes-delete-close]").forEach(function (b) {
+    b.addEventListener("click", hideDeleteConfirm);
+  });
+  el("[data-taxes-delete-confirm]").addEventListener("click", function () {
+    var id = deletingId;
+    hideDeleteConfirm();
+    if (id) { removeTax(id); }
+  });
+  deleteModal.addEventListener("click", function (ev) {
+    if (ev.target === deleteModal) { hideDeleteConfirm(); }
+  });
+
+  loadRates();
+}
 
 function initUsersPane() {
   "use strict";

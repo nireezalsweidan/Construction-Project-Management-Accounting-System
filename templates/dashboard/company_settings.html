@@ -154,8 +154,94 @@
   </div>
 
   <div class="settings-pane" data-settings-pane="taxes">
-    <div class="settings-pane-head"><div><h2>Tax rates</h2><p>Taxes available for purchase orders and invoices</p></div></div>
-    <div class="settings-placeholder">Tax rates are ready to connect to the tax_rates table (rate, name, defaults used across POs and invoices).</div>
+    <div class="settings-pane-head">
+      <div><h2>Tax rates</h2><p>Taxes available for purchase orders and invoices</p></div>
+      <button type="button" class="users-add-btn" data-taxes-open-add>+ Add tax rate</button>
+    </div>
+
+    <div class="users-toolbar">
+      <input type="text" class="users-search" data-taxes-search placeholder="Search by name or type…">
+      <span class="users-count" data-taxes-count></span>
+    </div>
+
+    <div class="users-table-wrap">
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Rate</th>
+            <th>Type</th>
+            <th>Effective</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody data-taxes-body></tbody>
+      </table>
+      <div class="users-empty" data-taxes-empty>No tax rates match your search.</div>
+      <div class="users-loading" data-taxes-loading>Loading tax rates…</div>
+    </div>
+
+    <div class="users-banner" data-taxes-banner hidden></div>
+
+    <div class="users-modal" data-taxes-modal hidden>
+      <div class="users-modal-card">
+        <div class="users-modal-head">
+          <h3 data-taxes-modal-title>Add tax rate</h3>
+          <button type="button" class="users-modal-close" data-taxes-modal-close>×</button>
+        </div>
+        <form data-taxes-form>
+          <input type="hidden" name="id" data-taxes-field="id">
+          <div class="users-form-grid">
+            <label>Name *
+              <input type="text" name="name" data-taxes-field="name" required placeholder="e.g. VAT">
+            </label>
+            <label>Rate % *
+              <input type="number" name="rate" data-taxes-field="rate" step="0.0001" min="0" required placeholder="e.g. 15">
+            </label>
+            <label>Type
+              <input type="text" name="tax_type" data-taxes-field="tax_type" placeholder="e.g. Sales tax">
+            </label>
+            <label>Effective date *
+              <span class="users-date-wrap">
+                <input type="hidden" name="effective_date" data-taxes-field="effective_date">
+                <input type="text" class="users-date-input" data-taxes-date-input readonly placeholder="Select date" autocomplete="off">
+                <button type="button" class="users-date-toggle" data-taxes-date-toggle aria-label="Open calendar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></button>
+                <div class="users-calendar" data-taxes-calendar hidden></div>
+              </span>
+            </label>
+            <label>Status
+              <select name="is_active" data-taxes-field="is_active">
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+            </label>
+          </div>
+          <p class="users-create-hint">Rates must be zero or greater. Effective date is when this rate starts applying to invoices and purchase orders.</p>
+          <div class="users-form-actions">
+            <button type="button" class="users-modal-cancel" data-taxes-modal-close>Cancel</button>
+            <button type="submit" class="primary-button" data-taxes-save>Save tax rate</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="users-modal" data-taxes-delete-modal hidden>
+      <div class="users-modal-card users-delete-card">
+        <div class="users-modal-head">
+          <h3 data-taxes-delete-title>Delete tax rate</h3>
+          <button type="button" class="users-modal-close" data-taxes-delete-close>×</button>
+        </div>
+        <div class="users-delete-body">
+          <p>Are you sure you want to delete <b data-taxes-delete-name></b>?</p>
+          <p class="users-delete-hint">This cannot be undone. Any invoices or purchase orders that reference this rate will keep their stored amount.</p>
+        </div>
+        <div class="users-form-actions">
+          <button type="button" class="users-modal-cancel" data-taxes-delete-close>Cancel</button>
+          <button type="button" class="users-delete-confirm" data-taxes-delete-confirm>Delete tax rate</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="settings-pane" data-settings-pane="notifications">
