@@ -1,58 +1,115 @@
-/* Purchase Order Management page styles (CPMAS-42).
-   Shared dashboard look (site-exact.css) provides page-heading,
-   module-stat-grid, filterbar, table-panel and responsive-table; these
-   add what Procurement needs: the PO detail dialog, action bar, add-item
-   and receive-goods forms, and the inline create overlay -- mirrors
-   suppliers.css's dialog/create-overlay structure. */
+/* Procurement page (Goods Receiving) -- built on the shared v3 dashboard
+   look (site-exact.css/v3-fixes.css); only adds what's specific to this
+   page: the Receive Goods dialog, the dynamic item rows, and the
+   responsive receiving form. Mirrors payments.css conventions. */
 
-.row-click{cursor:pointer}
+.local-search input{border:0;background:none;outline:0;min-width:230px;font:inherit;color:inherit}
+.filterbar select{font:inherit}
 
-.local-search input{background:transparent;border:0;outline:0;flex:1;min-width:0;color:inherit;font:inherit}
+.procurement-pagination{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:14px 20px;border-top:1px solid #b5c5c0}
+.procurement-pagination span{font-size:11px;color:#607b76;font-weight:800}
 
-select.quiet-button,input.quiet-button{font:inherit;cursor:pointer}
+/* ---- Receive Goods + receipt detail dialogs ---- */
+.procurement-dialog{width:min(760px,calc(100vw - 32px));border:1px solid #94aaa4;border-radius:14px;padding:0;background:#e5ece8;color:#063d3c;box-shadow:0 24px 70px #063d3c55}
+.procurement-dialog::backdrop{background:#063d3c80;backdrop-filter:blur(2px)}
+.procurement-dialog[open]{position:fixed;inset:0;margin:auto;max-height:calc(100vh - 40px);overflow:auto}
+.procurement-dialog form{padding:24px}
+.procurement-dialog header,.procurement-dialog footer{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.procurement-dialog header{border-bottom:1px solid #b1c1bc;padding-bottom:16px;margin-bottom:20px}
+.procurement-dialog header h2{margin:2px 0 0}
+.procurement-dialog header button{border:0;background:transparent;font-size:25px;color:inherit;cursor:pointer}
+.procurement-dialog footer{justify-content:flex-end;border-top:1px solid #b1c1bc;padding-top:18px;margin-top:18px}
 
-/* ---- Detail dialog ---- */
-.po-dialog{border:0;padding:0;background:transparent;width:min(940px,calc(100vw - 32px));max-height:calc(100vh - 48px);overflow:auto;margin:auto}
-.po-dialog::backdrop{background:#13231cb5}
-.po-dialog-shell{background:var(--panel);border-radius:14px;overflow:hidden;box-shadow:0 24px 60px #0d1f1ab5}
-.po-dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:22px 26px;color:#f5fffc;background:linear-gradient(175deg,#074e4b 0%,#087168 58%,#07534f 100%)}
-.po-dialog-head h2{font-size:22px;letter-spacing:-.01em;margin:2px 0 0;color:#f5fffc}
-.po-dialog-head p{color:#d7e5e0;font-size:12px;margin-top:2px}
-.po-dialog-head .eyebrow{color:#ffd98a!important;margin:0}
-.po-dialog-actions{display:flex;align-items:center;gap:10px}
-.po-dialog-actions .status{background:#f5fffc20;border-color:#f5fffc55;color:#f5fffc}
-.po-close{background:#ffffff1f;border:1px solid #ffffff38;color:#f5fffc;width:32px;height:32px;border-radius:9px;font-size:18px;line-height:1;cursor:pointer;display:grid;place-items:center}
-.po-close:hover{background:#ffffff36}
-.po-dialog-shell .module-stat-grid{margin:20px 26px 0}
-.po-dialog-shell .module-table{margin:20px 26px}
+.receive-context{margin:5px 0 0;color:#69817c;font-size:10px}
+.receive-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.receive-form-grid .full{grid-column:1/-1}
+.receive-form-grid label{display:flex;flex-direction:column;gap:7px;font-size:11px;font-weight:800}
+.receive-form-grid input,.receive-form-grid select,.receive-form-grid textarea{box-sizing:border-box;width:100%;border:1px solid #9fb2ad;border-radius:8px;background:#f5f7f5;padding:10px;font:inherit;color:#123f3d}
 
-/* ---- Status action bar ---- */
-.po-dialog-actionbar{display:flex;gap:10px;padding:16px 26px 0;flex-wrap:wrap}
-.po-dialog-actionbar p{color:var(--muted);font-size:12.5px;margin:0}
+/* ---- Dynamic item rows ---- */
+.receive-items-wrap{margin-top:18px}
+.register-heading{display:flex;align-items:center;padding:12px 16px;border:1px solid #b5c5c0;border-radius:8px;margin-bottom:12px;background:#f0f4f1}
+.register-heading h2{margin:0;font-size:13px}
+.register-heading p{margin:4px 0 0;color:#718681;font-size:9px}
+.qty-input{width:100px;box-sizing:border-box;text-align:right;border:1px solid #9fb2ad;border-radius:8px;background:#f5f7f5;padding:8px 10px;font:inherit;color:#123f3d}
+.qty-input:disabled{background:#e6ece8;color:#81948f;cursor:not-allowed}
 
-/* ---- Add-item / receive-goods forms ---- */
-.po-item-form-grid,.po-create-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:16px 0 0}
-.po-item-form-grid label,.po-create-grid label,[data-po-receive-form] label{display:flex;flex-direction:column;gap:5px;font-size:11.5px;font-weight:700;color:var(--ink)}
-.po-item-form-grid input,.po-item-form-grid select,.po-create-grid input,.po-create-grid select,
-[data-po-receive-form] input,[data-po-receive-form] select{border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13.5px;background:#fbfcfb;outline:none;box-sizing:border-box;font-family:inherit}
-.po-item-form-grid input:focus,.po-item-form-grid select:focus,.po-create-grid input:focus,.po-create-grid select:focus,
-[data-po-receive-form] input:focus,[data-po-receive-form] select:focus{border-color:#16857c;box-shadow:0 0 0 3px #16857c18}
-.po-item-form-actions{display:flex;justify-content:flex-end;gap:10px;padding:14px 0 4px}
-[data-receive-lines]{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.form-error{border-radius:7px;background:#f7d7d1;color:#7f2018;padding:10px;margin:14px 0 0;white-space:pre-wrap}
 
-/* ---- Inline create overlay ---- */
-.po-create{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:#13231cb5;padding:16px}
-.po-create[hidden]{display:none}
-.po-create form{background:var(--panel);border-radius:14px;width:min(640px,100%);box-shadow:0 24px 60px #0d1f1ab5;overflow:hidden}
-.po-create-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:20px 24px;border-bottom:1px solid var(--line)}
-.po-create-head h2{font-size:18px;margin:2px 0 0}
-.po-create-head .eyebrow{color:#08736c!important;margin:0}
-.po-create-head .po-close{background:#eef2ef;border-color:var(--line);color:var(--ink)}
-.po-create-grid{padding:20px 24px}
-.po-create-actions{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid var(--line);background:#fafbfa}
-.po-create-actions .primary-button{padding:9px 16px;border:0;border-radius:10px;background:linear-gradient(135deg,#ffbd3f,#f28b2c);box-shadow:none;color:#183b38;font-weight:800;cursor:pointer}
+/* ---- Read-only receipt detail ---- */
+.procurement-detail-shell{padding:24px}
+.receive-fields{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.receive-fields div{border:1px solid #b1c1bc;border-radius:8px;padding:10px}
+.receive-fields span{display:block;font-size:9px;color:#607b76;text-transform:uppercase}
+.receive-fields strong{display:block;margin-top:4px}
+.procurement-detail-shell section{margin-top:18px}
+.procurement-detail-shell h3{font-size:13px}
 
-@media(max-width:700px){
-  .po-dialog-head,.po-create-head{flex-direction:column}
-  .po-item-form-grid,.po-create-grid,[data-receive-lines]{grid-template-columns:1fr}
+@media(max-width:720px){
+  .receive-form-grid{grid-template-columns:1fr}
+  .receive-form-grid .full,.receive-form-grid .wide{grid-column:auto}
+  .receive-fields{grid-template-columns:1fr}
+  .local-search input{min-width:120px}
+}
+
+/* ---- Page heading CTAs: Receive goods (primary) + New purchase order
+   (secondary). Scoped to this page so the shared .page-actions rules in
+   other modules are untouched. ---- */
+.page-actions{display:flex;align-items:center;gap:10px;white-space:nowrap}
+.page-actions .primary-button,
+.page-actions .quiet-button{position:relative;height:42px;padding:0 18px;border-radius:11px;font-weight:800;letter-spacing:.01em;overflow:hidden;white-space:nowrap}
+
+.page-actions .primary-button{background:linear-gradient(135deg,#0a8f85,#05635e);border:1px solid #04635d;color:#f4fffc;box-shadow:0 8px 18px #05635e40}
+.page-actions .primary-button:before{content:"";position:absolute;top:0;left:-60%;width:45%;height:100%;background:linear-gradient(105deg,transparent,#ffffff38,transparent);transform:skewX(-18deg);pointer-events:none;transition:left .55s ease}
+.page-actions .primary-button:hover{transform:translateY(-2px);box-shadow:0 12px 26px #05635e52}
+.page-actions .primary-button:hover:before{left:115%}
+.page-actions .primary-button:active{transform:translateY(0) scale(.97)}
+
+.page-actions .quiet-button{background:#ffffffd9;border:1px dashed #83a39c;color:#0d5c56;box-shadow:0 4px 12px #174b4714}
+.page-actions .quiet-button:before{content:"";position:absolute;inset:0;background:#7fd3c740;opacity:0;transition:opacity .18s}
+.page-actions .quiet-button:hover{border-style:solid;border-color:#0a8a80;color:#066059;background:#eaf4f0;box-shadow:0 6px 16px #174b4722}
+.page-actions .quiet-button:hover:before{opacity:1}
+.page-actions .quiet-button:active{transform:translateY(0) scale(.97)}
+
+@media(max-width:560px){
+  .page-actions{flex-direction:column;align-items:stretch;width:100%}
+  .page-actions .primary-button,
+  .page-actions .quiet-button{width:100%;justify-content:center}
+}
+
+/* ---- "View details" action button in the goods receiving table ---- */
+.procurement-row-view{border:1px solid #7fb3a9;background:#eaf3ef;color:#075e59;border-radius:8px;padding:6px 12px;font:inherit;font-size:11px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:transform .15s ease,background .15s ease,border-color .15s ease,box-shadow .15s ease}
+.procurement-row-view:before{content:"›";font-size:13px;line-height:1;color:#0a8a80}
+.procurement-row-view:hover{background:#d5e9e2;border-color:#0a8a80;color:#066059;box-shadow:0 4px 12px #0a625c22;transform:translateY(-1px)}
+.procurement-row-view:active{transform:translateY(0) scale(.96)}
+
+/* ---- Purchase Order create/edit dialog ---- */
+.po-dialog{width:min(880px,calc(100vw - 32px))}
+.po-context{margin:5px 0 0;color:#69817c;font-size:10px}
+.po-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.po-form-grid label{display:flex;flex-direction:column;gap:7px;font-size:11px;font-weight:800}
+.po-form-grid input,.po-form-grid select{box-sizing:border-box;width:100%;border:1px solid #9fb2ad;border-radius:8px;background:#f5f7f5;padding:10px;font:inherit;color:#123f3d}
+.po-items-wrap{margin-top:18px}
+.po-items-wrap .register-heading{justify-content:space-between;gap:12px}
+.po-items-wrap .register-heading .quiet-button{white-space:nowrap}
+
+/* ---- Purchase Order line rows ---- */
+.po-line-row select{box-sizing:border-box;max-width:220px;width:100%;border:1px solid #9fb2ad;border-radius:8px;background:#f5f7f5;padding:8px;font:inherit;color:#123f3d}
+.line-input{width:90px;box-sizing:border-box;text-align:right;border:1px solid #9fb2ad;border-radius:8px;background:#f5f7f5;padding:8px 10px;font:inherit;color:#123f3d}
+.line-desc{width:100%;box-sizing:border-box;border:1px solid #9fb2ad;border-radius:8px;background:#f5f7f5;padding:8px 10px;font:inherit;color:#123f3d}
+.line-remove{border:1px solid #cf9a91;background:#fdf0ed;color:#8c2c20;border-radius:8px;width:30px;height:30px;font-size:16px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.line-remove:hover{background:#f7dfd9;border-color:#b44638}
+.po-dialog .po-save:disabled{opacity:.6;cursor:wait}
+
+/* ---- PO row actions in the purchase orders table ---- */
+.po-row-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.row-action{border:1px solid #7fb3a9;background:#eaf3ef;color:#075e59;border-radius:8px;padding:5px 10px;font:inherit;font-size:11px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:transform .15s ease,background .15s ease,border-color .15s ease,box-shadow .15s ease}
+.row-action:hover{background:#d5e9e2;border-color:#0a8a80;color:#066059;box-shadow:0 4px 12px #0a625c22;transform:translateY(-1px)}
+.row-action:active{transform:translateY(0) scale(.96)}
+.row-action.danger{border-color:#cf9a91;background:#fdf0ed;color:#8c2c20}
+.row-action.danger:hover{background:#f7dfd9;border-color:#b44638}
+
+@media(max-width:720px){
+  .po-form-grid{grid-template-columns:1fr}
+  .po-row-actions{justify-content:flex-start}
 }

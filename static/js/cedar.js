@@ -3,14 +3,13 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-sidebar-open]").forEach(button => button.addEventListener("click", () => document.body.classList.add("sidebar-open")));
   document.querySelectorAll("[data-sidebar-close]").forEach(button => button.addEventListener("click", () => document.body.classList.remove("sidebar-open")));
 
-  document.querySelectorAll("[data-password-toggle]").forEach(toggle => toggle.addEventListener("click", () => {
-    const field = toggle.closest(".login-field");
-    const input = field ? field.querySelector("input") : document.querySelector("#id_password");
-    if (!input) return;
+  const passwordToggle = document.querySelector("[data-password-toggle]");
+  if (passwordToggle) passwordToggle.addEventListener("click", () => {
+    const input = document.querySelector("#id_password");
     const visible = input.type === "text";
     input.type = visible ? "password" : "text";
-    toggle.textContent = visible ? "Show" : "Hide";
-  }));
+    passwordToggle.textContent = visible ? "Show" : "Hide";
+  });
 
   const loginForm = document.querySelector("[data-login-form]");
   if (loginForm) loginForm.addEventListener("submit", () => {

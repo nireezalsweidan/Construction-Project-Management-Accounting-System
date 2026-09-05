@@ -23,12 +23,14 @@ User management (OWNER only; "registration by admin"):
 - DELETE /api/auth/users/{id}/                     -> hard delete (see note)
 - POST   /api/auth/users/{id}/activate/            -> activate
 - POST   /api/auth/users/{id}/deactivate/          -> deactivate
+- POST   /api/auth/users/{id}/reset-password/      -> admin sets a user's password
 
 There is deliberately NO public registration endpoint: the Owner is the
 only one who can create accounts (``UserViewSet`` is ``IsOwner``-gated).
 """
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -42,6 +44,7 @@ from .serializers import (
     UserCreateSerializer,
     UserSerializer,
     UserUpdateSerializer,
+    validate_password_strength,
 )
 from .services import send_account_credentials_email
 from .services import send_password_reset_email
@@ -224,3 +227,20 @@ class UserViewSet(mixins.CreateModelMixin,
         user.is_active = False
         user.save(update_fields=['is_active'])
         return Response(UserSerializer(user).data)
+
+    @action(detail=True, methods=['post'], url_path='reset-password')
+    def reset_password(self, request, pk=None):
+        """
+        Owner sets a new password for a user. Body: {new_password}.
+        Hashes it via Django's hashers -- no token round-trip needed for
+        the admin resetting someone else's account.
+        """
+        new_password = request.data.get('new_password')
+        try:
+            validate_password_strength(new_password)
+        except Exception:
+            raise DRFValidationError({'new_password': 'Password must be at least 8 characters long.'})
+        user = self.get_object()
+        user.set_password(new_password)
+        user.save(update_fields=['password_hash', 'updated_at'])
+        return Response({'detail': 'Password reset.'})

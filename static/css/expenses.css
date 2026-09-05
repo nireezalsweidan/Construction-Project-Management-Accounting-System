@@ -1,1 +1,30 @@
-[data-expense-dialog]{width:min(680px,calc(100vw - 32px));max-height:calc(100vh - 48px);margin:auto;padding:0;border:0;border-radius:16px;background:var(--panel);box-shadow:0 28px 75px #0d1f1ab8;overflow:auto}[data-expense-dialog]::backdrop{background:#13231cc4;backdrop-filter:blur(3px)}[data-expense-dialog] form{display:grid;grid-template-columns:1fr;gap:16px;padding:26px}[data-expense-dialog] h2{margin:-26px -26px 4px;padding:22px 26px;color:#f7fbf8;background:linear-gradient(135deg,#18352b,#27624e);font:700 22px Georgia,"Times New Roman",serif}[data-expense-fields]{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}[data-expense-fields] label{display:flex;flex-direction:column;gap:6px;color:#435148;font-size:11px;font-weight:800}[data-expense-fields] input,[data-expense-fields] select,[data-expense-fields] textarea{min-height:40px;width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:#fbfcfb;font:inherit;outline:0}[data-expense-fields] textarea{min-height:82px;resize:vertical;grid-column:1/-1}[data-expense-fields] input:focus,[data-expense-fields] select:focus,[data-expense-fields] textarea:focus{border-color:#16857c;box-shadow:0 0 0 3px #16857c1c;background:#fff}[data-expense-form-error]{margin:0;color:#ad443b;font-weight:650;font-size:12px}[data-expense-dialog] form>p:last-child{display:flex;justify-content:flex-end;gap:9px;margin:4px -26px -26px;padding:16px 26px;border-top:1px solid var(--line);background:#fafbfa}[data-expense-dialog] .primary-button{border:0;background:linear-gradient(135deg,#e5a133,#c97822);color:#18241e;font-weight:800}.expense-actions{display:flex;gap:6px}.expense-actions button{height:30px;padding:0 9px;font-size:10px}.expense-actions .reject{color:#9d3b34}@media(max-width:580px){[data-expense-dialog]{width:calc(100vw - 22px)}[data-expense-dialog] form{padding:20px}[data-expense-dialog] h2{margin:-20px -20px 2px;padding:19px 20px}[data-expense-fields]{grid-template-columns:1fr}[data-expense-dialog] form>p:last-child{margin:2px -20px -20px;padding:14px 20px}}
+/* Expenses page (1A-1) -- built on the shared v3 dashboard look
+   (site-exact.css/v3-fixes.css/projects.css); only adds what's specific
+   to this page. */
+.local-search input { border: 0; background: none; outline: none; flex: 1; font-family: inherit; font-size: 10px; color: inherit; }
+label.quiet-button { display: inline-flex; align-items: center; gap: 6px; cursor: default; }
+label.quiet-button input[type="date"] { border: 0; background: none; font-family: inherit; font-size: 9px; color: inherit; }
+.filterbar select.quiet-select { min-height: 34px; padding: 0 8px; border: 1px solid #a5b9b3; border-radius: 9px; background: #f7faf8; font: inherit; font-size: 10px; color: #174b4a; }
+.filterbar .quiet-button.active { background: #08736c; border-color: #08736c; color: #f5fffc; font-weight: 800; }
+
+/* 1A-2 create/edit dialog + row actions (mirrors invoices.css). */
+.expense-row-actions { display: flex; gap: 5px; }
+.expense-row-actions button { white-space: nowrap; }
+.expense-row-actions .danger { background: #fbeceb; border-color: #cc8a84; color: #a23a31; }
+.expense-row-actions .danger:hover { background: #f6dcd9; border-color: #a23a31; }
+.expense-dialog { position: fixed; inset: 0; margin: auto; width: min(700px, calc(100vw - 32px)); max-height: calc(100vh - 36px); overflow: auto; border: 1px solid #94aaa4; border-radius: 15px; padding: 0; background: #e7eeea; color: #073f3c; box-shadow: 0 28px 80px #063d3c66; }
+.expense-dialog::backdrop { background: #063d3c80; backdrop-filter: blur(3px); }
+.expense-dialog form { padding: 24px; }
+.expense-dialog header, .expense-dialog footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.expense-dialog header { padding-bottom: 17px; margin-bottom: 19px; border-bottom: 1px solid #b2c3be; }
+.expense-dialog header h2 { margin: 3px 0; }
+.expense-dialog header button { border: 0; background: none; font-size: 26px; color: inherit; cursor: pointer; }
+.expense-dialog footer { justify-content: flex-end; margin-top: 20px; padding-top: 17px; border-top: 1px solid #b2c3be; }
+.expense-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+.expense-form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 11px; font-weight: 800; }
+.expense-form-grid label.full { grid-column: 1 / -1; }
+.expense-form-grid input, .expense-form-grid select { box-sizing: border-box; width: 100%; border: 1px solid #a4b7b2; border-radius: 8px; background: #f8faf8; font: inherit; }
+.expense-form-grid input { padding: 10px; }
+.expense-form-grid select { padding: 9px 8px; }
+.expense-error { grid-column: 1 / -1; background: #f6ded9; color: #8b2922; border-radius: 8px; padding: 10px; white-space: pre-wrap; }
+.expense-form-grid [hidden] { display: none !important; }

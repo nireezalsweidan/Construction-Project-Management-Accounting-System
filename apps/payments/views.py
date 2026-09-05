@@ -36,7 +36,7 @@ class PaymentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
     inventory.views.StockMovementViewSet: a recorded payment is history,
     not something edited in place.
 
-    Filterable by ?direction=, ?client=, ?supplier=, ?date_from=/?date_to=.
+    Filterable by party, direction, and payment date.
     """
 
     queryset = Payment.objects.select_related('client', 'supplier', 'created_by').prefetch_related('allocations').all()
@@ -60,6 +60,14 @@ class PaymentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
         supplier_id = _validated_uuid(params, 'supplier')
         if supplier_id:
             queryset = queryset.filter(supplier_id=supplier_id)
+
+        employee_id = _validated_uuid(params, 'employee')
+        if employee_id:
+            queryset = queryset.filter(employee_id=employee_id)
+
+        contractor_id = _validated_uuid(params, 'contractor')
+        if contractor_id:
+            queryset = queryset.filter(contractor_id=contractor_id)
 
         queryset = filter_date_range(queryset, params, 'payment_date')
 

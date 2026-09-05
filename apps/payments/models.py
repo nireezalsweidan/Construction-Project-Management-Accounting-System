@@ -29,8 +29,8 @@ from django.db import models
 
 class Payment(models.Model):
     """
-    A single payment, either received from a client (INCOMING) or made
-    to a supplier (OUTGOING). Matches the ``payments`` table.
+    A single payment received from a client (INCOMING), or made to a
+    supplier, employee, or contractor (OUTGOING).
 
     Only one of client/supplier is expected to be set, matching its
     direction (validated in payments.serializers, not a DB CHECK
@@ -60,6 +60,11 @@ class Payment(models.Model):
     # block a historical payment record.
     client = models.ForeignKey('clients.Client', on_delete=models.SET_NULL, blank=True, null=True, related_name='payments')
     supplier = models.ForeignKey('suppliers.Supplier', on_delete=models.SET_NULL, blank=True, null=True, related_name='payments')
+    # Employees and contractors are unmanaged reflections of existing
+    # Supabase tables. UUID columns keep this managed ledger migration
+    # independent while serializer validation guarantees valid payees.
+    employee_id = models.UUIDField(blank=True, null=True, db_index=True)
+    contractor_id = models.UUIDField(blank=True, null=True, db_index=True)
 
     reference = models.CharField(max_length=255, blank=True, null=True)
     notes = models.TextField(blank=True, null=True)

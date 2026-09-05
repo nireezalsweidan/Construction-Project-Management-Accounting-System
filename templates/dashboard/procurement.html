@@ -1,1 +1,100 @@
-{% extends "dashboard/base_dashboard.html" %}{% load static %}{% block title %}Procurement | Cedar Control{% endblock %}{% block page_css %}<link rel="stylesheet" href="{% static 'css/procurement.css' %}">{% endblock %}{% block dashboard_content %}<section class="page-heading"><div><p class="eyebrow">Operations</p><h1>Procurement</h1><p>Control purchase requests, orders, receiving, and supplier commitments.</p></div><button class="primary-button" data-po-new>＋ New purchase order</button></section><section class="module-stat-grid"><article class="module-stat tone-1"><span>Open purchase orders</span><strong data-metric="open">0</strong><em>Live overview</em></article><article class="module-stat tone-2"><span>Awaiting approval</span><strong data-metric="awaiting">0</strong><em>Needs attention</em></article><article class="module-stat tone-3"><span>Committed value</span><strong data-metric="committed">$0</strong><em>Current period</em></article><article class="module-stat tone-4"><span>Due this week</span><strong data-metric="due">0</strong><em>Updated today</em></article></section><section class="panel table-panel module-table"><div class="filterbar"><div class="local-search">⌕ <span>Search procurement…</span><input type="text" id="po-search-input" placeholder="PO number, supplier…" aria-label="Search purchase orders"></div><select id="po-status-filter" class="quiet-button" aria-label="Filter by status"><option value="all">Status: All</option><option value="DRAFT">Draft</option><option value="SUBMITTED">Submitted</option><option value="APPROVED">Approved</option><option value="PARTIALLY_RECEIVED">Partially received</option><option value="RECEIVED">Received</option><option value="CANCELLED">Cancelled</option></select><input type="date" id="po-date-from" class="quiet-button" aria-label="Order date from"><input type="date" id="po-date-to" class="quiet-button" aria-label="Order date to"></div><div class="responsive-table"><table><thead><tr><th>Purchase order</th><th>Supplier</th><th>Order date</th><th>Expected delivery</th><th>Value</th><th>Status</th></tr></thead><tbody data-po-rows><tr><td><strong>Loading purchase orders…</strong><span>Fetching from the purchasing API</span></td><td>—</td><td>—</td><td>—</td><td>—</td><td><span class="status"><i></i>…</span></td></tr></tbody></table></div></section><dialog class="po-dialog" data-po-dialog><div class="po-dialog-shell"><header class="po-dialog-head"><div><p class="eyebrow">PURCHASE ORDER</p><h2 data-detail-number>—</h2><p data-detail-supplier></p></div><div class="po-dialog-actions"><span class="status" data-detail-status>—</span><button type="button" aria-label="Close" class="po-close" data-po-close>×</button></div></header><section class="module-stat-grid"><article class="module-stat tone-1"><span>Subtotal</span><strong data-detail-subtotal>$0</strong><em>USD</em></article><article class="module-stat tone-2"><span>Tax</span><strong data-detail-tax>$0</strong><em>USD</em></article><article class="module-stat tone-3"><span>Total</span><strong data-detail-total>$0</strong><em>USD</em></article><article class="module-stat tone-4"><span>Expected delivery</span><strong data-detail-delivery>—</strong><em>Order date <span data-detail-order-date>—</span></em></article></section><section class="po-dialog-actionbar" data-po-actionbar></section><section class="panel table-panel module-table"><div class="filterbar"><div class="local-search"><span>Line items</span></div><button class="quiet-button" data-po-add-item hidden>＋ Add item</button></div><div class="responsive-table"><table><thead><tr><th>Material</th><th>Qty ordered</th><th>Unit price</th><th>Tax</th><th>Total</th><th>Received</th><th>Remaining</th></tr></thead><tbody data-po-items><tr><td colspan="7"><strong>Loading items…</strong></td></tr></tbody></table></div><form data-po-item-form hidden><div class="po-item-form-grid"><label>Material *<select name="material" required></select></label><label>Quantity *<input type="number" name="quantity" min="0.001" step="0.001" required></label><label>Unit price *<input type="number" name="unit_price" min="0" step="0.01" required></label><label>Description<input type="text" name="description"></label></div><div class="po-item-form-actions"><button type="button" class="quiet-button" data-po-item-cancel>Cancel</button><button type="submit" class="primary-button">Add line item</button></div></form></section><section class="panel table-panel module-table" data-po-receive-section hidden><div class="filterbar"><div class="local-search"><span>Receive goods</span></div></div><form data-po-receive-form><label>Warehouse *<select name="warehouse" required></select></label><div data-receive-lines></div><div class="po-item-form-actions"><button type="submit" class="primary-button">Record receipt</button></div></form></section></div></dialog><div class="po-create" data-po-create hidden><div class="po-create-head"><div><p class="eyebrow">OPERATIONS</p><h2>New purchase order</h2></div><button type="button" aria-label="Close" class="po-close" data-po-create-close>×</button></div><form data-po-create-form><div class="po-create-grid"><label>Supplier *<select name="supplier" required></select></label><label>PO number *<input type="text" name="po_number" required></label><label>Order date *<input type="date" name="order_date" required></label><label>Expected delivery<input type="date" name="expected_delivery_date"></label></div><div class="po-create-actions"><button type="button" class="quiet-button" data-po-create-cancel>Cancel</button><button type="submit" class="primary-button">Create purchase order</button></div></form></div>{% endblock %}{% block page_js %}<script src="{% static 'js/procurement.js' %}"></script>{% endblock %}
+{% extends "dashboard/base_dashboard.html" %}
+{% load static %}
+{% block title %}Procurement | Cedar Control{% endblock %}
+{% block page_css %}<link rel="stylesheet" href="{% static 'css/procurement.css' %}">{% endblock %}
+{% block dashboard_content %}
+<section class="page-heading">
+  <div><p class="eyebrow">Operations</p><h1>Procurement</h1><p>Control purchase requests, orders, receiving, and supplier commitments.</p></div>
+  <div class="page-actions"><button class="primary-button" type="button" data-open-receive>＋ Receive goods</button><button class="quiet-button" type="button" data-open-po>＋ New purchase order</button></div>
+</section>
+
+<section class="module-stat-grid">
+  <article class="module-stat tone-1"><span>Open purchase orders</span><strong data-metric="open_pos">—</strong><em>Not cancelled or received</em></article>
+  <article class="module-stat tone-2"><span>Approved / receivable</span><strong data-metric="receivable">—</strong><em>Ready to receive</em></article>
+  <article class="module-stat tone-3"><span>Goods received</span><strong data-metric="goods_received">—</strong><em>Receipt records</em></article>
+  <article class="module-stat tone-4"><span>Awaiting delivery</span><strong data-metric="awaiting_delivery">—</strong><em>Approved, not fully received</em></article>
+</section>
+
+<section class="panel table-panel module-table">
+  <div class="filterbar">
+    <div class="local-search">⌕ <span>Search purchase orders…</span><input type="search" id="po-search-input" placeholder="PO number, supplier…" aria-label="Search purchase orders"></div>
+    <select class="quiet-button" data-po-status aria-label="Filter purchase orders by status"><option value="">Status: All</option><option value="DRAFT">Draft</option><option value="SUBMITTED">Submitted</option><option value="APPROVED">Approved</option><option value="PARTIALLY_RECEIVED">Partially received</option><option value="RECEIVED">Received</option><option value="CANCELLED">Cancelled</option></select>
+  </div>
+  <p class="form-error" data-po-page-error hidden></p>
+  <div class="responsive-table"><table>
+    <thead><tr><th>PO number</th><th>Supplier</th><th>Order date</th><th>Expected delivery</th><th>Value</th><th>Received</th><th>Status</th><th></th></tr></thead>
+    <tbody data-po-rows><tr class="empty-row"><td colspan="8"><b>Loading purchase orders…</b><span>Fetching from the purchasing API.</span></td></tr></tbody>
+  </table></div>
+</section>
+
+<section class="panel table-panel module-table">
+  <div class="filterbar">
+    <div class="local-search">⌕ <span>Search goods receipts…</span><input type="search" id="receipt-search-input" placeholder="Receipt number, PO number…" aria-label="Search goods receipts"></div>
+    <select class="quiet-button" data-receipt-po-filter aria-label="Filter goods receipts by purchase order"><option value="">Purchase order: All</option></select>
+  </div>
+  <div class="responsive-table"><table>
+    <thead><tr><th>Receipt number</th><th>Purchase order</th><th>Warehouse</th><th>Received date</th><th>Items</th><th>Notes</th><th></th></tr></thead>
+    <tbody data-receipt-rows><tr class="empty-row"><td colspan="7"><b>Loading goods receipts…</b><span>Fetching from the purchasing API.</span></td></tr></tbody>
+  </table></div>
+  <div class="procurement-pagination">
+    <button type="button" class="quiet-button" data-page-prev disabled>‹ Previous</button>
+    <span data-page-info>Page 1</span>
+    <button type="button" class="quiet-button" data-page-next disabled>Next ›</button>
+  </div>
+</section>
+
+<dialog class="procurement-dialog receive-dialog" data-receive-dialog>
+  <form data-receive-form>
+    <header><div><p class="eyebrow">GOODS RECEIVING</p><h2>Receive goods</h2><p class="receive-context">Record materials received against an approved purchase order.</p></div><button type="button" data-receive-close aria-label="Close">×</button></header>
+    <div class="receive-form-grid">
+      <label class="full">Purchase order *<select name="purchase_order" data-receive-po-select required><option value="">Select purchase order…</option></select></label>
+      <label>Warehouse *<select name="warehouse" data-warehouse-select required><option value="">Loading warehouses…</option></select></label>
+      <label>Receipt number *<input name="receipt_number" required maxlength="100" placeholder="GR-0001"></label>
+      <label>Received date *<input name="received_date" type="date" required></label>
+      <label class="full">Notes<textarea name="notes" rows="3" placeholder="Optional notes about this delivery"></textarea></label>
+    </div>
+    <div class="receive-items-wrap">
+      <div class="register-heading"><div><h2>Items</h2><p>Enter the quantity received for each line.</p></div></div>
+      <div class="responsive-table"><table><thead><tr><th>Material</th><th>Ordered</th><th>Received</th><th>Remaining</th><th>Qty to receive</th></tr></thead><tbody data-receive-items><tr class="empty-row"><td colspan="5">Select a purchase order to load its items.</td></tr></tbody></table></div>
+    </div>
+    <p class="form-error" data-receive-error hidden></p>
+    <footer><button type="button" class="quiet-button" data-receive-close>Cancel</button><button class="primary-button" type="submit" data-receive-submit>Receive goods</button></footer>
+  </form>
+</dialog>
+
+<dialog class="procurement-dialog receipt-detail-dialog" data-receipt-detail-dialog>
+  <div class="procurement-detail-shell">
+    <header><div><p class="eyebrow">RECEIPT RECORD</p><h2 data-receipt-detail-title>Receipt detail</h2></div><button type="button" data-receipt-detail-close aria-label="Close">×</button></header>
+    <div class="receive-fields" data-receipt-detail-fields><p>Loading receipt…</p></div>
+    <section><h3>Items</h3><div class="responsive-table"><table><thead><tr><th>Material</th><th>Received</th><th>Notes</th></tr></thead><tbody data-receipt-detail-items></tbody></table></div></section>
+  </div>
+</dialog>
+
+<dialog class="procurement-dialog po-dialog" data-po-dialog>
+  <form data-po-form>
+    <header><div><p class="eyebrow">PURCHASE ORDER</p><h2 data-po-title>New purchase order</h2><p class="po-context">Record a purchase order and its line items; totals are calculated by the backend.</p></div><button type="button" data-po-close aria-label="Close">×</button></header>
+    <div class="po-form-grid">
+      <label>Supplier *<select name="supplier" data-po-supplier required><option value="">Loading suppliers…</option></select></label>
+      <label>PO number *<input name="po_number" data-po-number required maxlength="100" placeholder="PO-0001"></label>
+      <label>Order date *<input name="order_date" data-po-order-date type="date" required></label>
+      <label>Expected delivery date<input name="expected_delivery_date" data-po-expected-date type="date"></label>
+    </div>
+    <div class="po-items-wrap">
+      <div class="register-heading">
+        <div><h2>Line items</h2><p>At least one line is required.</p></div>
+        <button type="button" class="quiet-button" data-po-add-item>＋ Add line</button>
+      </div>
+      <div class="responsive-table"><table>
+        <thead><tr><th>Material</th><th>Quantity</th><th>Unit price</th><th>Description</th><th></th></tr></thead>
+        <tbody data-po-item-rows></tbody>
+      </table></div>
+    </div>
+    <p class="form-error" data-po-error hidden></p>
+    <footer>
+      <button type="button" class="quiet-button" data-po-close>Cancel</button>
+      <button class="primary-button" type="submit" data-po-save>Create purchase order</button>
+    </footer>
+  </form>
+</dialog>
+{% endblock %}
+{% block page_js %}<script src="{% static 'js/procurement.js' %}" defer></script>{% endblock %}

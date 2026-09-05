@@ -15,11 +15,14 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
+from django.db import connection
 from django.test import TestCase
 from rest_framework.test import APIClient
 
 from clients.models import Client
 from clients.testing import WithClientsTableMixin
+from contractors.models import Contractor
+from employees.models import Employee
 from invoicing.models import ClientInvoice, SupplierInvoice
 from projects.testing import WithProjectsTableMixin
 from suppliers.models import Supplier
@@ -302,6 +305,7 @@ class PaymentAPITests(PaymentsTestBase):
         }, format="json")
         self.assertEqual(response.status_code, 400)
 
+
     def test_payment_has_no_update_or_delete_routes(self):
         payment = self.make_payment(amount=Decimal("1000.00"))
         response = self.client.patch(f"/api/payments/payments/{payment.id}/", {"amount": "1.00"}, format="json")
@@ -543,4 +547,79 @@ class ReceiptDetailAndDownloadAPITests(PaymentsTestBase):
         # page PDF with an EOF trailer.
         self.assertIn(b"%%EOF", pdf)
         self.assertGreater(len(pdf), 2000)
+class EmployeeContractorPaymentAPITests(PaymentsTestBase):
+    @classmethod
+    def setUpClass(cls):
+        # Only the payee tables are needed here. Leave them in the disposable
+        # test database to avoid SQLite rebuilding unrelated reflected tables
+        # with cross-app foreign keys during per-class teardown.
+        existing = connection.introspection.table_names()
+        with connection.schema_editor() as editor:
+            for model in (Employee, Contractor):
+                if model._meta.db_table not in existing:
+                    editor.create_model(model)
+        super().setUpClass()
 
+    def setUp(self):
+        super().setUp()
+        self.api = APIClient()
+        self.api.force_authenticate(user=self.creator)
+        self.employee = Employee.objects.create(
+            employee_number="EMP-001", name="Maya Haddad",
+            employment_status=Employee.EmploymentStatus.ACTIVE,
+            labor_rate=Decimal("25.00"),
+        )
+        self.contractor = Contractor.objects.create(
+            name="Atlas Concrete", status=Contractor.Status.ACTIVE,
+            rate=Decimal("300.00"),
+        )
+
+    def payment_payload(self, number, **party):
+        return {
+            "payment_number": number, "payment_date": "2026-09-05",
+            "amount": "300.00", "direction": "OUTGOING",
+            "payment_method": "bank_transfer", **party,
+        }
+
+    def test_pay_employee(self):
+        response = self.api.post(
+            "/api/payments/payments/",
+            self.payment_payload("PMT-EMP-001", employee_id=str(self.employee.id)),
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["payee_type"], "EMPLOYEE")
+        self.assertEqual(response.data["payee_name"], "Maya Haddad")
+        self.assertFalse(response.data["allocatable"])
+
+    def test_pay_contractor(self):
+        response = self.api.post(
+            "/api/payments/payments/",
+            self.payment_payload("PMT-CON-001", contractor_id=str(self.contractor.id)),
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["payee_type"], "CONTRACTOR")
+        self.assertEqual(response.data["payee_name"], "Atlas Concrete")
+        self.assertFalse(response.data["allocatable"])
+
+    def test_rejects_multiple_outgoing_payees(self):
+        response = self.api.post(
+            "/api/payments/payments/",
+            self.payment_payload(
+                "PMT-MULTI", supplier=str(self.supplier.id),
+                employee_id=str(self.employee.id),
+            ), format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_rejects_unknown_employee_or_contractor(self):
+        from uuid import uuid4
+
+        for field in ("employee_id", "contractor_id"):
+            response = self.api.post(
+                "/api/payments/payments/",
+                self.payment_payload(f"PMT-{field}", **{field: str(uuid4())}),
+                format="json",
+            )
+            self.assertEqual(response.status_code, 400)
