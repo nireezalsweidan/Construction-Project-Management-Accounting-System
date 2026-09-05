@@ -81,6 +81,7 @@ INSTALLED_APPS = [
     'taxes',
     'suppliers',
     'users',
+    'audit',
     'inventory',
     'purchasing',
     'invoicing',
@@ -103,6 +104,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'users.middleware.JwtCookieRefreshMiddleware',
     'users.middleware.AppUserSessionMiddleware',
+    'audit.middleware.AuditContextMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]

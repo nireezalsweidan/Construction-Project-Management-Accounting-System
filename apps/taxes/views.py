@@ -40,6 +40,7 @@ class TaxRateViewSet(mixins.ListModelMixin,
     @action(detail=True, methods=['post'])
     def activate(self, request, pk=None):
         tax = self.get_object()
+        tax._audit_action = 'ACTIVATE'
         tax.is_active = True
         tax.save(update_fields=['is_active'])
         return Response(self.get_serializer(tax).data)
@@ -47,6 +48,7 @@ class TaxRateViewSet(mixins.ListModelMixin,
     @action(detail=True, methods=['post'])
     def deactivate(self, request, pk=None):
         tax = self.get_object()
+        tax._audit_action = 'DEACTIVATE'
         tax.is_active = False
         tax.save(update_fields=['is_active'])
         return Response(self.get_serializer(tax).data)

@@ -37,6 +37,7 @@ urlpatterns = [
     path('api/payments/', include('payments.urls')),  # CPMAS-35, CPMAS-21
     path('api/notifications/', include('notifications.urls')),  # CPMAS-22
     path('api/taxes/', include('taxes.urls')),  # Tax Rates configuration
+    path('api/audit/', include('audit.urls')),  # Read-only audit trail
     path('api/auth/', include('users.urls')),  # Auth & Authorization (RBAC)
     path('api/company/', include('company.urls')),  # Company profile (view/update)
 ]
