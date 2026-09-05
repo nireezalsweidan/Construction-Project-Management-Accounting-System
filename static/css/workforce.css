@@ -6,3 +6,28 @@
 .local-search input{background:transparent;border:0;outline:0;flex:1;min-width:0;color:inherit;font:inherit}
 
 .quiet-button.active{background:#08736c;border-color:#08736c;color:#f5fffc;font-weight:800}
+
+.workforce-name{display:flex;flex-direction:column;gap:2px;border:0;background:none;padding:0;text-align:left;color:inherit;cursor:pointer;font:inherit}
+.workforce-name:hover strong{color:#08736c;text-decoration:underline}
+.workforce-unavailable{color:#9b4b42;font-size:12px;font-weight:700}
+.workforce-page-error,.workforce-form-error,.workforce-inline-message{margin:14px 20px;padding:11px 13px;border:1px solid #efb8ae;border-radius:9px;background:#fff1ee;color:#842d24;font-size:13px}
+.workforce-page-error button{margin-left:8px;border:0;background:none;color:#08736c;font-weight:800;cursor:pointer;text-decoration:underline}
+.workforce-dialog{width:min(760px,calc(100vw - 28px));max-height:88vh;padding:0;border:0;border-radius:16px;box-shadow:0 24px 70px #153b3660;color:var(--ink)}
+.workforce-dialog::backdrop{background:#0b27245c;backdrop-filter:blur(2px)}
+.workforce-dialog-shell{margin:0;background:#fff}
+.workforce-dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:22px 24px;border-bottom:1px solid var(--line)}
+.workforce-dialog-head h2{margin:2px 0 3px;font-size:22px}.workforce-dialog-head p{margin:0;color:var(--muted)}
+.workforce-close{border:0;background:#eef3f1;border-radius:50%;width:34px;height:34px;font-size:22px;cursor:pointer;color:var(--ink)}
+.workforce-form-grid,.workforce-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px 18px;padding:22px 24px}
+.workforce-form-grid label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:750}
+.workforce-form-grid input,.workforce-form-grid select{box-sizing:border-box;width:100%;border:1px solid var(--line);border-radius:9px;background:#fbfcfb;padding:10px 11px;font:inherit;outline:0}
+.workforce-form-grid input:focus,.workforce-form-grid select:focus{border-color:#16857c;box-shadow:0 0 0 3px #16857c18}
+.workforce-form-grid small{min-height:14px;color:#a23a31;font-weight:600}
+.workforce-dialog-actions{display:flex;justify-content:flex-end;gap:9px;padding:16px 24px;border-top:1px solid var(--line);background:#fafbfa}
+.workforce-dialog-actions .danger,.primary-button.danger{color:#8c2921;border-color:#e6ada5}.primary-button.danger{background:#b64237;color:#fff}
+.workforce-detail-grid div{display:flex;flex-direction:column;gap:4px;padding:12px;border-radius:9px;background:#f6f9f8}.workforce-detail-grid span{font-size:11px;color:var(--muted)}
+.workforce-assignments{padding:0 24px 22px}.workforce-section-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:12px}.workforce-section-head h3,.workforce-section-head p{margin:0}.workforce-section-head p{font-size:12px;color:var(--muted)}
+.workforce-state{padding:20px;text-align:center;border:1px dashed var(--line);border-radius:9px;color:var(--muted)}.workforce-state.error{color:#842d24;background:#fff1ee}.workforce-assignments .loading{opacity:.55;pointer-events:none}
+.workforce-confirm-dialog{width:min(500px,calc(100vw - 28px))}.workforce-confirm-dialog>.workforce-dialog-shell>p{padding:8px 24px 20px;color:var(--muted)}
+button:disabled{cursor:not-allowed;opacity:.6}
+@media(max-width:700px){.workforce-form-grid,.workforce-detail-grid{grid-template-columns:1fr}.workforce-dialog-head,.workforce-section-head{align-items:flex-start}.workforce-dialog-actions{flex-wrap:wrap}}

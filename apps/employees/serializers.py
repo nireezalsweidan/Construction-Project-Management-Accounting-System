@@ -25,6 +25,7 @@ class EmployeeListSerializer(serializers.ModelSerializer):
             "position",
             "department",
             "employment_status",
+            "labor_rate",
         ]
 
 

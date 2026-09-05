@@ -452,6 +452,74 @@ class WorkforcePageRenderTests(WithUsersTableMixin, TestCase):
         self.assertIn("data-workforce-rows", content)
         self.assertIn("workforce-search-input", content)
 
+    def test_accountant_cannot_open_workforce_page(self):
+        accountant = AppUser.objects.create(
+            username="workforce_accountant", email="workforce-accountant@example.com",
+            password_hash="x", first_name="W", last_name="A", role="ACCOUNTANT",
+        )
+        accountant.set_password("pass12345")
+        accountant.save(update_fields=["password_hash"])
+        self.client.post(
+            "/accounts/login/",
+            {"username": "workforce_accountant", "password": "pass12345"},
+        )
+        response = self.client.get("/workforce/")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/dashboard/")
+
+    def test_page_has_workforce_crud_and_assignment_hooks(self):
+        owner = AppUser.objects.create(
+            username="workforce_hooks", email="workforce-hooks@example.com",
+            password_hash="x", first_name="W", last_name="H", role="OWNER",
+        )
+        owner.set_password("pass12345")
+        owner.save(update_fields=["password_hash"])
+        self.client.post(
+            "/accounts/login/", {"username": "workforce_hooks", "password": "pass12345"},
+        )
+        content = self.client.get("/workforce/").content.decode()
+        for hook in [
+            "data-workforce-page-error", "data-workforce-add",
+            "data-employee-form-dialog", "data-employee-form", "data-employee-form-error",
+            "data-employee-detail-dialog", "data-employee-edit", "data-employee-delete",
+            "data-assignment-state", "data-assignment-new", "data-assignment-dialog",
+            "data-assignment-form", "data-assignment-error", "data-delete-dialog",
+        ]:
+            self.assertIn(hook, content)
+        for field in [
+            "name", "employee_number", "phone", "email", "position", "department",
+            "labor_rate", "employment_status", "project_id", "role_on_project",
+            "assigned_at", "released_at",
+        ]:
+            self.assertIn(f'name="{field}"', content)
+
+    def test_page_has_no_fabricated_workforce_data(self):
+        owner = AppUser.objects.create(
+            username="workforce_empty", email="workforce-empty@example.com",
+            password_hash="x", first_name="W", last_name="E", role="OWNER",
+        )
+        owner.set_password("pass12345")
+        owner.save(update_fields=["password_hash"])
+        self.client.post(
+            "/accounts/login/", {"username": "workforce_empty", "password": "pass12345"},
+        )
+        content = self.client.get("/workforce/").content.decode()
+        self.assertIn("Loading workforce…", content)
+        self.assertNotIn("EMP-0001", content)
+        self.assertNotIn("Site Engineer", content)
+        self.assertNotIn("$", content)
+
+    def test_js_wires_existing_workforce_endpoints_without_prompts(self):
+        js = (settings.BASE_DIR / "static/js/workforce.js").read_text(encoding="utf-8")
+        for token in [
+            "/api/employees/", "/api/projects/projects/", '"POST"',
+            '"PATCH"', '"DELETE"', "data-assignment-retry",
+            "data-workforce-retry", "assignmentErrors",
+        ]:
+            self.assertIn(token, js)
+        self.assertNotIn("prompt(", js)
+        self.assertNotIn("/api/workforce/", js)
+
 
 class DocumentsPageRenderTests(TestCase):
     """The Documents page is server-rendered HTML whose table, metrics, and
