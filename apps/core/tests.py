@@ -11,6 +11,7 @@ Organized into:
   username (bridged), and no matching row (degrades to None rather
   than erroring).
 """
+from django.conf import settings
 from django.contrib.auth.models import User as DjangoUser
 from django.test import RequestFactory, TestCase
 
@@ -171,6 +172,86 @@ class ReceiptsPageRenderTests(TestCase):
         self.assertTemplateUsed(response, "dashboard/receipts.html")
 
 
+class ExpensesPageRenderTests(TestCase):
+    """The Expenses dashboard page is server-rendered HTML whose table and
+    metrics are filled at runtime by expenses.js from the /api/expenses/
+    endpoints (list + category lookup + project lookup). 1A-2 added a
+    server-rendered create/edit dialog and an Actions column that the same
+    script binds to. These tests verify the rendered template structure
+    and hooks only -- they do NOT exercise browser-side fetch/filter/
+    pagination/dialog behavior, which is covered by manual browser
+    verification against the API tests in
+    apps.expenses.tests.ExpenseFilterAndPaginationTests and
+    ExpenseUpdateDeleteApiTests."""
+
+    def test_redirects_anonymous_user_to_login(self):
+        response = self.client.get("/expenses/")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
+
+    def test_page_renders_for_authenticated_user(self):
+        DjangoUser.objects.create_user(username="expenses_render", password="pass12345")
+        self.client.login(username="expenses_render", password="pass12345")
+        response = self.client.get("/expenses/")
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "dashboard/expenses.html")
+        content = response.content.decode()
+        self.assertIn("expenses.js", content)
+        self.assertIn("expenses.css", content)
+        self.assertIn("data-expense-rows", content)
+        self.assertIn('data-metric="total"', content)
+        self.assertIn('data-metric="pending"', content)
+        self.assertIn('data-metric="sum"', content)
+        self.assertIn('data-metric="month"', content)
+        self.assertIn("expense-search-input", content)
+        self.assertIn("expense-category-filter", content)
+        self.assertIn("expense-project-filter", content)
+        self.assertIn("data-status-filter", content)
+        self.assertIn("data-date-from", content)
+        self.assertIn("data-date-to", content)
+
+    def test_page_has_no_fabricated_expense_data(self):
+        DjangoUser.objects.create_user(username="expenses_render2", password="pass12345")
+        self.client.login(username="expenses_render2", password="pass12345")
+        response = self.client.get("/expenses/")
+        content = response.content.decode()
+        # The old mock/dummy rows and hardcoded tile defaults must be gone.
+        self.assertNotIn("EXP-0871", content)
+        self.assertNotIn("EXP-0868", content)
+        self.assertNotIn("$214K", content)
+        self.assertNotIn("$188K", content)
+        self.assertNotIn("$26K", content)
+        self.assertNotIn("Crane rental", content)
+        self.assertNotIn("Cedar Heights", content)
+        # Nonexistent model fields must not be referenced by the template.
+        self.assertNotIn("expense.number", content)
+        self.assertNotIn("expense.payee", content)
+
+    def test_page_has_create_edit_dialog_and_actions_hooks(self):
+        DjangoUser.objects.create_user(username="expenses_render3", password="pass12345")
+        self.client.login(username="expenses_render3", password="pass12345")
+        response = self.client.get("/expenses/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        # The Add expense button opens the create dialog.
+        self.assertIn("data-expense-new", content)
+        # Create/edit dialog hooks populated at runtime by expenses.js.
+        self.assertIn("data-expense-dialog", content)
+        self.assertIn("data-expense-form", content)
+        self.assertIn("data-expense-form-title", content)
+        self.assertIn("data-expense-error", content)
+        self.assertIn("data-expense-close", content)
+        # Every writable serializer field is present in the form.
+        for field in [
+            "project", "category", "supplier", "expense_date", "description",
+            "amount", "tax_amount", "payment_method", "notes",
+        ]:
+            self.assertIn(f'name="{field}"', content)
+        # 1A-2 adds an Actions column; the loading row spans all 8 columns.
+        self.assertIn("<th>Actions</th>", content)
+        self.assertIn('colspan="8"', content)
+
+
 class PartnersPageRenderTests(WithUsersTableMixin, TestCase):
     """The Clients & Partners dashboard page is server-rendered HTML whose
     table and metrics are filled at runtime by partners.js from the
@@ -232,10 +313,51 @@ class WorkforcePageRenderTests(WithUsersTableMixin, TestCase):
         self.assertIn("workforce-search-input", content)
 
 
+class DocumentsPageRenderTests(TestCase):
+    """The Documents page is server-rendered HTML whose table, metrics, and
+    upload form are filled at runtime by documents.js from the
+    /api/documents/ endpoints (CPMAS-25). Not owner_required -- accountants
+    need it too -- so plain login is enough here, matching Receipts."""
+
+    def test_redirects_anonymous_user_to_login(self):
+        response = self.client.get("/documents/")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
+
+    def test_page_renders_for_authenticated_user(self):
+        DjangoUser.objects.create_user(username="apitester_documents", password="pass12345")
+        self.client.login(username="apitester_documents", password="pass12345")
+        response = self.client.get("/documents/")
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "dashboard/documents.html")
+        content = response.content.decode()
+        self.assertIn("documents.js", content)
+        self.assertIn("documents.css", content)
+        self.assertIn("data-doc-rows", content)
+        self.assertIn("doc-search-input", content)
+
+
 class ProcurementPageRenderTests(WithUsersTableMixin, TestCase):
     """The Procurement dashboard page is server-rendered HTML whose table,
     metrics, and detail dialog are filled at runtime by procurement.js from
-    the /api/purchasing/ endpoints (CPMAS-42)."""
+    the /api/purchasing/ endpoints (CPMAS-42). 1C-1 adds the purchase-order
+    authoring dialog (create / edit DRAFT / submit / approve / cancel);
+    these tests verify the rendered template structure and hooks only --
+    supplier/material choices and PO rows are populated dynamically by
+    JavaScript, so they are asserted against the JS bundle rather than server
+    HTML."""
+
+    def setUp(self):
+        self.owner = AppUser.objects.create(
+            username="apitester_procurement", email="procurement@example.com", password_hash="x",
+            first_name="P", last_name="R", role="OWNER",
+        )
+        self.owner.set_password("pass12345")
+        self.owner.save(update_fields=["password_hash"])
+
+    def _login_owner(self):
+        self.client.post("/accounts/login/", {"username": "apitester_procurement", "password": "pass12345"})
+        return self.client.get("/procurement/")
 
     def test_redirects_anonymous_user_to_login(self):
         response = self.client.get("/procurement/")
@@ -244,24 +366,167 @@ class ProcurementPageRenderTests(WithUsersTableMixin, TestCase):
 
     def test_page_renders_for_authenticated_user(self):
         # See PartnersPageRenderTests -- /procurement/ is @owner_required too.
-        owner = AppUser.objects.create(
-            username="apitester_procurement", email="procurement@example.com", password_hash="x",
-            first_name="P", last_name="R", role="OWNER",
-        )
-        owner.set_password("pass12345")
-        owner.save(update_fields=["password_hash"])
-        self.client.post("/accounts/login/", {"username": "apitester_procurement", "password": "pass12345"})
-        response = self.client.get("/procurement/")
+        response = self._login_owner()
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
-        self.assertIn("Procurement", content)
-        self.assertIn("procurement.js", content)
-        self.assertIn("procurement.css", content)
-        self.assertIn("data-po-rows", content)
-        self.assertIn("po-search-input", content)
+        for hook in [
+            "Procurement", "procurement.js", "procurement.css",
+            "data-po-rows", "po-search-input",
+            "data-po-status", "data-receipt-rows", "receipt-search-input",
+            "data-receipt-po-filter", "data-page-prev", "data-page-next",
+            "data-receive-dialog", "data-receipt-detail-dialog",
+        ]:
+            self.assertIn(hook, content)
+
+    def test_po_dialog_hooks_present(self):
+        response = self._login_owner()
+        content = response.content.decode()
+        for hook in [
+            "data-po-dialog", "data-po-form", "data-po-supplier",
+            "data-po-number", "data-po-order-date", "data-po-expected-date",
+            "data-po-item-rows", "data-po-add-item",
+            "data-po-error", "data-po-page-error", "data-po-save",
+            "data-open-po",
+        ]:
+            self.assertIn(hook, content)
+
+    def test_supplier_and_material_choices_are_not_server_rendered(self):
+        # Supplier/material dropdowns are populated at runtime by
+        # procurement.js from /api/suppliers/suppliers/ and
+        # /api/inventory/materials/ -- verify the server HTML only ships the
+        # loading placeholders (no hardcoded options) and the tables still
+        # show loading empty-rows rather than fabricated purchase data.
+        response = self._login_owner()
+        content = response.content.decode()
+        self.assertIn("Loading suppliers…", content)
+        self.assertNotIn("Select supplier…", content)
+        self.assertNotIn("Select material…", content)
+        self.assertIn("Loading purchase orders…", content)
+        self.assertIn("Loading goods receipts…", content)
+        self.assertIn('<strong data-metric="open_pos">—</strong>', content)
+        self.assertNotIn("<td><strong>", content)
+        self.assertNotIn("PO-FAB-0001", content)
+
+    def test_js_wires_po_actions_and_endpoints(self):
+        # The row-action hooks and purchasing endpoints can't be observed in
+        # server HTML (they are produced by procurement.js at runtime), so we
+        # assert the implementation wires them by inspecting the JS bundle.
+        js = (settings.BASE_DIR / "static/js/procurement.js").read_text(encoding="utf-8")
+        for token in [
+            "data-po-edit", "data-po-submit-action", "data-po-approve", "data-po-cancel",
+            "data-po-remove-item", "data-receive", "window.confirm",
+            "/api/suppliers/suppliers/", "/api/inventory/materials/",
+            "/api/purchasing/purchase-orders/", "/api/purchasing/purchase-order-items/",
+            "submit", "approve", "cancel", "created_by",
+        ]:
+            self.assertIn(token, js)
+        # No fabricated purchasing values hidden in the bundle.
+        self.assertNotIn("PO-API-", js)
+
+
+class InventoryPageRenderTests(WithUsersTableMixin, TestCase):
+    """The Inventory dashboard page is server-rendered HTML whose table and
+    metrics are filled at runtime by inventory.js from the /api/inventory/
+    endpoints (stocks + materials merge + warehouses + stock-movements),
+    and whose 1B-2 Record-movement and movement-history dialogs submit to
+    the stock-movements ledger and transfer action.
+
+    These tests verify the rendered template structure and hooks only --
+    they do NOT exercise browser-side fetch/submit/filter behavior, which
+    is covered by manual browser verification against the API tests in
+    apps.inventory.tests (StockReadApiTests + StockMovementWorkflowApiTests).
+    /inventory/ is @owner_required (like partners/workforce/procurement),
+    so owner/accountant behavior is tested through the app's own login
+    view."""
+
+    def setUp(self):
+        self.owner = AppUser.objects.create(
+            username="inv_owner", email="inv@example.com", password_hash="x",
+            first_name="I", last_name="O", role="OWNER",
+        )
+        self.owner.set_password("owner-pass-123")
+        self.owner.save(update_fields=["password_hash"])
+        self.accountant = AppUser.objects.create(
+            username="inv_accountant", email="invacc@example.com", password_hash="x",
+            first_name="I", last_name="A", role="ACCOUNTANT",
+        )
+        self.accountant.set_password("accountant-pass-123")
+        self.accountant.save(update_fields=["password_hash"])
+
+    def _login(self, username, password):
+        return self.client.post(
+            "/accounts/login/", {"username": username, "password": password}, follow=False,
+        )
+
+    def test_redirects_anonymous_user_to_login(self):
+        response = self.client.get("/inventory/")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
+
+    def test_page_renders_for_authenticated_owner(self):
+        self._login("inv_owner", "owner-pass-123")
+        response = self.client.get("/inventory/")
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "dashboard/inventory.html")
+        content = response.content.decode()
+        self.assertIn("inventory.js", content)
+        self.assertIn("inventory.css", content)
+        self.assertIn("data-inventory-rows", content)
+        self.assertIn('data-metric="stock"', content)
+        self.assertIn('data-metric="low"', content)
+        self.assertIn('data-metric="value"', content)
+        self.assertIn('data-metric="transfers"', content)
+        self.assertIn("inventory-search-input", content)
+        self.assertIn("inventory-warehouse-filter", content)
+        self.assertIn("data-status-filter", content)
+        self.assertIn("<th>On hand</th>", content)
+        self.assertIn("<th>Actions</th>", content)
+        self.assertIn('colspan="7"', content)
+        # 1B-2: record-movement dialog + form + its fields.
+        self.assertIn("data-movement-new", content)
+        self.assertIn("data-movement-dialog", content)
+        self.assertIn("data-movement-form", content)
+        self.assertIn("data-movement-type", content)
+        self.assertIn("data-movement-material", content)
+        self.assertIn("data-movement-warehouse", content)
+        self.assertIn("data-movement-from", content)
+        self.assertIn("data-movement-to", content)
+        self.assertIn("data-movement-qty", content)
+        self.assertIn("data-movement-date", content)
+        self.assertIn("data-movement-reference", content)
+        self.assertIn("data-movement-notes", content)
+        self.assertIn("data-movement-close", content)
+        # 1B-2: movement history dialog.
+        self.assertIn("data-movement-history-dialog", content)
+        self.assertIn("data-movement-history-rows", content)
+
+    def test_accountant_cannot_open_inventory_page(self):
+        self._login("inv_accountant", "accountant-pass-123")
+        response = self.client.get("/inventory/")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/dashboard/")
+
+    def test_page_has_no_fabricated_inventory_data(self):
+        self._login("inv_owner", "owner-pass-123")
+        response = self.client.get("/inventory/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        # The old mock rows, mock columns, and hardcoded tile defaults must
+        # be gone; no fabricated values are injected by the template.
+        self.assertNotIn("MAT-CEM-001", content)
+        self.assertNotIn("MAT-STL-016", content)
+        self.assertNotIn("Portland Cement 50kg", content)
+        self.assertNotIn("Rebar Steel 16mm", content)
+        self.assertNotIn("Beirut Site Store", content)
+        self.assertNotIn("Central Warehouse", content)
+        self.assertNotIn("$486K", content)
+        self.assertNotIn("$7.80", content)
+        self.assertNotIn("480 bags", content)
+        self.assertNotIn("$680/t", content)
 
 
 class AppUserContextProcessorTests(WithUsersTableMixin, TestCase):
+
     def setUp(self):
         self.factory = RequestFactory()
 

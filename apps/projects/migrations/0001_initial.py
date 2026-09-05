@@ -2,15 +2,37 @@
 Initial migration for the ``projects`` app (CPMAS-47, built by Nireez on
 the projects-apis branch, merged here).
 
-Registers Django's model-state awareness of the existing ``projects``,
-``project_employees``, and ``documents`` (filtered view, ProjectDocument)
-tables -- all managed=False, so every operation here is a no-op at the
-database level; these tables already exist and are owned elsewhere. This
+Registers Django's model-state awareness of the existing ``projects``
+and ``project_employees`` tables, and a read-only filtered view onto the
+shared ``documents`` table (``ProjectDocument``, permanently managed=False
+-- that table is owned by the ``documents`` app, see CPMAS-25). This
 migration exists purely so other apps' foreign keys (e.g.
 expenses.Expense.project) resolve correctly.
 
+``Project``/``ProjectEmployee`` are ``managed=True`` (real Django-owned
+tables that happen to already exist in the live/dev database): this
+migration's CreateModel operations must therefore be applied with
+``migrate --fake-initial`` against a database that already has these
+tables (any environment seeded from the schema SQL) so Django detects
+they exist and skips the DDL, exactly as it would for any other
+already-populated table being adopted into Django's migrations. A truly
+empty database (e.g. the test suite's throwaway SQLite) has no such
+conflict and gets real ``CREATE TABLE`` statements instead.
+
 Added when merging projects-apis into backend for CPMAS-33 -- the
-original branch had no migrations at all for this app.
+original branch had no migrations at all for this app. Project/
+ProjectEmployee were originally captured here as managed=False (a no-op
+placeholder) and later flipped to managed=True in 0002 via
+AlterModelOptions -- which only updates migration *state*, never issues
+the DDL to actually create the table. That left a fresh database (only
+ever exercised by the test suite, since every real environment already
+has these tables from the schema SQL) with no real projects/
+project_employees tables at all, breaking any migration operation that
+tries to alter them (see 0003). Fixed by declaring them managed=True
+here from the start, in this already-applied-everywhere-but-tests
+migration -- safe because Django never re-executes a migration whose
+(app, name) it already has recorded as applied, on any database that
+already ran this file.
 """
 import uuid
 from django.db import migrations, models
@@ -49,7 +71,6 @@ class Migration(migrations.Migration):
             options={
                 'db_table': 'projects',
                 'ordering': ['-created_at'],
-                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -82,7 +103,6 @@ class Migration(migrations.Migration):
             ],
             options={
                 'db_table': 'project_employees',
-                'managed': False,
             },
         ),
     ]

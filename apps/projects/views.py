@@ -70,11 +70,13 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         return ProjectListSerializer if self.action == "list" else ProjectSerializer
 
-    def perform_destroy(self, instance):
+    def destroy(self, request, *args, **kwargs):
         # Hard delete is intentionally not exposed for a financial system —
-        # archiving is the supported way to retire a project.
-        raise NotImplementedError(
-            "Projects cannot be deleted. Use POST /archive/ instead."
+        # archiving is the supported way to retire a project. Return 405
+        # (client mistake) rather than a NotImplementedError/500.
+        return Response(
+            data={"detail": "Projects cannot be deleted. Use POST /archive/ instead."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
         )
 
     @action(detail=True, methods=["post"])
@@ -381,11 +383,13 @@ class ChangeOrderViewSet(viewsets.ModelViewSet):
     ordering_fields = ["date", "created_at", "amount"]
     ordering = ["-date"]
 
-    def perform_destroy(self, instance):
+    def destroy(self, request, *args, **kwargs):
         # Same reasoning as Project: a financial record with a contract-value
         # effect shouldn't disappear. Cancel it instead, for audit history.
-        raise NotImplementedError(
-            "Change orders cannot be deleted. Use POST /cancel/ instead."
+        # Return 405 (client mistake) rather than a NotImplementedError/500.
+        return Response(
+            data={"detail": "Change orders cannot be deleted. Use POST /cancel/ instead."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
         )
 
     @action(detail=True, methods=["post"])

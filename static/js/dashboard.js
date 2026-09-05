@@ -50,13 +50,6 @@ document.addEventListener("DOMContentLoaded", () => {
   icon(document.querySelector(".menu-button"), "menu");
   icon(document.querySelector(".icon-button"), "bell");
 
-  const navIcons = [
-    "layout-dashboard", "folder-kanban", "clipboard-check", "briefcase-business",
-    "package-check", "boxes", "warehouse", "users",
-    "file-text", "wallet-cards", "receipt", "circle-dollar-sign", "trending-up", "settings",
-  ];
-  document.querySelectorAll(".nav-item > b").forEach((node, index) => icon(node, navIcons[index]));
-
   icon(document.querySelector(".attention-icon"), "trending-down");
   ["folder-kanban", "building-2", "circle-dollar-sign", "file-text"].forEach((name, index) =>
     icon(document.querySelectorAll(".metric-top i")[index], name),

@@ -5,6 +5,9 @@ Accounts Payable slice (CPMAS-35).
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
+from contractors.models import Contractor
+from employees.models import Employee
+
 from .models import Payment, PaymentAllocation, Receipt
 from .services import allocate_payment, unallocated_amount
 
@@ -25,6 +28,11 @@ class PaymentSerializer(serializers.ModelSerializer):
 
     client_name = serializers.CharField(source='client.name', read_only=True, default=None)
     supplier_name = serializers.CharField(source='supplier.name', read_only=True, default=None)
+    employee_name = serializers.SerializerMethodField()
+    contractor_name = serializers.SerializerMethodField()
+    payee_name = serializers.SerializerMethodField()
+    payee_type = serializers.SerializerMethodField()
+    allocatable = serializers.SerializerMethodField()
     unallocated_amount = serializers.SerializerMethodField()
 
     class Meta:
@@ -32,6 +40,8 @@ class PaymentSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'payment_number', 'payment_date', 'amount', 'direction',
             'payment_method', 'client', 'client_name', 'supplier', 'supplier_name',
+            'employee_id', 'employee_name', 'contractor_id', 'contractor_name',
+            'payee_name', 'payee_type', 'allocatable',
             'reference', 'notes', 'created_by', 'unallocated_amount', 'created_at',
         ]
         read_only_fields = ['id', 'created_by', 'created_at']
@@ -51,23 +61,67 @@ class PaymentSerializer(serializers.ModelSerializer):
     def get_unallocated_amount(self, obj):
         return DECIMAL_FIELD.to_representation(unallocated_amount(obj))
 
+    def get_employee_name(self, obj):
+        if not obj.employee_id:
+            return None
+        return Employee.objects.filter(pk=obj.employee_id).values_list('name', flat=True).first()
+
+    def get_contractor_name(self, obj):
+        if not obj.contractor_id:
+            return None
+        return Contractor.objects.filter(pk=obj.contractor_id).values_list('name', flat=True).first()
+
+    def get_payee_name(self, obj):
+        return (
+            obj.client.name if obj.client_id else
+            obj.supplier.name if obj.supplier_id else
+            self.get_employee_name(obj) or self.get_contractor_name(obj)
+        )
+
+    def get_payee_type(self, obj):
+        if obj.client_id:
+            return 'CLIENT'
+        if obj.supplier_id:
+            return 'SUPPLIER'
+        if obj.employee_id:
+            return 'EMPLOYEE'
+        if obj.contractor_id:
+            return 'CONTRACTOR'
+        return None
+
+    def get_allocatable(self, obj):
+        return bool(obj.client_id or obj.supplier_id)
+
     def validate(self, attrs):
         direction = attrs.get('direction')
         client = attrs.get('client')
         supplier = attrs.get('supplier')
+        employee_id = attrs.get('employee_id')
+        contractor_id = attrs.get('contractor_id')
 
         amount = attrs.get('amount')
         if amount is not None and amount <= 0:
             raise serializers.ValidationError({'amount': "Payment amount must be positive."})
 
-        if direction == Payment.Direction.INCOMING and (not client or supplier):
+        parties = [client, supplier, employee_id, contractor_id]
+        if sum(bool(party) for party in parties) != 1:
+            raise serializers.ValidationError(
+                "Exactly one client, supplier, employee, or contractor must be specified."
+            )
+
+        if direction == Payment.Direction.INCOMING and (not client or supplier or employee_id or contractor_id):
             raise serializers.ValidationError(
                 "An INCOMING payment must specify a client and must not specify a supplier."
             )
-        if direction == Payment.Direction.OUTGOING and (not supplier or client):
+        if direction == Payment.Direction.OUTGOING and client:
             raise serializers.ValidationError(
-                "An OUTGOING payment must specify a supplier and must not specify a client."
+                "An OUTGOING payment must specify a supplier, employee, or contractor."
             )
+
+        if employee_id and not Employee.objects.filter(pk=employee_id).exists():
+            raise serializers.ValidationError({'employee_id': "Employee does not exist."})
+        if contractor_id and not Contractor.objects.filter(pk=contractor_id).exists():
+            raise serializers.ValidationError({'contractor_id': "Contractor does not exist."})
 
         return attrs
 
