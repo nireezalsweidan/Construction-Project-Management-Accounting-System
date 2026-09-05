@@ -1,1 +1,92 @@
-{% extends "dashboard/base_dashboard.html" %}{% block title %}Inventory | Cedar Control{% endblock %}{% block dashboard_content %}<section class="page-heading"><div><p class="eyebrow">Materials control</p><h1>Inventory</h1><p>Track material availability, movement, and valuation across stores and project sites.</p></div><button class="primary-button">＋ Record movement</button></section><section class="module-stat-grid"><article class="module-stat tone-1"><span>Stock items</span><strong>{{ stock_items|default:"326" }}</strong><em>Live overview</em></article><article class="module-stat tone-2"><span>Low stock</span><strong>{{ low_stock|default:"18" }}</strong><em>Needs attention</em></article><article class="module-stat tone-3"><span>Inventory value</span><strong>{{ inventory_value|default:"$486K" }}</strong><em>Current period</em></article><article class="module-stat tone-4"><span>Site transfers today</span><strong>{{ transfers_today|default:"9" }}</strong><em>Updated today</em></article></section><section class="panel table-panel module-table"><div class="filterbar"><div class="local-search">⌕ <span>Search inventory…</span></div><button class="quiet-button">Store: All</button><button class="quiet-button">Stock: All</button></div><div class="responsive-table"><table><thead><tr><th>Material</th><th>SKU</th><th>Store / location</th><th>Available</th><th>Reserved</th><th>Unit cost</th><th>Status</th></tr></thead><tbody>{% for item in inventory_items %}<tr><td><strong>{{ item.name }}</strong><span>View movements</span></td><td>{{ item.sku }}</td><td>{{ item.location }}</td><td>{{ item.available }}</td><td>{{ item.reserved }}</td><td>{{ item.unit_cost }}</td><td><span class="status {{ item.status|slugify }}"><i></i>{{ item.status }}</span></td></tr>{% empty %}<tr><td><strong>Portland Cement 50kg</strong><span>View movements</span></td><td>MAT-CEM-001</td><td>Beirut Site Store</td><td>480 bags</td><td>120</td><td>$7.80</td><td><span class="status active"><i></i>Healthy</span></td></tr><tr><td><strong>Rebar Steel 16mm</strong><span>View movements</span></td><td>MAT-STL-016</td><td>Central Warehouse</td><td>2.4 tons</td><td>1.8</td><td>$680/t</td><td><span class="status at-risk"><i></i>Low stock</span></td></tr>{% endfor %}</tbody></table></div></section>{% endblock %}
+{% extends "dashboard/base_dashboard.html" %}
+{% load static %}
+{% block title %}Inventory | Cedar Control{% endblock %}
+{% block page_css %}<link rel="stylesheet" href="{% static 'css/inventory.css' %}">{% endblock %}
+{% block dashboard_content %}
+<section class="page-heading">
+  <div><p class="eyebrow">Materials control</p><h1>Inventory</h1><p>Track material availability, movement, and valuation across stores and project sites.</p></div>
+  <button class="primary-button" data-movement-new>＋ Record movement</button>
+</section>
+
+<section class="module-stat-grid">
+  <article class="module-stat tone-1"><span>Stock items</span><strong data-metric="stock">—</strong><em>Matching current filters</em></article>
+  <article class="module-stat tone-2"><span>Low stock</span><strong data-metric="low">—</strong><em>Below the reorder level</em></article>
+  <article class="module-stat tone-3"><span>Inventory value</span><strong data-metric="value">—</strong><em>Quantity × standard cost</em></article>
+  <article class="module-stat tone-4"><span>Site transfers today</span><strong data-metric="transfers">—</strong><em>Global, not affected by filters</em></article>
+</section>
+
+<section class="panel table-panel module-table">
+  <div class="filterbar">
+    <div class="local-search">⌕ <span>Search inventory…</span><input type="text" id="inventory-search-input" placeholder="Material, SKU or store" aria-label="Search inventory"></div>
+    <button class="quiet-button" data-status-filter="all">Stock: All</button>
+    <button class="quiet-button" data-status-filter="healthy">Healthy</button>
+    <button class="quiet-button" data-status-filter="low">Low stock</button>
+    <select id="inventory-warehouse-filter" class="quiet-select" aria-label="Filter by store">
+      <option value="">Store: All</option>
+    </select>
+  </div>
+  <div class="responsive-table">
+    <table>
+      <thead><tr><th>Material</th><th>SKU</th><th>Store / location</th><th>On hand</th><th>Unit cost</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody data-inventory-rows>
+        <tr class="empty-row"><td colspan="7"><strong>Loading inventory…</strong><span>Fetching from the inventory API.</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<dialog class="movement-dialog" data-movement-dialog>
+  <form data-movement-form>
+    <header>
+      <div><p class="eyebrow">INVENTORY</p><h2 data-movement-form-title>Record movement</h2></div>
+      <button type="button" data-movement-close aria-label="Close">×</button>
+    </header>
+    <div class="movement-form-grid">
+      <label>Movement type *<select name="movement_type" data-movement-type required>
+        <option value="">Select…</option>
+        <option value="IN">Stock in</option>
+        <option value="OUT">Stock out</option>
+        <option value="RETURN">Return</option>
+        <option value="TRANSFER">Transfer</option>
+        <option value="ADJUSTMENT">Adjustment</option>
+      </select></label>
+      <label class="full">Material *<select name="material" data-movement-material required></select></label>
+      <label data-movement-warehouse-row>Warehouse *<select name="warehouse" data-movement-warehouse required></select></label>
+      <label data-movement-from-row hidden>Transfer from *<select name="from_warehouse" data-movement-from></select></label>
+      <label data-movement-to-row hidden>Transfer to *<select name="to_warehouse" data-movement-to></select></label>
+      <label>Quantity *<input name="quantity" data-movement-qty type="number" min="0" step="0.001" required></label>
+      <label data-movement-direction-row hidden>Adjustment direction
+        <span class="movement-direction">
+          <label><input type="radio" name="adjust_direction" value="increase" checked> Increase</label>
+          <label><input type="radio" name="adjust_direction" value="decrease"> Decrease</label>
+        </span>
+      </label>
+      <label>Reference<input name="reference" data-movement-reference maxlength="255"></label>
+      <label>Movement date *<input name="movement_date" data-movement-date type="datetime-local" required></label>
+      <label class="full">Notes<textarea name="notes" data-movement-notes></textarea></label>
+    </div>
+    <p class="movement-error" data-movement-error hidden></p>
+    <footer>
+      <button type="button" class="quiet-button" data-movement-close>Cancel</button>
+      <button class="primary-button">Record movement</button>
+    </footer>
+  </form>
+</dialog>
+
+<dialog class="movement-dialog movement-history-dialog" data-movement-history-dialog>
+  <header>
+    <div><p class="eyebrow">INVENTORY</p><h2 data-movement-history-title>Movement history</h2></div>
+    <button type="button" data-movement-history-close aria-label="Close">×</button>
+  </header>
+  <div class="responsive-table">
+    <table>
+      <thead><tr><th>Date</th><th>Type</th><th>Quantity</th><th>Reference</th><th>Notes</th></tr></thead>
+      <tbody data-movement-history-rows></tbody>
+    </table>
+  </div>
+  <footer>
+    <button type="button" class="quiet-button" data-movement-history-close>Close</button>
+  </footer>
+</dialog>
+{% endblock %}
+{% block page_js %}<script src="{% static 'js/inventory.js' %}" defer></script>{% endblock %}

@@ -1,0 +1,30 @@
+/* Inventory page (1B-1) -- built on the shared v3 dashboard look
+   (site-exact.css/v3-fixes.css/projects.css); only adds what's specific
+   to this page. The stock status pills reuse the global .status.active /
+   .status.at-risk classes. */
+.local-search input { border: 0; background: none; outline: none; flex: 1; font-family: inherit; font-size: 10px; color: inherit; }
+.filterbar select.quiet-select { min-height: 34px; padding: 0 8px; border: 1px solid #a5b9b3; border-radius: 9px; background: #f7faf8; font: inherit; font-size: 10px; color: #174b4a; }
+.filterbar .quiet-button.active { background: #08736c; border-color: #08736c; color: #f5fffc; font-weight: 800; }
+
+/* 1B-2 Record-movement + movement-history dialogs (mirrors expenses.css). */
+.inventory-row-actions { display: flex; gap: 5px; }
+.inventory-row-actions button { white-space: nowrap; }
+.movement-dialog { position: fixed; inset: 0; margin: auto; width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 36px); overflow: auto; border: 1px solid #94aaa4; border-radius: 15px; padding: 0; background: #e7eeea; color: #073f3c; box-shadow: 0 28px 80px #063d3c66; }
+.movement-dialog::backdrop { background: #063d3c80; backdrop-filter: blur(3px); }
+.movement-dialog form { padding: 24px; }
+.movement-dialog header, .movement-dialog footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.movement-dialog header { padding-bottom: 17px; margin-bottom: 19px; border-bottom: 1px solid #b2c3be; }
+.movement-dialog header h2 { margin: 3px 0; }
+.movement-dialog header button { border: 0; background: none; font-size: 26px; color: inherit; cursor: pointer; }
+.movement-dialog footer { justify-content: flex-end; margin-top: 20px; padding-top: 17px; border-top: 1px solid #b2c3be; }
+.movement-history-dialog { padding: 24px; }
+.movement-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+.movement-form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 11px; font-weight: 800; }
+.movement-form-grid label.full { grid-column: 1 / -1; }
+.movement-form-grid input, .movement-form-grid select, .movement-form-grid textarea { box-sizing: border-box; width: 100%; border: 1px solid #a4b7b2; border-radius: 8px; background: #f8faf8; font: inherit; }
+.movement-form-grid input, .movement-form-grid textarea { padding: 10px; }
+.movement-form-grid select { padding: 9px 8px; }
+.movement-form-grid [hidden] { display: none !important; }
+.movement-error { grid-column: 1 / -1; background: #f6ded9; color: #8b2922; border-radius: 8px; padding: 10px; white-space: pre-wrap; }
+.movement-direction { display: flex; gap: 14px; }
+.movement-direction label { flex-direction: row; align-items: center; gap: 6px; font-weight: 600; cursor: pointer; }
