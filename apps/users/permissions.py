@@ -66,3 +66,19 @@ class IsAccountant:
 
     def has_object_permission(self, request, view, obj):
         return True
+
+
+class IsOwnerOrAccountant:
+    """Allow authenticated finance users (OWNER or ACCOUNTANT)."""
+
+    def has_permission(self, request, view):
+        user = getattr(request, 'user', None)
+        return bool(
+            user is not None
+            and not getattr(user, 'is_anonymous', True)
+            and getattr(user, 'is_authenticated', False)
+            and (getattr(user, 'is_owner', False) or getattr(user, 'is_accountant', False))
+        )
+
+    def has_object_permission(self, request, view, obj):
+        return True

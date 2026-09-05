@@ -34,6 +34,19 @@ class PaymentSerializer(serializers.ModelSerializer):
             'payment_method', 'client', 'client_name', 'supplier', 'supplier_name',
             'reference', 'notes', 'created_by', 'unallocated_amount', 'created_at',
         ]
+        read_only_fields = ['id', 'created_by', 'created_at']
+
+    def validate_payment_number(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("This field may not be blank.")
+        return value
+
+    def validate_payment_method(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("This field may not be blank.")
+        return value
 
     def get_unallocated_amount(self, obj):
         return DECIMAL_FIELD.to_representation(unallocated_amount(obj))
@@ -43,10 +56,18 @@ class PaymentSerializer(serializers.ModelSerializer):
         client = attrs.get('client')
         supplier = attrs.get('supplier')
 
-        if direction == Payment.Direction.INCOMING and not client:
-            raise serializers.ValidationError("An INCOMING payment must specify a client.")
-        if direction == Payment.Direction.OUTGOING and not supplier:
-            raise serializers.ValidationError("An OUTGOING payment must specify a supplier.")
+        amount = attrs.get('amount')
+        if amount is not None and amount <= 0:
+            raise serializers.ValidationError({'amount': "Payment amount must be positive."})
+
+        if direction == Payment.Direction.INCOMING and (not client or supplier):
+            raise serializers.ValidationError(
+                "An INCOMING payment must specify a client and must not specify a supplier."
+            )
+        if direction == Payment.Direction.OUTGOING and (not supplier or client):
+            raise serializers.ValidationError(
+                "An OUTGOING payment must specify a supplier and must not specify a client."
+            )
 
         return attrs
 
@@ -73,6 +94,8 @@ class PaymentAllocationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Exactly one of client_invoice or supplier_invoice must be set."
             )
+        if attrs.get('allocated_amount') is not None and attrs['allocated_amount'] <= 0:
+            raise serializers.ValidationError({'allocated_amount': "Allocation amount must be positive."})
         return attrs
 
     def create(self, validated_data):
@@ -89,13 +112,27 @@ class ReceiptSerializer(serializers.ModelSerializer):
     """
     Serializer for Receipt. Create-only at the viewset level (proof of
     receipt, immutable once issued).
+
+    client_name/supplier_name/payment_method are read-only, derived
+    through the receipt's payment -- BRD 5.19 lists "Client/supplier"
+    and "Payment method" as receipt fields, but the schema's receipts
+    table has no such columns of its own (a receipt is always one-to-
+    one with a payment, so nothing would be gained by duplicating them
+    here). Currency is in BRD 5.19 too but is out of scope for this
+    version (BRD 3.2 lists multi-currency as a future enhancement).
     """
 
     payment_number = serializers.CharField(source='payment.payment_number', read_only=True)
+    client_name = serializers.CharField(source='payment.client.name', read_only=True, default=None)
+    supplier_name = serializers.CharField(source='payment.supplier.name', read_only=True, default=None)
+    payment_method = serializers.CharField(source='payment.payment_method', read_only=True)
 
     class Meta:
         model = Receipt
-        fields = ['id', 'payment', 'payment_number', 'receipt_number', 'receipt_date', 'amount', 'reference', 'created_at']
+        fields = [
+            'id', 'payment', 'payment_number', 'client_name', 'supplier_name', 'payment_method',
+            'receipt_number', 'receipt_date', 'amount', 'reference', 'created_at',
+        ]
 
     def validate_payment(self, payment):
         if payment.direction != Payment.Direction.INCOMING:
@@ -103,3 +140,14 @@ class ReceiptSerializer(serializers.ModelSerializer):
         if hasattr(payment, 'receipt'):
             raise serializers.ValidationError("This payment already has a receipt.")
         return payment
+
+    def validate(self, attrs):
+        payment = attrs.get('payment')
+        amount = attrs.get('amount')
+        if amount is not None and amount <= 0:
+            raise serializers.ValidationError({'amount': "Receipt amount must be positive."})
+        if payment is not None and amount is not None and amount != payment.amount:
+            raise serializers.ValidationError(
+                {'amount': "Receipt amount must exactly equal the payment amount."}
+            )
+        return attrs

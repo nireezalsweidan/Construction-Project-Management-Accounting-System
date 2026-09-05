@@ -5,9 +5,10 @@ Endpoints
 ---------
 Mounted under /api/auth/ (see ``construction/urls.py``):
 
-Auth + account (any authenticated / session):
-- POST   /api/auth/login/                          -> authenticate, open session
-- POST   /api/auth/logout/                         -> close session
+Auth + account (JWT Bearer token):
+- POST   /api/auth/login/                          -> authenticate, return JWT
+- POST   /api/auth/logout/                         -> confirm logout (client discards tokens)
+- POST   /api/auth/token/refresh/                  -> refresh access token
 - GET    /api/auth/me/                             -> own profile
 - PATCH  /api/auth/me/                             -> update own profile
 - POST   /api/auth/change-password/                -> change own password
@@ -22,30 +23,25 @@ User management (OWNER only; "registration by admin"):
 - DELETE /api/auth/users/{id}/                     -> hard delete (see note)
 - POST   /api/auth/users/{id}/activate/            -> activate
 - POST   /api/auth/users/{id}/deactivate/          -> deactivate
-- POST   /api/auth/users/{id}/reset-password/      -> admin sets a user's password
 
 There is deliberately NO public registration endpoint: the Owner is the
 only one who can create accounts (``UserViewSet`` is ``IsOwner``-gated).
 """
-from django.contrib.auth import logout as django_logout
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .authentication import SESSION_USER_ID_KEY
 from .models import User
 from .permissions import IsAuthenticated, IsOwner
 from .serializers import (
     ChangePasswordSerializer,
-    LoginSerializer,
+    JwtLoginSerializer,
     RequestPasswordResetSerializer,
     ResetPasswordSerializer,
     UserCreateSerializer,
     UserSerializer,
     UserUpdateSerializer,
-    validate_password_strength,
 )
 from .services import send_account_credentials_email
 from .services import send_password_reset_email
@@ -55,36 +51,6 @@ class AuthView(APIView):
     """Shared auth endpoints grouped into one class-level view set."""
 
     permission_classes = [IsAuthenticated]
-
-    # --- login / logout ---------------------------------------------------
-
-    def post_login(self, request):
-        # Login must be available without already being authenticated.
-        serializer = LoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data['user']
-
-        # Persist login across requests via the Django session. We store
-        # our own key (see users/authentication) so no AUTH_USER_MODEL
-        # change is required and the shared DB stays untouched.
-        request.session[SESSION_USER_ID_KEY] = str(user.id)
-        request.session.save()
-        request.user = user
-
-        # Record last_login on the user (nullable TIMESTAMP column).
-        from django.utils import timezone
-        user.last_login = timezone.now()
-        user.save(update_fields=['last_login'])
-
-        return Response(
-            {'user': UserSerializer(user).data},
-            status=status.HTTP_200_OK,
-        )
-
-    def post_logout(self, request):
-        request.session.flush()
-        django_logout(request)
-        return Response({'detail': 'Logged out.'}, status=status.HTTP_200_OK)
 
     # --- profile ----------------------------------------------------------
 
@@ -108,18 +74,9 @@ class AuthView(APIView):
         serializer.is_valid(raise_exception=True)
         request.user.set_password(serializer.validated_data['new_password'])
         request.user.save(update_fields=['password_hash', 'updated_at'])
-        # Force re-login elsewhere: the current session stays valid for the
-        # user who just changed their own password, matching typical flows.
         return Response({'detail': 'Password changed.'}, status=status.HTTP_200_OK)
 
     def post_request_password_reset(self, request):
-        """
-        Forgot-password: accept the account's ``email`` and, if it belongs
-        to an active account, email a password-reset link (see
-        ``users.services.send_password_reset_email``). The response always
-        reports success so the endpoint cannot be used to enumerate which
-        email addresses have accounts.
-        """
         serializer = RequestPasswordResetSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer._user
@@ -128,11 +85,6 @@ class AuthView(APIView):
         return Response({'detail': 'If that email is on an account, a reset link has been sent.'})
 
     def post_reset_password(self, request):
-        """
-        Complete the reset: validate the emailed ``uid`` + ``token`` and
-        replace the password (hashed via Django's hashers). The token is
-        stateless and is invalidated as soon as the password changes.
-        """
         serializer = ResetPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
@@ -142,17 +94,39 @@ class AuthView(APIView):
 
 
 class LoginView(APIView):
+    """Authenticate and return JWT access + refresh tokens."""
     permission_classes = []
 
     def post(self, request):
-        return AuthView().post_login(request)
+        serializer = JwtLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Record last_login on the user (nullable TIMESTAMP column).
+        from django.utils import timezone
+        user = serializer.validated_data['user']
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
+
+        return Response(serializer.get_tokens(), status=status.HTTP_200_OK)
+
+
+class TokenRefreshView(APIView):
+    """Refresh an access token using a valid refresh token."""
+    permission_classes = []
+
+    def post(self, request):
+        from .serializers import CustomTokenRefreshSerializer
+        serializer = CustomTokenRefreshSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.validated_data, status=status.HTTP_200_OK)
 
 
 class LogoutView(APIView):
+    """Confirm logout. Client discards tokens (no server-side blacklist)."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        return AuthView().post_logout(request)
+        return Response({'detail': 'Logged out.'}, status=status.HTTP_200_OK)
 
 
 class MeView(APIView):
@@ -223,11 +197,6 @@ class UserViewSet(mixins.CreateModelMixin,
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED, headers=headers)
 
     def destroy(self, request, *args, **kwargs):
-        """
-        Prevent an Owner from deleting their own account; otherwise hard
-        delete. (Deactivation is the usual alternative -- see the activate/
-        deactivate actions.)
-        """
         instance = self.get_object()
         if instance.id == request.user.id:
             return Response(
@@ -255,20 +224,3 @@ class UserViewSet(mixins.CreateModelMixin,
         user.is_active = False
         user.save(update_fields=['is_active'])
         return Response(UserSerializer(user).data)
-
-    @action(detail=True, methods=['post'], url_path='reset-password')
-    def reset_password(self, request, pk=None):
-        """
-        Owner sets a new password for a user. Body: {new_password}.
-        Hashes it via Django's hashers -- no token round-trip needed for
-        the admin resetting someone else's account.
-        """
-        new_password = request.data.get('new_password')
-        try:
-            validate_password_strength(new_password)
-        except Exception:
-            raise DRFValidationError({'new_password': 'Password must be at least 8 characters long.'})
-        user = self.get_object()
-        user.set_password(new_password)
-        user.save(update_fields=['password_hash', 'updated_at'])
-        return Response({'detail': 'Password reset.'})

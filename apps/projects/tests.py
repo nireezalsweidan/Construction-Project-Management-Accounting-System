@@ -1,6 +1,14 @@
+from decimal import Decimal
+
+from django.contrib.auth.models import User as DjangoUser
 from django.test import TestCase
+from rest_framework.test import APIClient
+
+from clients.models import Client
+from clients.testing import WithClientsTableMixin
 
 from .models import Budget, BudgetItem, ChangeOrder, Phase, Project, ProjectEmployee, normalize_category_name
+from .testing import WithProjectsTableMixin
 
 
 class ProjectModelTests(TestCase):
@@ -127,6 +135,41 @@ class PhaseSerializerTests(TestCase):
         self.assertEqual(result["progress_percentage"], Decimal("95.00"))
 
 
+class ProjectFilteringAPITests(WithProjectsTableMixin, WithClientsTableMixin, TestCase):
+    """CPMAS-23: ?client=/?date_from=/?date_to= filtering on ProjectViewSet."""
+
+    def setUp(self):
+        self.client_obj = Client.objects.create(name="Jane Homeowner")
+        self.other_client = Client.objects.create(name="Someone Else")
+        django_user = DjangoUser.objects.create_user(username="apitester_projects", password="pass12345")
+        self.client = APIClient()
+        self.client.force_authenticate(user=django_user)
+
+    def make_project(self, **kwargs):
+        defaults = dict(
+            name="Tower A", code="TWR-FILTER-1", project_type=Project.TYPE_WHOLE_BUILDING,
+            start_date="2026-06-01", contract_value=Decimal("100000.00"), buyer=self.client_obj,
+        )
+        defaults.update(kwargs)
+        return Project.objects.create(**defaults)
+
+    def test_filter_by_client(self):
+        matching = self.make_project(code="TWR-FILTER-2")
+        self.make_project(code="TWR-FILTER-3", buyer=self.other_client)
+
+        response = self.client.get(f"/api/projects/projects/?client={self.client_obj.id}")
+        codes = [p["code"] for p in response.json()["results"]]
+        self.assertEqual(codes, [matching.code])
+
+    def test_filter_by_start_date_range(self):
+        in_range = self.make_project(code="TWR-FILTER-4", start_date="2026-06-15")
+        self.make_project(code="TWR-FILTER-5", start_date="2026-01-01")
+
+        response = self.client.get("/api/projects/projects/?date_from=2026-06-01&date_to=2026-06-30")
+        codes = [p["code"] for p in response.json()["results"]]
+        self.assertEqual(codes, [in_range.code])
+
+
 class BudgetModelTests(TestCase):
     """
     Model-level tests only — get_budget_summary()/get_active_budget() run
@@ -209,3 +252,56 @@ class ChangeOrderSerializerTests(TestCase):
         read_only = ChangeOrderSerializer().Meta.read_only_fields
         self.assertIn("status", read_only)
         self.assertIn("approved_by", read_only)
+
+
+class PortfolioBudgetSummaryAPITests(WithProjectsTableMixin, WithClientsTableMixin, TestCase):
+    """GET /api/projects/budgets/portfolio-summary/ aggregation across projects."""
+
+    def setUp(self):
+        super().setUp()
+        self.client_obj = Client.objects.create(name="Portfolio Corp")
+        self.api = APIClient()
+        self.api.force_authenticate(
+            user=DjangoUser.objects.create_user(username="portfolio_tester", password="pass12345")
+        )
+
+    def test_empty_when_no_projects(self):
+        response = self.api.get("/api/projects/budgets/portfolio-summary/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["totals"]["projects"], 0)
+
+    def test_aggregates_across_projects_with_budgets(self):
+        proj_a = Project.objects.create(
+            code="PORT-A", name="Project Alpha", project_type=Project.TYPE_WHOLE_BUILDING,
+            start_date="2026-01-01", contract_value=Decimal("500000"), buyer=self.client_obj,
+        )
+        proj_b = Project.objects.create(
+            code="PORT-B", name="Project Beta", project_type=Project.TYPE_MULTI_UNIT,
+            start_date="2026-01-01", contract_value=Decimal("300000"), buyer=self.client_obj,
+        )
+
+        bud_a = Budget.objects.create(project=proj_a, name="Budget A", total_budget=Decimal("100000"), status=Budget.STATUS_APPROVED)
+        BudgetItem.objects.create(budget=bud_a, category="MATERIALS", budgeted_amount=Decimal("50000"))
+        BudgetItem.objects.create(budget=bud_a, category="LABOR", budgeted_amount=Decimal("30000"))
+
+        bud_b = Budget.objects.create(project=proj_b, name="Budget B", total_budget=Decimal("80000"), status=Budget.STATUS_DRAFT)
+        BudgetItem.objects.create(budget=bud_b, category="MATERIALS", budgeted_amount=Decimal("40000"))
+
+        response = self.api.get("/api/projects/budgets/portfolio-summary/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["totals"]["projects"], 2)
+        self.assertIn("budgeted", data["totals"])
+        self.assertIn("actual", data["totals"])
+
+    def test_project_filter_restricts_results(self):
+        proj = Project.objects.create(
+            code="PORT-C", name="Project Gamma", project_type=Project.TYPE_WHOLE_BUILDING,
+            start_date="2026-01-01", contract_value=Decimal("200000"), buyer=self.client_obj,
+        )
+        Budget.objects.create(project=proj, name="Budget C", total_budget=Decimal("60000"), status=Budget.STATUS_APPROVED)
+
+        response = self.api.get(f"/api/projects/budgets/portfolio-summary/?project={proj.id}")
+        data = response.json()
+        self.assertEqual(data["totals"]["projects"], 1)

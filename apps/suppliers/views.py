@@ -2,7 +2,8 @@
 Views for the ``suppliers`` app -- Supplier Management API.
 
 ``SupplierViewSet`` gives authenticated users (Owner/Accountant, per the
-existing DRF SessionAuthentication + IsAuthenticated setup) a CRUD surface
+existing DRF JWT-bearer authentication via ``JwtUserAuthentication`` +
+IsAuthenticated setup) a CRUD surface
 for the Supplier master record plus read-only detail actions onto the
 supplier's financial activity: purchase orders, invoices, outgoing
 payments, and the outstanding payable balance.
@@ -55,6 +56,15 @@ class SupplierViewSet(viewsets.ModelViewSet):
     search_fields = ["name", "company_name", "email", "tax_number"]
     ordering_fields = ["created_at", "name"]
     ordering = ["name"]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        is_active = self.request.query_params.get("is_active")
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() in ("true", "1"))
+
+        return queryset
 
     def get_serializer_class(self):
         return SupplierListSerializer if self.action == "list" else SupplierSerializer

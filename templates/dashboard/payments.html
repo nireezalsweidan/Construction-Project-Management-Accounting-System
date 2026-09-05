@@ -1,1 +1,60 @@
-{% extends "dashboard/base_dashboard.html" %}{% block title %}Payments | Cedar Control{% endblock %}{% block dashboard_content %}<section class="page-heading"><div><p class="eyebrow">Cash movement</p><h1>Payments</h1><p>Record, allocate, approve, and reconcile client receipts and supplier payments.</p></div><button class="primary-button">＋ Record payment</button></section><section class="module-stat-grid"><article class="module-stat tone-1"><span>Received this month</span><strong>{{ received_month|default:"$384K" }}</strong><em>Live overview</em></article><article class="module-stat tone-2"><span>Paid this month</span><strong>{{ paid_month|default:"$296K" }}</strong><em>Needs attention</em></article><article class="module-stat tone-3"><span>Unallocated</span><strong>{{ unallocated|default:"$18K" }}</strong><em>Current period</em></article><article class="module-stat tone-4"><span>Pending approval</span><strong>{{ pending_count|default:"6" }}</strong><em>Updated today</em></article></section><section class="panel table-panel module-table"><div class="filterbar"><div class="local-search">⌕ <span>Search payments…</span></div><button class="quiet-button">Direction: All</button><button class="quiet-button">Status: All</button></div><div class="responsive-table"><table><thead><tr><th>Payment</th><th>Direction</th><th>Partner</th><th>Date</th><th>Method</th><th>Amount</th><th>Allocation</th><th>Status</th></tr></thead><tbody>{% for payment in payments %}<tr><td><strong>{{ payment.number }}</strong><span>View details</span></td><td>{{ payment.direction }}</td><td>{{ payment.partner }}</td><td>{{ payment.date }}</td><td>{{ payment.method }}</td><td>{{ payment.amount }}</td><td>{{ payment.allocation }}</td><td><span class="status {{ payment.status|slugify }}"><i></i>{{ payment.status }}</span></td></tr>{% empty %}<tr><td><strong>PAY-0862</strong><span>View details</span></td><td>Received</td><td>Levant Properties</td><td>28 Aug 2026</td><td>Bank transfer</td><td>$80,000</td><td>INV-2026-081</td><td><span class="status active"><i></i>Posted</span></td></tr><tr><td><strong>PAY-0857</strong><span>View details</span></td><td>Paid</td><td>Cedars Electrical</td><td>27 Aug 2026</td><td>Bank transfer</td><td>$36,480</td><td>SUP-2026-431</td><td><span class="status active"><i></i>Approved</span></td></tr>{% endfor %}</tbody></table></div></section>{% endblock %}
+{% extends "dashboard/base_dashboard.html" %}
+{% load static %}
+{% block title %}Payments | Cedar Control{% endblock %}
+{% block page_css %}<link rel="stylesheet" href="{% static 'css/payments.css' %}?v=20260903-3">{% endblock %}
+{% block dashboard_content %}
+<section class="page-heading">
+  <div><p class="eyebrow">Cash movement</p><h1>Payments</h1><p>Record and allocate client receipts and supplier payments.</p></div>
+  <div class="page-actions"><a class="quiet-button" href="/receipts/">Receipt register</a><button class="primary-button" type="button" data-payment-new="INCOMING">＋ Receive from client</button><button class="primary-button supplier-payment-button" type="button" data-payment-new="OUTGOING">＋ Pay supplier</button></div>
+</section>
+<section class="module-stat-grid">
+  <article class="module-stat tone-1"><span>Received</span><strong data-metric="received">—</strong><em>Loaded records</em></article>
+  <article class="module-stat tone-2"><span>Paid</span><strong data-metric="paid">—</strong><em>Loaded records</em></article>
+  <article class="module-stat tone-3"><span>Unallocated</span><strong data-metric="unallocated">—</strong><em>Needs allocation</em></article>
+  <article class="module-stat tone-4"><span>Total payments</span><strong data-metric="total">—</strong><em>All records</em></article>
+</section>
+<section class="panel table-panel module-table">
+  <div class="filterbar">
+    <div class="local-search">⌕ <input type="search" data-payment-search placeholder="Search payment, reference, partner…" aria-label="Search payments"></div>
+    <select class="quiet-button" data-direction-filter aria-label="Direction"><option value="">Direction: All</option><option value="INCOMING">Incoming</option><option value="OUTGOING">Outgoing</option></select>
+    <select class="quiet-button" data-ordering aria-label="Order payments"><option value="-payment_date">Newest first</option><option value="payment_date">Oldest first</option><option value="-amount">Highest amount</option><option value="amount">Lowest amount</option></select>
+  </div>
+  <div class="responsive-table"><table><thead><tr><th>Payment</th><th>Direction</th><th>Partner</th><th>Date</th><th>Method</th><th>Amount</th><th>Unallocated</th><th></th></tr></thead>
+    <tbody data-payment-rows><tr class="empty-row"><td colspan="8"><b>Loading payments…</b><span>Fetching from the payments API.</span></td></tr></tbody>
+  </table></div>
+</section>
+<section class="payment-register-grid"><article class="panel table-panel module-table"><div class="register-heading"><div><h2>Allocation history</h2><p>Every payment-to-invoice allocation</p></div></div><div class="responsive-table"><table><thead><tr><th>Payment</th><th>Invoice</th><th>Amount</th><th>Record</th></tr></thead><tbody data-allocation-rows><tr><td colspan="4">Loading allocations…</td></tr></tbody></table></div></article><article class="panel table-panel module-table"><div class="register-heading"><div><h2>Receipt history</h2><p>Issued incoming-payment receipts</p></div><a class="quiet-button" href="/receipts/">Open register</a></div><div class="responsive-table"><table><thead><tr><th>Receipt</th><th>Payment</th><th>Date</th><th>Amount</th><th></th></tr></thead><tbody data-inline-receipt-rows><tr><td colspan="5">Loading receipts…</td></tr></tbody></table></div></article></section>
+<dialog class="payment-dialog" data-payment-dialog><form data-payment-form>
+  <header><div><p class="eyebrow">CASH MOVEMENT</p><h2 data-payment-form-title>Record payment</h2><p class="payment-form-context" data-payment-form-context></p></div><button type="button" data-dialog-close aria-label="Close">×</button></header>
+  <div class="payment-form-grid">
+    <label>Payment number *<input name="payment_number" required maxlength="100"></label><label>Payment date *<input name="payment_date" type="date" required></label>
+    <input name="direction" type="hidden">
+    <label>Payment method *<input name="payment_method" required maxlength="50" placeholder="Bank transfer, cash, cheque…"></label><label>Amount *<input name="amount" type="number" min="0.01" step="0.01" required></label>
+    <label data-client-field>Client *<select name="client"></select></label><label data-supplier-field hidden>Supplier *<select name="supplier"></select></label>
+    <label>Reference<input name="reference" maxlength="255"></label><label class="wide">Notes<textarea name="notes" rows="3"></textarea></label>
+  </div><p class="form-error" data-payment-error hidden></p>
+  <footer><button type="button" class="quiet-button" data-dialog-close>Cancel</button><button class="primary-button" type="submit">Record payment</button></footer>
+</form></dialog>
+<dialog class="payment-dialog" data-allocation-dialog><form data-allocation-form>
+  <header><div><p class="eyebrow">PAYMENT ALLOCATION</p><h2 data-allocation-title>Allocate payment</h2></div><button type="button" data-allocation-close aria-label="Close">×</button></header>
+  <input type="hidden" name="payment"><div class="payment-form-grid single"><label>Eligible invoice *<select name="invoice" required></select></label><label>Amount *<input name="allocated_amount" type="number" min="0.01" step="0.01" required></label></div>
+  <p class="form-error" data-allocation-error hidden></p><footer><button type="button" class="quiet-button" data-allocation-close>Cancel</button><button class="primary-button" type="submit">Allocate</button></footer>
+</form></dialog>
+<dialog class="payment-dialog payment-detail-dialog" data-payment-detail-dialog>
+  <div class="payment-detail-shell"><header><div><p class="eyebrow">PAYMENT RECORD</p><h2 data-payment-detail-title>Payment detail</h2></div><button type="button" data-payment-detail-close aria-label="Close">×</button></header>
+    <div class="payment-detail-grid" data-payment-detail-fields></div>
+    <section><h3>Allocations</h3><div class="responsive-table" data-payment-detail-allocations></div></section>
+    <section><h3>Receipt</h3><div data-payment-detail-receipt>Loading…</div></section>
+  </div>
+</dialog>
+<dialog class="payment-dialog" data-receipt-dialog><form data-receipt-form><header><div><p class="eyebrow">PAYMENT RECEIPT</p><h2 data-receipt-title>Issue receipt</h2></div><button type="button" data-receipt-close aria-label="Close">×</button></header><input type="hidden" name="payment"><div class="payment-form-grid"><label>Receipt number *<input name="receipt_number" required maxlength="100"></label><label>Receipt date *<input name="receipt_date" type="date" required></label><label>Payment amount<input name="amount" readonly></label><label>Reference<input name="reference" maxlength="255"></label></div><p class="form-error" data-receipt-error hidden></p><footer><button type="button" class="quiet-button" data-receipt-close>Cancel</button><button type="submit" class="primary-button">Issue receipt</button></footer></form></dialog>
+<dialog class="payment-dialog receipt-preview-dialog" data-receipt-preview-dialog>
+  <div class="receipt-preview-shell">
+    <header><div><p class="eyebrow">RECEIPT DOCUMENT</p><h2 data-receipt-preview-title>Receipt preview</h2></div><button type="button" data-receipt-preview-close aria-label="Close">×</button></header>
+    <div class="receipt-preview-note"><p>This official payment receipt is generated as a printable PDF. Download it to share or archive.</p></div>
+    <div class="receipt-preview-details" data-receipt-preview-details>Loading receipt…</div>
+    <footer class="receipt-preview-actions"><div class="receipt-preview-meta" data-receipt-preview-meta></div><div><button type="button" class="quiet-button" data-receipt-preview-close>Close</button><a class="primary-button receipt-preview-download" data-receipt-preview-download href="#">Download PDF</a></div></footer>
+  </div>
+</dialog>
+{% endblock %}
+{% block page_js %}<script src="{% static 'js/payments.js' %}?v=20260903-3" defer></script>{% endblock %}

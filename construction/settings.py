@@ -60,13 +60,15 @@ INSTALLED_APPS = [
 
     # Third-party
     'rest_framework',
+    'rest_framework_simplejwt',
     'django_filters',
 
     # Domain apps registered so far (Sprint 2: CPMAS-28 Material Management,
     # CPMAS-29 Inventory & Warehouse Management, CPMAS-30 Purchase Order
     # Management, CPMAS-31 Goods Receiving, CPMAS-32 Supplier Invoices,
     # CPMAS-33 Expense Management, CPMAS-34 Accounting / Financial
-    # Transactions, CPMAS-35 Accounts Receivable & Accounts Payable --
+    # Transactions, CPMAS-35 Accounts Receivable & Accounts Payable,
+    # CPMAS-21 Receipts, CPMAS-22 Notifications --
     # plus projects/clients from CPMAS-47, built by Nireez).
     # taxes, suppliers, and users are wired in here only as minimal FK
     # targets required by apps.inventory (Material.tax_rate/default_supplier,
@@ -84,10 +86,14 @@ INSTALLED_APPS = [
     'invoicing',
     'projects',
     'clients',
+    'contractors',
+    'employees',
     'company',
     'expenses',
     'accounting',
     'payments',
+    'notifications',
+    'documents',
 ]
 
 MIDDLEWARE = [
@@ -96,6 +102,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'users.middleware.JwtCookieRefreshMiddleware',
+    'users.middleware.AppUserSessionMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -112,6 +120,8 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'construction.context_processors.app_user',
+                'construction.context_processors.company_logo',
             ],
         },
     },
@@ -161,6 +171,17 @@ if "test" in sys.argv:
 TEST_RUNNER = 'construction.test_runner.AppsDirTestRunner'
 
 
+# Supabase Storage (company logo upload). SUPABASE_URL is derived from the
+# project ref (https://<ref>.supabase.co); SUPABASE_ANON_KEY comes from
+# Project Settings -> API -> anon public key. Both are read from .env and
+# are only needed for the runtime logo upload in company_settings -- the
+# fallback public display path (company_logo context processor) does not
+# require them.
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+SUPABASE_LOGO_BUCKET = os.getenv("SUPABASE_LOGO_BUCKET", "logo")
+
+
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
@@ -177,6 +198,12 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
+]
+
+# Argon2 only — all new passwords are hashed with Argon2. Existing passwords
+# hashed with other algorithms (PBKDF2, bcrypt) will fail until reset.
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.Argon2PasswordHasher',
 ]
 
 
@@ -208,6 +235,12 @@ USE_TZ = False
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 
+# User-uploaded files (documents app, CPMAS-25). Local disk storage --
+# there's no S3/Supabase Storage integration in this project yet, and
+# adding one isn't in scope for this ticket; MEDIA_ROOT is git-ignored.
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'landing'
@@ -236,8 +269,9 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@localhost')
 
 # Base URL of the frontend password-reset page; the reset link appends
-# ?uid=...&token=... to it. Set to your SPA/static site's reset route.
-PASSWORD_RESET_BASE_URL = os.getenv('PASSWORD_RESET_BASE_URL', 'http://localhost:3000/reset-password')
+# ?uid=...&token=... to it. Served by the Django reset-password view at
+# /accounts/reset-password/ (see apps/core).
+PASSWORD_RESET_BASE_URL = os.getenv('PASSWORD_RESET_BASE_URL', 'http://localhost:8000/accounts/reset-password')
 
 # How long a password-reset token stays valid (Django's default: 3 days).
 PASSWORD_RESET_TIMEOUT = int(os.getenv('PASSWORD_RESET_TIMEOUT', '259200'))
@@ -247,15 +281,15 @@ PASSWORD_RESET_TIMEOUT = int(os.getenv('PASSWORD_RESET_TIMEOUT', '259200'))
 # https://www.django-rest-framework.org/api-guide/settings/
 #
 # BRD 13.1 (Security) requires API authentication and permission checks on
-# every endpoint. Authentication resolves request.user from the Django
-# session to this project's own users.User (see apps/users/authentication.py)
-# rather than Django's built-in Auth model -- the shared DB's auth app is
-# already migrated with auth.User, so this app authenticates against the
-# schema's own `users` table instead of switching AUTH_USER_MODEL.
+# every endpoint. Authentication uses JWT (djangorestframework-simplejwt):
+# clients send a Bearer token in the Authorization header; the token is
+# signed with HMAC-SHA256 using SECRET_KEY and contains the user's ID.
 # DRF's IsAuthenticated default stays on until role-specific permission
 # classes (users.permissions: IsOwner / IsAccountant) are applied per-view.
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'users.authentication.JwtUserAuthentication',
+        'users.authentication.JwtCookieAuthentication',
         'users.authentication.UserSessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -268,3 +302,24 @@ REST_FRAMEWORK = {
         'rest_framework.filters.OrderingFilter',
     ],
 }
+
+# SimpleJWT configuration
+# https://django-rest-framework-simplejwt.readthedocs.io/en/latest/settings.html
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': False,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+}
+
+# JWT placed in HttpOnly cookies (see users.authentication). Secure defaults
+# to False so local HTTP development works; set JWT_COOKIE_SECURE=True and
+# appropriate SameSite for production (HTTPS).
+JWT_COOKIE_SECURE = os.getenv('JWT_COOKIE_SECURE', '').lower() in ('1', 'true', 'yes', 'on')
+JWT_COOKIE_SAMESITE = os.getenv('JWT_COOKIE_SAMESITE', 'Lax')

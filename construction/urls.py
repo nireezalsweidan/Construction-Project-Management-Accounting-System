@@ -14,6 +14,8 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
@@ -30,8 +32,18 @@ urlpatterns = [
     path('api/projects/', include('projects.urls')),  # CPMAS-33
     path('api/clients/', include('clients.urls')),  # CPMAS-34
     path('api/suppliers/', include('suppliers.urls')),
+    path('api/contractors/', include('contractors.urls')),
+    path('api/employees/', include('employees.urls')),
     path('api/expenses/', include('expenses.urls')),  # CPMAS-35
     path('api/accounting/', include('accounting.urls')),
-    path('api/payments/', include('payments.urls')),
+    path('api/payments/', include('payments.urls')),  # CPMAS-35, CPMAS-21
+    path('api/notifications/', include('notifications.urls')),  # CPMAS-22
+    path('api/documents/', include('documents.urls')),  # CPMAS-25
     path('api/auth/', include('users.urls')),  # Auth & Authorization (RBAC)
+    path('api/company/', include('company.urls')),  # Company profile (view/update)
 ]
+
+# Serve uploaded files locally in development. In production this is
+# handled by the web server / reverse proxy, not Django.
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

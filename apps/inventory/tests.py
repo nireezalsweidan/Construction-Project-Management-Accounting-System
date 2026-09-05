@@ -162,6 +162,14 @@ class InventoryAPITests(WithUsersTableMixin, TestCase):
         response = self.client.get("/api/inventory/materials/?search=Nonexistent")
         self.assertEqual(response.json()["count"], 0)
 
+    def test_filter_by_supplier(self):
+        supplier = Supplier.objects.create(name="ACME Building Supplies")
+        Material.objects.create(category=self.category, name="Rebar", sku="REBAR-API-1", unit="ton", default_supplier=supplier)
+
+        response = self.client.get(f"/api/inventory/materials/?supplier={supplier.id}")
+        skus = [m["sku"] for m in response.json()["results"]]
+        self.assertEqual(skus, ["REBAR-API-1"])
+
     def test_material_duplicate_sku_rejected_via_api(self):
         response = self.client.post("/api/inventory/materials/", {
             "category": str(self.category.id), "name": "Dup", "sku": "CEM-API-1", "unit": "bag",

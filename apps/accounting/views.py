@@ -5,7 +5,10 @@ Transactions slice (CPMAS-34).
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+
+from construction.filtering import filter_date_range
 
 from .models import Account, FinancialTransaction, TransactionLine
 from .serializers import (
@@ -15,6 +18,31 @@ from .serializers import (
     apply_post,
     apply_void,
 )
+from .reports import profit_loss, revenue_expense_trend
+
+
+class ReportViewSet(viewsets.ViewSet):
+    """
+    Read-only Financial Reports (Core) -- Profit & Loss and the monthly
+    Revenue & Expense trend.
+
+    Both are computed server-side over POSTED journal lines only (DRAFT is
+    never booked; VOIDED is reversed by a separate correction). All sums are
+    aggregated in the database; the client never downloads the ledger.
+
+    GET /api/accounting/reports/profit-loss/?date_from=&date_to=&project=
+    GET /api/accounting/reports/trend/?date_from=&date_to=&project=
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['get'], url_path='profit-loss')
+    def profit_loss(self, request):
+        return Response(profit_loss(request.query_params))
+
+    @action(detail=False, methods=['get'], url_path='trend')
+    def trend(self, request):
+        return Response(revenue_expense_trend(request.query_params))
 
 
 class AccountViewSet(viewsets.ModelViewSet):
@@ -71,6 +99,8 @@ class FinancialTransactionViewSet(viewsets.ModelViewSet):
         supplier_id = params.get('supplier')
         if supplier_id:
             queryset = queryset.filter(supplier_id=supplier_id)
+
+        queryset = filter_date_range(queryset, params, 'transaction_date')
 
         return queryset
 
