@@ -15,7 +15,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (loginForm) loginForm.addEventListener("submit", () => {
     const submit = document.querySelector("[data-submit]");
     submit.disabled = true;
-    submit.textContent = "Securing workspace…";
+    submit.textContent = "Signing in to Cedar Construction…";
   });
 
   const settings = document.querySelector("[data-settings]");

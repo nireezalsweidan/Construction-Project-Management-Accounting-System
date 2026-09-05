@@ -15,6 +15,7 @@ from .views import (
     MeView,
     RequestPasswordResetView,
     ResetPasswordView,
+    TokenRefreshView,
     UserViewSet,
 )
 
@@ -24,6 +25,7 @@ router.register('users', UserViewSet, basename='user')
 urlpatterns = [
     path('login/', LoginView.as_view(), name='auth-login'),
     path('logout/', LogoutView.as_view(), name='auth-logout'),
+    path('token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
     path('me/', MeView.as_view(), name='auth-me'),
     path('change-password/', ChangePasswordView.as_view(), name='auth-change-password'),
     path('request-password-reset/', RequestPasswordResetView.as_view(), name='auth-request-password-reset'),

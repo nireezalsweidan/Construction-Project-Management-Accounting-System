@@ -25,6 +25,7 @@ start failing because of a widget it never asked for.
 """
 from django.db.utils import DatabaseError
 
+from company.models import CompanyProfile
 from users.models import User as AppUser
 
 
@@ -38,3 +39,21 @@ def app_user(request):
     except DatabaseError:
         return {"app_user_id": None}
     return {"app_user_id": str(app_user_row.id) if app_user_row else None}
+
+
+def company_logo(request):
+    """Expose the company's logo URL to every template.
+
+    Single-company system (see ``CompanyProfile`` / the ``company_details``
+    table). Resolves to the most recently updated profile's ``logo`` value
+    (a Supabase storage public URL), or ``None`` when none is set or the
+    table isn't present (e.g. in most tests). Templates can then do
+    ``{% if company_logo %}`` to swap the placeholder glyph for the real
+    logo image, falling back to the glyph otherwise.
+    """
+    try:
+        profile = CompanyProfile.objects.order_by("-updated_at").first()
+    except DatabaseError:
+        profile = None
+    return {"company_logo": getattr(profile, "logo", None) or None}
+

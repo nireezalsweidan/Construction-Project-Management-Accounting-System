@@ -1,4 +1,3 @@
-from django.contrib.auth import views as auth_views
 from django.urls import path
 
 from . import views
@@ -7,16 +6,10 @@ from . import views
 urlpatterns = [
     path("", views.landing, name="landing"),
     path("cedar-control/", views.cedar_control, name="cedar-control"),
-    path(
-        "accounts/login/",
-        auth_views.LoginView.as_view(template_name="registration/login.html"),
-        name="login",
-    ),
-    path(
-        "accounts/logout/",
-        auth_views.LogoutView.as_view(),
-        name="logout",
-    ),
+    path("accounts/login/", views.login, name="login"),
+    path("accounts/logout/", views.logout, name="logout"),
+    path("accounts/forgot-password/", views.forgot_password, name="forgot-password"),
+    path("accounts/reset-password/", views.reset_password, name="reset-password"),
     path("dashboard/", views.dashboard, name="dashboard"),
     path("projects/", views.projects_page, name="projects"),
     path("projects/<uuid:pk>/", views.project_detail, name="project-detail"),
@@ -30,11 +23,12 @@ urlpatterns = [
     path("accounting/", views.accounting_page, name="accounting"),
     path("expenses/", views.expenses_page, name="expenses"),
     path("reports/", views.reports_page, name="reports"),
-    path("settings/", views.settings_page, name="settings"),
+    path("settings/", views.company_settings, name="settings"),
+    path("profile/", views.profile, name="profile"),
     path("dashboard/<slug:module>/", views.module_page, name="module-page"),
     path("suppliers/", views.suppliers, name="suppliers"),
     path("contractors/", views.contractors, name="contractors"),
     path("employees/", views.employees, name="employees"),
     path("receipts/", views.receipts_page, name="receipts"),
-    path("settings/company/", views.company_settings, name="company-settings"),
+    path("documents/", views.documents_page, name="documents"),
 ]

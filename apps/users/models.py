@@ -109,3 +109,12 @@ class User(models.Model):
     @property
     def is_authenticated(self) -> bool:
         return True
+
+    def get_username(self) -> str:
+        """Duck-typed Django auth interface used by templates/context processors."""
+        return self.username
+
+    def get_full_name(self) -> str:
+        """Return the user's first and last name (templates call this)."""
+        full = f"{self.first_name} {self.last_name}".strip()
+        return full or self.username
