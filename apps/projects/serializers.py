@@ -72,7 +72,6 @@ class ProjectEmployeeSerializer(serializers.ModelSerializer):
     )
 
     employee = EmployeeSummarySerializer(
-        source="employee",
         read_only=True,
     )
 
