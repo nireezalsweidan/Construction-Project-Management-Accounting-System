@@ -337,6 +337,84 @@ class DocumentsPageRenderTests(TestCase):
         self.assertIn("doc-search-input", content)
 
 
+class InvoicePageRenderTests(TestCase):
+    """The Invoices dashboard page is server-rendered HTML whose table,
+    metrics, and both the header and line-item dialogs are filled at runtime
+    by invoices.js from the /api/invoicing/ endpoints (ClientInvoice +
+    SupplierInvoice). 1C-2 adds line-item editing, a tax-rate picker on line
+    items, and supplier flat-charge support; these tests verify the rendered
+    template structure and hooks only -- client/supplier/project/PO/tax
+    choices and invoice rows are populated dynamically by JavaScript, so they
+    are asserted against the JS bundle rather than server HTML.
+
+    /invoices/ is @login_required (not @owner_required -- accountants need
+    this page too), so plain django.contrib.auth login is enough, matching
+    Receipts/Documents/Expenses."""
+
+    def _login(self):
+        DjangoUser.objects.create_user(username="apitester_inv", password="pass12345")
+        self.client.login(username="apitester_inv", password="pass12345")
+
+    def test_redirects_anonymous_user_to_login(self):
+        response = self.client.get("/invoices/")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
+
+    def test_page_renders_for_authenticated_user(self):
+        self._login()
+        response = self.client.get("/invoices/")
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "dashboard/invoices.html")
+        content = response.content.decode()
+        for hook in [
+            "invoices.js", "invoices.css",
+            "data-invoice-rows", "data-invoice-search",
+            "data-type-filter", "data-status-filter",
+            'data-metric="receivables"', 'data-metric="payables"',
+            'data-metric="overdue"', 'data-metric="total"',
+            "data-new-invoice", "data-invoice-dialog", "data-invoice-form",
+            "data-invoice-detail", "data-add-item", "data-item-rows",
+            "data-item-form", "data-tax-rate",
+        ]:
+            self.assertIn(hook, content)
+
+    def test_page_has_no_fabricated_invoice_data(self):
+        self._login()
+        response = self.client.get("/invoices/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        # Metrics initially render as — ; the table shows a loading row rather
+        # than hardcoded invoices; no fabricated invoice numbers exist.
+        self.assertIn('<strong data-metric="receivables">—</strong>', content)
+        self.assertIn('<strong data-metric="payables">—</strong>', content)
+        self.assertIn('<strong data-metric="overdue">—</strong>', content)
+        self.assertIn('<strong data-metric="total">—</strong>', content)
+        self.assertIn("Loading invoices…", content)
+        self.assertNotIn("INV-", content)
+        self.assertNotIn("CINV-", content)
+        self.assertNotIn("<td><strong>", content)
+
+    def test_js_wires_invoice_actions_and_endpoints(self):
+        # The row-action hooks and invoicing endpoints can't be observed in
+        # server HTML (they are produced by invoices.js at runtime), so we
+        # assert the implementation wires them by inspecting the JS bundle.
+        js = (settings.BASE_DIR / "static/js/invoices.js").read_text(encoding="utf-8")
+        for token in [
+            "/api/invoicing/client-invoices/", "/api/invoicing/supplier-invoices/",
+            "/api/invoicing/client-invoice-items/", "/api/invoicing/supplier-invoice-items/",
+            "/api/clients/clients/", "/api/suppliers/suppliers/",
+            "/api/projects/projects/", "/api/purchasing/purchase-orders/",
+            "/api/taxes/tax-rates/",
+            "data-new-invoice", "data-edit", "data-delete", "data-view",
+            "mark_sent", "cancel", "data-item-delete",
+            "data-item-edit", "data-tax-rate", "line_type", "total_amount", "PATCH",
+        ]:
+            self.assertIn(token, js)
+        # No fabricated invoice values hidden in the bundle.
+        self.assertNotIn("INV-FAB", js)
+        self.assertNotIn("CINV-FAB", js)
+
+
 class ProcurementPageRenderTests(WithUsersTableMixin, TestCase):
     """The Procurement dashboard page is server-rendered HTML whose table,
     metrics, and detail dialog are filled at runtime by procurement.js from
