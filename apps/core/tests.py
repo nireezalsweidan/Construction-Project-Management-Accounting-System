@@ -159,6 +159,13 @@ class LoginPageTests(WithUsersTableMixin, TestCase):
 
 
 class ReceiptsPageRenderTests(TestCase):
+    """The Receipts page is server-rendered HTML whose table and metrics
+    are filled at runtime by receipts.js from /api/payments/receipts/
+    (CPMAS-58/CPMAS-21). These tests verify the rendered template
+    structure and hooks only -- browser-side fetch/search/date-range
+    behavior is covered by the API tests in
+    apps.payments.tests.ReceiptDetailAndDownloadAPITests."""
+
     def test_redirects_anonymous_user_to_login(self):
         response = self.client.get("/receipts/")
         self.assertEqual(response.status_code, 302)
@@ -170,6 +177,139 @@ class ReceiptsPageRenderTests(TestCase):
         response = self.client.get("/receipts/")
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "dashboard/receipts.html")
+
+    def test_page_has_required_hooks(self):
+        DjangoUser.objects.create_user(username="apitester_receipts2", password="pass12345")
+        self.client.login(username="apitester_receipts2", password="pass12345")
+        response = self.client.get("/receipts/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        for hook in [
+            "receipts.js", "receipts.css", "data-receipt-rows",
+            'data-metric="total"', 'data-metric="this-month"',
+            "receipt-search-input", "data-date-from", "data-date-to",
+        ]:
+            self.assertIn(hook, content)
+
+    def test_page_has_no_fabricated_receipt_data(self):
+        # The Receipts page fills its rows and metrics at runtime from the
+        # real /api/payments/receipts/ endpoint -- metrics must start at —
+        # and the table at its loading row, with no hardcoded amounts or
+        # pre-filled receipt numbers in the served HTML.
+        DjangoUser.objects.create_user(username="apitester_receipts3", password="pass12345")
+        self.client.login(username="apitester_receipts3", password="pass12345")
+        response = self.client.get("/receipts/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn('<strong data-metric="total">—</strong>', content)
+        self.assertIn('<strong data-metric="this-month">—</strong>', content)
+        self.assertIn("Loading receipts…", content)
+        # No fabricated figures, records, or receipt numbers on the page.
+        self.assertNotIn("$", content)
+        self.assertNotIn("$186K", content)
+        self.assertNotIn("$428K", content)
+        self.assertNotIn("RCT-", content)
+        self.assertNotIn("<td><strong>", content)
+
+    def test_js_wires_receipts_endpoint(self):
+        # Receipt rows and the Download PDF link are produced by receipts.js
+        # at runtime -- verify the bundle targets the real receipts API and
+        # the page's own runtime hooks rather than any mock source.
+        js = (settings.BASE_DIR / "static/js/receipts.js").read_text(encoding="utf-8")
+        for token in [
+            "/api/payments/receipts/", "data-receipt-rows",
+            "receipt-search-input", "data-date-from", "data-date-to", "download",
+        ]:
+            self.assertIn(token, js)
+        self.assertNotIn("mock", js)
+        self.assertNotIn("RCT-", js)
+
+
+class PaymentsPageRenderTests(TestCase):
+    """The Payments page is server-rendered HTML whose metric tiles, list,
+    and cash-movement dialogs are filled/wired at runtime by payments.js
+    from the real /api/payments/ endpoints (payments, allocations,
+    receipts) plus the partner/invoice dropdown APIs. These tests verify
+    the rendered template structure and hooks only -- they do NOT exercise
+    browser-side fetch/allocation/receipt behavior, which is covered by the
+    API tests in apps.payments.tests (PaymentAPITests,
+    AllocatePaymentServiceTests, ReceiptDetailAndDownloadAPITests, etc.).
+
+    /payments/ is @login_required (not @owner_required -- accountants need
+    it too), so plain django.contrib.auth login is enough, matching
+    Receipts/Documents/Expenses."""
+
+    def _login(self):
+        DjangoUser.objects.create_user(username="apitester_pay", password="pass12345")
+        self.client.login(username="apitester_pay", password="pass12345")
+
+    def test_redirects_anonymous_user_to_login(self):
+        response = self.client.get("/payments/")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
+
+    def test_page_renders_for_authenticated_user(self):
+        self._login()
+        response = self.client.get("/payments/")
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "dashboard/payments.html")
+        content = response.content.decode()
+        for hook in [
+            "payments.js", "payments.css",
+            "data-payment-rows", "data-payment-search",
+            "data-direction-filter", "data-ordering",
+            'data-metric="received"', 'data-metric="paid"',
+            'data-metric="unallocated"', 'data-metric="total"',
+            "data-payment-new", "data-payment-dialog", "data-payment-form",
+            "data-allocation-dialog", "data-allocation-form",
+            "data-receipt-dialog", "data-receipt-form",
+            "data-payment-detail-dialog", "data-receipt-preview-dialog",
+        ]:
+            self.assertIn(hook, content)
+
+    def test_page_has_no_fabricated_payment_data(self):
+        # The Payments page fills its metric tiles, payment rows, allocation
+        # register, and receipt history at runtime from the real /api/payments/
+        # endpoints -- metrics must start at — and the table at its loading
+        # row, with no hardcoded dollar figures or fake records in the HTML.
+        self._login()
+        response = self.client.get("/payments/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        for metric in ["received", "paid", "unallocated", "total"]:
+            self.assertIn(f'<strong data-metric="{metric}">—</strong>', content)
+        self.assertIn("Loading payments…", content)
+        # No fabricated overview figures, fake records, or pre-filled
+        # receipt numbers on the page.
+        self.assertNotIn("$", content)
+        self.assertNotIn("$186K", content)
+        self.assertNotIn("$428K", content)
+        self.assertNotIn("$96K", content)
+        self.assertNotIn("RCT-", content)
+        self.assertNotIn("<td><strong>", content)
+
+    def test_js_wires_payment_actions_and_endpoints(self):
+        # The row actions, metrics, and dialogs are produced by payments.js
+        # at runtime, so assert against the JS bundle itself that it targets
+        # the real payment/allocations/receipts APIs plus the partner and
+        # invoice dropdowns the workflow needs.
+        js = (settings.BASE_DIR / "static/js/payments.js").read_text(encoding="utf-8")
+        for token in [
+            "/api/payments/payments/", "/api/payments/payment-allocations/",
+            "/api/payments/receipts/",
+            "/api/clients/clients/", "/api/suppliers/suppliers/",
+            "/api/employees/", "/api/contractors/",
+            "/api/invoicing/client-invoices/", "/api/invoicing/supplier-invoices/",
+            "data-allocation", "data-receipt", "RCT-",
+            "data-register-allocation", "data-register-receipt",
+            "data-payment-detail",
+        ]:
+            self.assertIn(token, js)
+        # No mock/fabricated API tokens or fake batch numbers hidden in the
+        # bundle.
+        self.assertNotIn("mock", js)
+        self.assertNotIn("PAY-FAB", js)
+        self.assertNotIn("/api/mock/", js)
 
 
 class ExpensesPageRenderTests(TestCase):
@@ -690,6 +830,10 @@ class RoleRoutingTests(WithUsersTableMixin, TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_accountant_can_open_finance_page(self):
+        # Finance pages are @login_required (accountants need invoices,
+        # payments, and receipts); workspace/operations pages are not.
         self._login("accountant", "accountant-pass-123")
-        response = self.client.get("/invoices/")
-        self.assertEqual(response.status_code, 200)
+        for url in ["/invoices/", "/payments/", "/receipts/"]:
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
