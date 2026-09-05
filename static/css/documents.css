@@ -1,0 +1,33 @@
+/* Document Management page (CPMAS-25) -- built on the shared v3 dashboard
+   look (site-exact.css/v3-fixes.css); only adds what's specific to this
+   page. Upload overlay mirrors suppliers.css's supplier-create pattern. */
+.local-search input { border: 0; background: none; outline: none; flex: 1; font-family: inherit; font-size: 10px; color: inherit; }
+select.quiet-button { font: inherit; cursor: pointer; }
+
+.doc-entity-badge { display: inline-block; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); background: #f2f6f3; font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+
+.doc-row-actions { display: flex; align-items: center; gap: 8px; }
+.doc-row-actions a { border: 1px solid #9eb3ae; border-radius: 7px; background: #cedbd6; padding: 6px 10px; font-size: 8px; font-weight: 800; cursor: pointer; text-decoration: none; color: inherit; }
+.doc-row-actions a:hover { background: #b9cac4; }
+.doc-row-actions button { border: 1px solid var(--line); border-radius: 7px; background: #fbfcfb; padding: 6px 10px; font-size: 8px; font-weight: 800; cursor: pointer; color: #b3261e; }
+.doc-row-actions button:hover { background: #f6e6e5; }
+
+/* ---- Upload overlay ---- */
+.doc-upload { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: #13231cb5; padding: 16px; }
+.doc-upload[hidden] { display: none; }
+.doc-upload form { background: var(--panel); border-radius: 14px; width: min(560px, 100%); box-shadow: 0 24px 60px #0d1f1ab5; overflow: hidden; }
+.doc-upload-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 20px 24px; border-bottom: 1px solid var(--line); background: var(--panel); border-radius: 14px 14px 0 0; }
+.doc-upload-head h2 { font-size: 18px; margin: 2px 0 0; }
+.doc-upload-head .eyebrow { color: #08736c !important; margin: 0; }
+.doc-close { background: #eef2ef; border: 1px solid var(--line); color: var(--ink); width: 32px; height: 32px; border-radius: 9px; font-size: 18px; line-height: 1; cursor: pointer; display: grid; place-items: center; }
+.doc-close:hover { background: #e2e8e5; }
+.doc-upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 20px 24px; }
+.doc-upload-grid label { display: flex; flex-direction: column; gap: 5px; font-size: 11.5px; font-weight: 700; color: var(--ink); }
+.doc-upload-grid input, .doc-upload-grid select { border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; font-size: 13.5px; background: #fbfcfb; outline: none; box-sizing: border-box; font-family: inherit; }
+.doc-upload-grid input:focus, .doc-upload-grid select:focus { border-color: #16857c; box-shadow: 0 0 0 3px #16857c18; }
+.doc-upload-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--line); background: #fafbfa; }
+.doc-upload-actions .primary-button { padding: 9px 16px; border: 0; border-radius: 10px; background: linear-gradient(135deg,#ffbd3f,#f28b2c); box-shadow: none; color: #183b38; font-weight: 800; cursor: pointer; }
+
+@media (max-width: 700px) {
+  .doc-upload-head, .doc-upload-grid { flex-direction: column; grid-template-columns: 1fr; }
+}

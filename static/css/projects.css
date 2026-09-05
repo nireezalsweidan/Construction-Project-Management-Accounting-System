@@ -1,0 +1,116 @@
+/* Centered project action dialogs */
+[data-project-dialog],[data-detail-dialog]{width:min(640px,calc(100vw - 32px));max-height:calc(100vh - 48px);margin:auto;padding:0;border:0;border-radius:16px;background:#ffffff;color:#1c2b27;box-shadow:0 28px 75px #0d1f1ab8;overflow:auto}
+[data-project-dialog]::backdrop,[data-detail-dialog]::backdrop{background:#13231cc4;backdrop-filter:blur(3px)}
+[data-project-dialog] form,[data-detail-dialog] form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:26px}
+[data-project-dialog] h2,[data-detail-dialog] h2{grid-column:1/-1;margin:-26px -26px 4px;padding:22px 26px;color:#f7fbf8;background:linear-gradient(135deg,#18352b,#27624e);font:700 22px Georgia,"Times New Roman",serif}
+[data-project-dialog] label,[data-detail-dialog] label{display:flex;flex-direction:column;gap:6px;color:#435148;font-size:11px;font-weight:800;letter-spacing:.02em}
+[data-project-dialog] input,[data-project-dialog] select,[data-project-dialog] textarea,[data-detail-dialog] input,[data-detail-dialog] select,[data-detail-dialog] textarea{width:100%;min-height:40px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;outline:0;background:#fbfcfb;color:var(--ink);font:inherit}
+[data-project-dialog] textarea,[data-detail-dialog] textarea{min-height:82px;resize:vertical}
+[data-project-dialog] label:has(textarea),[data-detail-dialog] label:has(textarea){grid-column:1/-1}
+[data-project-dialog] input:focus,[data-project-dialog] select:focus,[data-project-dialog] textarea:focus,[data-detail-dialog] input:focus,[data-detail-dialog] select:focus,[data-detail-dialog] textarea:focus{border-color:#16857c;box-shadow:0 0 0 3px #16857c1c;background:#fff}
+[data-form-error],[data-dialog-error]{grid-column:1/-1;margin:0;color:#ad443b;font-size:12px;font-weight:650}
+[data-project-dialog] form>p:last-child,[data-detail-dialog] form>p:last-child{grid-column:1/-1;display:flex;justify-content:flex-end;gap:9px;margin:4px -26px -26px;padding:16px 26px;border-top:1px solid var(--line);background:#fafbfa}
+[data-project-dialog] .primary-button,[data-detail-dialog] .primary-button{border:0;background:linear-gradient(135deg,#e5a133,#c97822);color:#18241e;font-weight:800}
+@media(max-width:580px){[data-project-dialog],[data-detail-dialog]{width:calc(100vw - 22px);max-height:calc(100vh - 22px)}[data-project-dialog] form,[data-detail-dialog] form{grid-template-columns:1fr;padding:20px}[data-project-dialog] h2,[data-detail-dialog] h2{margin:-20px -20px 2px;padding:19px 20px}[data-project-dialog] form>p:last-child,[data-detail-dialog] form>p:last-child{margin:2px -20px -20px;padding:14px 20px}}
+
+/* Project workspace visual system */
+.dashboard-page:has([data-project-rows]),.dashboard-page:has([data-project-detail]){background:radial-gradient(circle at 90% 13%,#74dcc9 0,transparent 30%),radial-gradient(circle at 5% 92%,#69d8c1 0,transparent 24%),#dce5df}
+.dashboard-page:has([data-project-rows]) .page-heading,.dashboard-page:has([data-project-detail]) .project-title{position:relative;z-index:1}
+.dashboard-page:has([data-project-rows]) .page-heading h1,.dashboard-page:has([data-project-detail]) .title-row h1{font-size:38px;color:#102d2d;letter-spacing:-.035em}
+.dashboard-page:has([data-project-rows]) .page-heading .primary-button,.dashboard-page:has([data-project-detail]) .project-actions .primary-button,.dashboard-page:has([data-project-detail]) [data-action="add-phase"],.dashboard-page:has([data-project-detail]) [data-action="new-budget"],.dashboard-page:has([data-project-detail]) [data-action="add-record"]{background:#007c73;border-color:#00675f;border-radius:10px;box-shadow:0 10px 20px #006c641e;font-weight:800}
+.dashboard-page:has([data-project-rows]) .summary-line{background:linear-gradient(100deg,#00786f,#0a9186);border:1px solid #087a72;box-shadow:0 16px 28px #174c4624;padding:20px 26px}
+.dashboard-page:has([data-project-rows]) .summary-line strong{font-size:27px}.dashboard-page:has([data-project-rows]) .summary-line span{color:#ddfffa;font-size:11px}.dashboard-page:has([data-project-rows]) .summary-line>div{border-color:#ffffff2b}
+.dashboard-page:has([data-project-rows]) .table-panel,.dashboard-page:has([data-project-detail]) .tab-panel{border-color:#8db3ae;border-radius:16px;box-shadow:0 16px 30px #25453d20;background:#f8fbf9}
+.dashboard-page:has([data-project-rows]) .filterbar{padding:16px 22px;background:#f8fbf9}.dashboard-page:has([data-project-rows]) .local-search{background:#edf4f0;border-color:#9ab7b2;border-radius:10px}.dashboard-page:has([data-project-rows]) .quiet-button{border-color:#9ab7b2;background:#f7faf8;color:#174b4a}
+.dashboard-page:has([data-project-rows]) th,.dashboard-page:has([data-project-detail]) .tab-panel th{background:#b9d8d3;color:#07514c;padding:14px 18px}.dashboard-page:has([data-project-rows]) td,.dashboard-page:has([data-project-detail]) .tab-panel td{padding:17px 18px;border-color:#b9ccc7;color:#415f5a}.dashboard-page:has([data-project-rows]) tbody tr:hover,.dashboard-page:has([data-project-detail]) .tab-panel tbody tr:hover{background:#dcefea}
+.dashboard-page:has([data-project-detail]) .breadcrumbs{color:#39746c;margin-top:4px}.dashboard-page:has([data-project-detail]) .project-title{padding:22px 0 13px;margin-bottom:12px}.dashboard-page:has([data-project-detail]) .project-badge{width:60px;height:60px;border-radius:12px;background:#008579;box-shadow:0 12px 20px #00756c30}.dashboard-page:has([data-project-detail]) .project-tabs{gap:30px;border-color:#a9c5bf;margin-bottom:22px}.dashboard-page:has([data-project-detail]) .project-tabs button{padding-bottom:15px;color:#657c77}.dashboard-page:has([data-project-detail]) .project-tabs button.active{color:#00756c;border-color:#f0a72f}
+.dashboard-page:has([data-project-detail]) [data-project-panel="overview"] .metric-card{min-height:190px;border-radius:16px;padding:22px 24px;border-width:1px;box-shadow:0 12px 24px #274b4020}.dashboard-page:has([data-project-detail]) [data-project-panel="overview"] .metric-card:nth-child(1){background:#78d1c2;border-color:#008a7d}.dashboard-page:has([data-project-detail]) [data-project-panel="overview"] .metric-card:nth-child(2){background:#ffc658;border-color:#eea323}.dashboard-page:has([data-project-detail]) [data-project-panel="overview"] .metric-card:nth-child(3){background:#83b6e3;border-color:#2d82ca}.dashboard-page:has([data-project-detail]) [data-project-panel="overview"] .metric-card:nth-child(4){background:#ee8980;border-color:#da594e}.dashboard-page:has([data-project-detail]) [data-project-panel="overview"] .metric-top span{color:#273b35;font-size:14px;font-weight:800}.dashboard-page:has([data-project-detail]) [data-project-panel="overview"] .metric-value{margin-top:35px;color:#10342f;font-size:35px}.dashboard-page:has([data-project-detail]) [data-project-panel="overview"] .panel{border-color:#9bbab5;border-radius:16px;box-shadow:0 12px 24px #25483e18;padding:24px}.dashboard-page:has([data-project-detail]) .timeline-bar{height:12px;background:#c5d9d5}.dashboard-page:has([data-project-detail]) .timeline-bar span{background:linear-gradient(90deg,#008d80,#f6ab27)}
+
+/* Dynamic action forms: give generated fields the same structured layout. */
+[data-dialog-fields]{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+[data-dialog-fields] label{min-width:0}
+[data-dialog-fields] label:has(textarea),[data-dialog-fields] .span-2{grid-column:1/-1}
+[data-dialog-fields] .dialog-hint{margin:0 0 2px;padding:10px 12px;border-radius:9px;background:#eef6f4;color:#1a4842;font-size:12px;font-weight:650}
+
+/* --------------------------------------------------------------------
+   Status colors -- phases, budgets, change orders. Defined fully here
+   (rather than relying on the base stylesheet's generic pill) so every
+   status this page can render gets its own color instead of falling
+   back to a flat grey for anything the base styles don't happen to
+   recognize.
+   -------------------------------------------------------------------- */
+/* Phases */
+.dashboard-page:has([data-project-detail]) .status.not-started{background:#eef1ef;color:#5c6864}
+.dashboard-page:has([data-project-detail]) .status.in-progress{background:#e3edfa;color:#2260b8}
+.dashboard-page:has([data-project-detail]) .status.on-hold{background:#fdf1df;color:#a3620f}
+.dashboard-page:has([data-project-detail]) .status.completed{background:#dcf3ee;color:#0f7a6c}
+
+/* Budgets */
+.dashboard-page:has([data-project-detail]) .status.draft{background:#eef1ef;color:#5c6864}
+.dashboard-page:has([data-project-detail]) .status.approved{background:#dcf3ee;color:#0f7a6c}
+.dashboard-page:has([data-project-detail]) .status.revised{background:#ece5fb;color:#5f3fc4}
+.dashboard-page:has([data-project-detail]) .status.closed{background:#e3e7e5;color:#37433f}
+
+/* Change orders (procurement tab) */
+.dashboard-page:has([data-project-detail]) .status.pending{background:#fdf1df;color:#a3620f}
+.dashboard-page:has([data-project-detail]) .status.rejected,
+.dashboard-page:has([data-project-detail]) .status.cancelled{background:#fbe6e4;color:#ad443b}
+
+.dashboard-page:has([data-project-detail]) .status i{background:currentColor}
+
+/* --------------------------------------------------------------------
+   Progress bar (phases table + overview timeline). Self-contained so
+   the fill width always reads correctly regardless of what a shared
+   base stylesheet does or doesn't define for this markup shape.
+   -------------------------------------------------------------------- */
+.dashboard-page:has([data-project-detail]) .progress-cell{display:flex;align-items:center;gap:10px;min-width:140px}
+.dashboard-page:has([data-project-detail]) .progress-cell>div{flex:1;height:8px;border-radius:99px;background:#dfe8e4;overflow:hidden}
+.dashboard-page:has([data-project-detail]) .progress-cell>div>div{height:100%;border-radius:99px;background:linear-gradient(90deg,#0f9384,#16857c);transition:width .2s ease}
+.dashboard-page:has([data-project-detail]) .progress-cell b{flex-shrink:0;color:#37433f;font-size:12px;font-weight:800}
+
+/* --------------------------------------------------------------------
+   Phase table row actions -- compact icon buttons instead of the
+   plain default button box.
+   -------------------------------------------------------------------- */
+.dashboard-page:has([data-project-detail]) .row-actions{display:flex;gap:6px}
+.dashboard-page:has([data-project-detail]) .row-actions .quiet-button{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border-radius:9px}
+.dashboard-page:has([data-project-detail]) .row-actions .quiet-button svg{width:16px;height:16px}
+
+/* --------------------------------------------------------------------
+   Budgets tab -- one card per budget version, each with its own
+   allocated-items table.
+   -------------------------------------------------------------------- */
+.budget-panel-head{margin:26px 0 16px}
+.budget-list{display:flex;flex-direction:column;gap:20px}
+.budget-empty{padding:32px;border:1px dashed #9ab7b2;border-radius:16px;background:#f8fbf9;color:#5c6864;text-align:center}
+
+.budget-card{border:1px solid #8db3ae;border-radius:16px;background:#f8fbf9;box-shadow:0 16px 30px #25453d14;overflow:hidden}
+.budget-card-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;padding:20px 22px;border-bottom:1px solid #d7e4df;background:#fff}
+.budget-card-title{display:flex;align-items:center;gap:12px}
+.budget-card-title h3{margin:0;color:#102d2d;font:700 18px Georgia,"Times New Roman",serif}
+
+.budget-card-figures{display:flex;gap:12px}
+.budget-card-figures .figure{display:flex;flex-direction:column;gap:4px;min-width:96px;padding:10px 16px;border-radius:12px;border:1px solid #d7e4df;background:#f2f7f5}
+.budget-card-figures .figure span{color:#5c6864;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+.budget-card-figures .figure strong{color:#102d2d;font-size:18px;font-weight:800;letter-spacing:-.01em}
+.budget-card-figures .figure-allocated{border-color:#e5c48f;background:#fdf5e7}
+.budget-card-figures .figure-allocated strong{color:#8a5a13}
+.budget-card-figures .figure-unallocated{border-color:#9ecdc2;background:#e9f6f2}
+.budget-card-figures .figure-unallocated strong{color:#0f7a6c}
+
+.budget-card-actions{display:flex;flex-wrap:wrap;gap:8px}
+.budget-card-actions .quiet-button{display:inline-flex;align-items:center;gap:6px;border-color:#9ab7b2;background:#f7faf8;color:#174b4a;font-size:12px;font-weight:750}
+.budget-card-actions .quiet-button svg{width:14px;height:14px}
+.budget-card-actions [data-action-add-budget-item]{border-color:#00675f;background:#007c73;color:#fff}
+
+@media(max-width:700px){
+  .budget-card-head{flex-direction:column;align-items:flex-start}
+  .budget-card-figures{width:100%;justify-content:space-between}
+}
+
+@media(max-width:580px){
+  .dashboard-page:has([data-project-rows]) .page-heading h1,.dashboard-page:has([data-project-detail]) .title-row h1{font-size:28px}
+  .dashboard-page:has([data-project-detail]) [data-project-panel="overview"] .metric-card{min-height:145px}
+  .dashboard-page:has([data-project-detail]) [data-project-panel="overview"] .metric-value{font-size:29px;margin-top:18px}
+  [data-dialog-fields]{grid-template-columns:1fr}
+}

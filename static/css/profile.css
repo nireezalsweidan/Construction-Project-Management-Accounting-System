@@ -1,0 +1,34 @@
+/* My profile page */
+
+.profile-banner{margin-bottom:16px;padding:13px 16px;border-radius:10px;background:linear-gradient(100deg,#9bdcbe,#55b98f);color:#0a3d2b;font-size:10px;font-weight:800}
+.profile-banner.error{background:linear-gradient(100deg,#f3c4bb,#d88678);color:#75372c}
+
+.profile-panel{overflow:hidden}
+.profile-head{display:flex;align-items:center;gap:16px;padding:22px 24px;background:linear-gradient(135deg,#0b7367,#064f4a);color:#fff}
+.profile-head h2{margin:0;font-size:16px}
+.profile-head p{margin:6px 0 0;font-size:10px;color:#bfe0da;display:flex;align-items:center;gap:10px}
+.profile-avatar{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#ffbd3f,#f28b2c);color:#183b38;font-weight:900;font-size:20px;flex-shrink:0}
+.profile-badge{border-radius:999px;padding:3px 10px;font-size:8px;font-weight:800;color:#083c3a;background:#bfe6dd}
+.profile-badge.owner{background:#ffe3b3;color:#6b4a06}
+.profile-badge.accountant{background:#cdd8f2;color:#2c3f6e}
+.profile-head small{color:#aee1d7}
+
+.profile-form{padding:24px 24px 8px}
+.profile-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 18px;max-width:640px}
+.profile-form-grid label{display:block;font-size:9px;font-weight:800;color:#33443f}
+.profile-form-grid input{width:100%;margin-top:5px;border:1px solid #a5b8b3;border-radius:8px;background:#fff;padding:9px 11px;font-size:10px;font-family:inherit;box-sizing:border-box;color:var(--ink)}
+.profile-form-grid label:nth-child(1),
+.profile-form-grid label:nth-child(2),
+.profile-form-grid label:nth-child(3),
+.profile-form-grid label:nth-child(4){grid-column:1/-1}
+.profile-readonly{display:block;margin-top:5px;padding:9px 11px;font-size:10px;font-weight:600;color:#647b75;background:#f4f8f7;border:1px solid #e2eae7;border-radius:8px}
+.profile-form-actions{display:flex;justify-content:flex-end;gap:10px;padding:14px 0 10px;max-width:640px}
+.profile-divider{border-top:1px solid #e2eae7;margin:16px 24px}
+.profile-subhead{padding:0 24px}
+.profile-subhead h3{margin:0 0 4px;font-size:13px;color:#33443f}
+.profile-subhead p{margin:0;font-size:9px;color:#647b75}
+.password-field{display:flex;align-items:center;gap:8px;margin-top:5px}
+.password-field input{width:auto;flex:1;min-width:0}
+.password-toggle{flex:none;border:0;background:#eef4f2;color:#2f7d72;font-size:8px;font-weight:800;padding:7px 10px;border-radius:7px;cursor:pointer}
+.password-toggle:hover{background:#dcebe6}
+@media(max-width:640px){.profile-form-grid{grid-template-columns:1fr}}

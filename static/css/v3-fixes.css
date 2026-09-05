@@ -19,3 +19,7 @@ img, svg { display: block; }
 }
 
 .dashboard-page svg { stroke-width: 2; }
+
+/* The reference sidebar groups suppliers inside Clients & partners rather
+   than exposing a separate destination. Keep the backend URL available. */
+.sidebar .nav-item[href="/suppliers/"] { display: none; }

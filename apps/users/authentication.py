@@ -1,17 +1,22 @@
 """
 Custom DRF authentication for the ``users`` app.
 
-Django's ``SessionAuthentication`` (and the existing ``IsAuthenticated``
-defaults in ``construction/settings.py``) relies on Django's session
-middleware setting ``request.user`` to an authenticated ``auth.User``.
-Because this project authenticates against its own ``users.User`` table
-instead of the built-in Auth model (see ``users.models``), we provide a
-session-based subclass that resolves the logged-in user from the Django
-session by ID and returns that ``users.User`` instance as ``request.user``.
+Provides two authentication backends:
+
+1. ``UserSessionAuthentication`` — resolves ``request.user`` from the
+   Django session via the custom ``users.User`` table.  Used for
+   server-rendered pages where the session cookie is the auth mechanism.
+
+2. ``JwtUserAuthentication`` — a ``simplejwt.JWTAuthentication`` subclass
+   that looks up ``users.User`` (UUID PK) instead of Django's default
+   ``auth.User`` (integer PK).  Used as the DRF default for API calls.
 """
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from rest_framework.authentication import SessionAuthentication
+from rest_framework_simplejwt.authentication import (
+    JWTAuthentication as _SimpleJwtAuth,
+)
 
 from .models import Role, User
 
@@ -20,16 +25,109 @@ from .models import Role, User
 # pretend to be, a Django auth.User session.
 SESSION_USER_ID_KEY = '_users_user_id'
 
+# Name of the HttpOnly cookies that carry the JWT pair for browser sessions.
+# Reading the token from a cookie gives the stateless benefits of JWT on the
+# backend while standard browser navigations and API calls work out of the
+# box (the browser attaches the cookie automatically, no JS refactor needed).
+ACCESS_COOKIE = 'access_token'
+REFRESH_COOKIE = 'refresh_token'
+
+
+def _set_jwt_cookies(response, access_token, refresh_token=None, max_age=None):
+    """Attach the JWT tokens to an HTTP response as HttpOnly cookies.
+
+    ``path='/'`` makes them valid for the whole site. ``max_age`` defaults to
+    the SimpleJWT lifetimes when not provided. secure/SameSite are left to the
+    caller's deployment policy via settings (kept permissive here so local
+    HTTP development works; production should set Secure + SameSite=Lax).
+    """
+    secure = getattr(settings, 'JWT_COOKIE_SECURE', False)
+    samesite = getattr(settings, 'JWT_COOKIE_SAMESITE', 'Lax')
+    if access_token:
+        response.set_cookie(
+            ACCESS_COOKIE, access_token, max_age=max_age, path='/',
+            httponly=True, secure=secure, samesite=samesite,
+        )
+    if refresh_token:
+        response.set_cookie(
+            REFRESH_COOKIE, refresh_token, max_age=max_age, path='/',
+            httponly=True, secure=secure, samesite=samesite,
+        )
+    return response
+
+
+def _clear_jwt_cookies(response):
+    """Delete the JWT cookies from a response (used on logout)."""
+    response.delete_cookie(ACCESS_COOKIE, path='/')
+    response.delete_cookie(REFRESH_COOKIE, path='/')
+    return response
+
+
+def _resolve_user_from_jwt_token(raw_token):
+    """Validate a JWT access token and return the matching users.User.
+
+    Used by JwtCookieAuthentication and the page-protection middleware to
+    resolve the authenticated user from an access-token cookie/string without
+    re-implementing signature + expiry checks.
+    """
+    if not raw_token:
+        return None
+    try:
+        validated = _SimpleJwtAuth().get_validated_token(raw_token)
+    except Exception:
+        return None
+    user_id = validated.get('user_id')
+    if user_id is None:
+        return None
+    try:
+        user = User.objects.get(pk=user_id)
+    except (User.DoesNotExist, ValueError, TypeError):
+        return None
+    if not user.is_active:
+        return None
+    return user
+
+
+def refresh_access_from_refresh_token(raw_refresh, user=None):
+    """Return a fresh access-token string from a valid refresh token.
+
+    Used for silent browser refresh: when the access cookie has expired but a
+    valid refresh cookie remains, mint a new access token and (optionally) a
+    new refresh token. On the auth ``/token/refresh/`` endpoint too, we could
+    reuse this, but here it backs the middleware. Returns ``None`` if the
+    refresh token is invalid/expired or its user is inactive.
+    """
+    if not raw_refresh:
+        return None
+    from rest_framework_simplejwt.tokens import RefreshToken
+    try:
+        refresh = RefreshToken(raw_refresh)
+    except Exception:
+        return None
+    if user is None:
+        target = refresh.get('user_id')
+        try:
+            user = User.objects.get(pk=target)
+        except (User.DoesNotExist, ValueError, TypeError):
+            return None
+    if user is None or not user.is_active:
+        return None
+    return {
+        'access': str(refresh.access_token),
+        'user': user,
+    }
+
 
 def _csrf_required(request) -> bool:
     """
     Whether CSRF enforcement should apply for this request.
 
     CSRF is enforced for authenticated sessions on unsafe methods (DRF's
-    standard behaviour). When Django is running with DEBUG=True the check is
-    relaxed so local development / API clients (e.g. Thunder Client, Postman)
-    can exercise the flow without manually forwarding the csrftoken cookie.
-    This NEVER weakens production: DEBUG=False keeps CSRF fully enforced.
+    standard behaviour). When Django is running with DEBUG=True the check
+    is relaxed so local development / API clients (e.g. Thunder Client,
+    Postman) can exercise the flow without manually forwarding the
+    csrftoken cookie.  This NEVER weakens production: DEBUG=False keeps
+    CSRF fully enforced.
     """
     return not getattr(settings, 'DEBUG', False)
 
@@ -40,8 +138,7 @@ class UserSessionAuthentication(SessionAuthentication):
 
     Behaves like DRF's SessionAuthentication (CSRF-protected, relies on the
     session cookie) but reads our own session key and models an
-    authenticated ``users.User``. Used as the DEFAULT_AUTHENTICATION_CLASSES
-    authentication backend for the API.
+    authenticated ``users.User``.  Used for server-rendered pages.
     """
 
     def authenticate(self, request):
@@ -59,23 +156,14 @@ class UserSessionAuthentication(SessionAuthentication):
                 user = self._finance_identity_for_web_user(web_user)
 
         if not user or not getattr(user, 'is_active', False):
-            # Django's auth middleware only recognizes AUTH_USER_MODEL, so a
-            # logged-in users.User is not attached automatically -- resolve
-            # it from the Django session (set by the login view).
             user = self._resolve_from_session(request)
 
         if user is None or getattr(user, 'is_anonymous', True) or not user.is_active:
             return None
 
-        # Preserve DRF's SessionAuthentication behaviour: an authenticated
-        # session requires a valid CSRF token on unsafe methods, so a CSRF
-        # token in a script isn't enough to act as that user. Relaxed only in
-        # DEBUG for local API-client testing (see _csrf_required).
         if _csrf_required(request):
             self.enforce_csrf(request)
 
-        # Attach the resolved user back to the wrapped request so the rest
-        # of DRF (permissions, request.user, throttling) sees it.
         request._request.user = user
         return user, None
 
@@ -126,7 +214,48 @@ class UserSessionAuthentication(SessionAuthentication):
             return None
 
     def authenticate_header(self, request):
-        # Returning a non-empty scheme makes DRF emit 401 (with a
-        # WWW-Authenticate header) for unauthenticated requests rather than
-        # 403, matching the API-desired "you must be logged in" semantics.
         return 'Session'
+
+
+class JwtUserAuthentication(_SimpleJwtAuth):
+    """
+    JWT authentication that resolves against ``users.User`` instead of
+    ``AUTH_USER_MODEL``.
+
+    simplejwt's default ``JWTAuthentication.get_user()`` calls
+    ``get_user_model().objects.get(**{pk_field: user_id})``.  Because
+    ``users.User`` is NOT ``AUTH_USER_MODEL``, that lookup fails with
+    integer/UUID type mismatches.  This subclass overrides ``get_user``
+    to query our custom model directly.
+    """
+
+    def get_user(self, validated_token):
+        user_id = validated_token.get('user_id')
+        if user_id is None:
+            return None
+        try:
+            return User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return None
+
+
+class JwtCookieAuthentication(_SimpleJwtAuth):
+    """
+    DRF authentication that reads the JWT access token from an HttpOnly
+    cookie instead of the Authorization header.
+
+    The browser receives the pair as HttpOnly cookies at login, so it sends
+    them automatically on every request. This class lets the DRF API trust
+    that cookie just like it would a ``Bearer`` header -- no client-side JS
+    has to read or attach tokens. Resolves ``users.User`` (UUID PK), same as
+    ``JwtUserAuthentication``.
+    """
+
+    def authenticate(self, request):
+        raw_token = request.COOKIES.get(ACCESS_COOKIE)
+        if not raw_token:
+            return None
+        user = _resolve_user_from_jwt_token(raw_token)
+        if user is None:
+            return None
+        return user, None
